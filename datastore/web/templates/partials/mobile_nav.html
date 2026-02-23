@@ -1,0 +1,44 @@
+{{define "mobile_nav"}}
+    <nav class="bottom-nav">
+        <a href="/mobile" class="nav-tab{{if eq .ActivePage "mobile"}} active{{end}}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            <span>Dashboard</span>
+        </a>
+        <a href="/mobile/hosts" class="nav-tab{{if eq .ActivePage "mobile_hosts"}} active{{end}}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span>Hosts</span>
+        </a>
+        <a href="/mobile/query" class="nav-tab{{if eq .ActivePage "mobile_query"}} active{{end}}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M4 17l6-5-6-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M12 19h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span>Query</span>
+        </a>
+        <a href="/mobile/scan" class="nav-tab{{if eq .ActivePage "mobile_scan"}} active{{end}}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M2 12h4l3-9 6 18 3-9h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Scan</span>
+        </a>
+        <a href="/dashboard" class="nav-tab">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" stroke-width="2"/>
+                <path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span>Desktop</span>
+        </a>
+    </nav>
+    {{range .FootScripts}}<script src="{{.}}"></script>
+    {{end}}
+</body>
+</html>
+{{end}}

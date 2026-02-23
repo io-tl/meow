@@ -1,0 +1,151 @@
+{{template "mobile_head" .}}
+
+    <!-- Pull to refresh indicator -->
+    <div class="pull-indicator" id="pull-indicator">
+        <div class="pull-spinner"></div>
+        <span>Refreshing...</span>
+    </div>
+
+    <!-- Header -->
+    <header class="mobile-header">
+        <div class="header-left">
+            <svg class="header-logo" width="28" height="28" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <radialGradient id="mhBodyGrad" cx="88.59" cy="129.81" r="67.73" gradientTransform="scale(1.129,0.886)" fx="88.59" fy="129.81" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#1a6fd4"/><stop offset="100%" stop-color="#0a1f6b"/>
+                    </radialGradient>
+                    <radialGradient id="mhEyeL" cx="69.98" cy="101.98" r="29.5" gradientTransform="scale(1.042,0.96)" fx="69.98" fy="101.98" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#ffe94d"/><stop offset="70%" stop-color="#f0a500"/><stop offset="100%" stop-color="#c47800"/>
+                    </radialGradient>
+                    <radialGradient id="mhEyeR" cx="112.22" cy="101.98" r="29.5" gradientTransform="scale(1.042,0.96)" fx="112.22" fy="101.98" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#ffe94d"/><stop offset="70%" stop-color="#f0a500"/><stop offset="100%" stop-color="#c47800"/>
+                    </radialGradient>
+                </defs>
+                <ellipse cx="100" cy="115" rx="55" ry="50" fill="url(#mhBodyGrad)" stroke="#00eeff" stroke-width="1.5"/>
+                <g transform="rotate(-6.28,90.45,82.01)"><polygon points="40,45 75,68 55,80" fill="#0a2a8a" stroke="#00eeff" stroke-width="1.5"/><polygon points="46,52 72,70 57,76" fill="#1a3fcc" opacity="0.6"/></g>
+                <g transform="matrix(-0.994,-0.109,-0.109,0.994,209.37,11.67)"><polygon points="40,45 75,68 55,80" fill="#0a2a8a" stroke="#00eeff" stroke-width="1.5"/><polygon points="46,52 72,70 57,76" fill="#1a3fcc" opacity="0.6"/></g>
+                <ellipse cx="78" cy="105" rx="16" ry="14" fill="url(#mhEyeL)"/>
+                <ellipse cx="122" cy="105" rx="16" ry="14" fill="url(#mhEyeR)"/>
+                <ellipse cx="78" cy="105" rx="5" ry="12" fill="#0a0a0a"/>
+                <ellipse cx="122" cy="105" rx="5" ry="12" fill="#0a0a0a"/>
+                <ellipse cx="74" cy="101" rx="3" ry="2" fill="#fff" opacity="0.8"/>
+                <ellipse cx="118" cy="101" rx="3" ry="2" fill="#fff" opacity="0.8"/>
+                <polygon points="93.7,131.9 103.7,131.9 98.7,125.9" fill="#00eeff" opacity="0.9"/>
+            </svg>
+            <span class="header-title">MEOW</span>
+        </div>
+        <div class="header-right">
+            <span class="last-update" id="last-update">--:--</span>
+        </div>
+    </header>
+
+    <!-- Scrollable Content -->
+    <main class="mobile-content" id="mobile-content">
+
+        <!-- Summary Cards (horizontal scroll) -->
+        <section class="cards-scroll">
+            <div class="stat-card primary">
+                <div class="stat-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                        <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="stat-value" id="total-hosts">-</div>
+                <div class="stat-label">Hosts</div>
+            </div>
+            <div class="stat-card secondary">
+                <div class="stat-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <rect x="3" y="9" width="18" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
+                        <path d="M8 9V7a4 4 0 018 0v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="12" cy="14" r="1" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div class="stat-value" id="total-services">-</div>
+                <div class="stat-label">Services</div>
+            </div>
+            <div class="stat-card accent">
+                <div class="stat-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2l8 5v9c0 3.866-3.582 7-8 7s-8-3.134-8-7V7l8-5z" stroke="currentColor" stroke-width="2"/>
+                        <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="stat-value" id="total-certs">-</div>
+                <div class="stat-label">Certs</div>
+            </div>
+            <div class="stat-card info">
+                <div class="stat-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2"/>
+                        <path d="M20 10c0 4.418-4 8-8 8s-8-3.582-8-8 4-8 8-8 8 3.582 8 8z" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                </div>
+                <div class="stat-value" id="total-countries">-</div>
+                <div class="stat-label">Countries</div>
+            </div>
+        </section>
+
+        <!-- Charts (stacked) -->
+        <section class="charts-section">
+            <div class="mobile-chart-card">
+                <div class="chart-title">
+                    <h3>Top Countries</h3>
+                    <button class="chart-refresh" onclick="mobileDashboard.loadCountriesChart()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="countriesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="mobile-chart-card">
+                <div class="chart-title">
+                    <h3>Top Services</h3>
+                    <button class="chart-refresh" onclick="mobileDashboard.loadServicesChart()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="servicesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="mobile-chart-card">
+                <div class="chart-title">
+                    <h3>Port Distribution</h3>
+                    <button class="chart-refresh" onclick="mobileDashboard.loadPortsChart()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="portsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="mobile-chart-card">
+                <div class="chart-title">
+                    <h3>Technologies</h3>
+                    <button class="chart-refresh" onclick="mobileDashboard.loadTechnologiesChart()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="techChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    {{template "mobile_nav" .}}

@@ -1,0 +1,67 @@
+{{template "head" .}}
+        {{template "topbar_scan" .}}
+
+        <div class="scan-layout">
+            <div class="scan-section">
+                <div class="scanner-chips" id="scanner-chips">
+                    <div class="scanner-empty-state">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                            <path d="M2 12h4l3-9 6 18 3-9h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <p>No scanner nodes connected</p>
+                        <span>Start a SynScan daemon to enable scanning</span>
+                    </div>
+                </div>
+                <div class="scan-form-body">
+                    <form id="scan-form" class="scan-form">
+                        <div class="scan-form-row">
+                            <div class="scan-form-group scan-form-target">
+                                <label for="scan-target">Target</label>
+                                <input type="text" id="scan-target" class="scan-input" placeholder="192.168.1.0/24 or 10.0.0.1-10" autocomplete="off" spellcheck="false">
+                                <span class="scan-input-hint">CIDR, IP range, or single IP</span>
+                            </div>
+                            <div class="scan-form-group scan-form-ports">
+                                <div class="scan-label-row">
+                                    <label for="scan-ports">Ports</label>
+                                    <div class="port-presets">
+                                        <button type="button" class="port-preset-btn" data-preset="top20">Top 20</button>
+                                        <button type="button" class="port-preset-btn" data-preset="top50">Top 50</button>
+                                        <button type="button" class="port-preset-btn" data-preset="top100">Top 100</button>
+                                        <button type="button" class="port-preset-btn port-preset-clear" data-preset="clear">Clear</button>
+                                    </div>
+                                </div>
+                                <input type="text" id="scan-ports" class="scan-input" placeholder="80,443,22,8080" value="80,443,22,8080,8443" autocomplete="off" spellcheck="false">
+                                <span class="scan-input-hint">Comma-separated or ranges (1-1000)</span>
+                            </div>
+                            <div class="scan-form-group scan-form-rate">
+                                <label for="scan-rate">Rate</label>
+                                <input type="number" id="scan-rate" class="scan-input" placeholder="1000" min="1" max="100000">
+                                <span class="scan-input-hint">Pkts/sec</span>
+                            </div>
+                            <div class="scan-form-group scan-form-submit">
+                                <label>&nbsp;</label>
+                                <button type="submit" id="scan-submit-btn" class="scan-submit-btn" disabled>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                        <path d="M2 12h4l3-9 6 18 3-9h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                    Scan
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Recent Events Feed -->
+            <div class="scan-section event-feed-section" id="event-feed-section" style="display:none;">
+                <div class="event-feed-header">
+                    <span class="event-feed-title">Live Feed</span>
+                    <span class="event-feed-count" id="event-feed-count"></span>
+                </div>
+                <div class="event-feed-list" id="event-feed-list"></div>
+            </div>
+        </div>
+
+        <!-- Toast notification -->
+        <div id="scan-toast" class="scan-toast"></div>
+{{template "foot" .}}

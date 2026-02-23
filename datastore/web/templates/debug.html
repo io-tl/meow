@@ -1,0 +1,142 @@
+{{template "head" .}}
+        {{template "topbar_debug" .}}
+
+        <div class="debug-layout">
+            <!-- Summary Cards -->
+            <div class="debug-summary">
+                <div class="debug-summary-card">
+                    <div class="debug-summary-icon nats">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div class="debug-summary-content">
+                        <div class="debug-summary-value" id="summary-nats-value">-</div>
+                        <div class="debug-summary-label">NATS Messages</div>
+                    </div>
+                    <span class="debug-summary-badge offline" id="summary-nats-badge">--</span>
+                </div>
+
+                <div class="debug-summary-card">
+                    <div class="debug-summary-icon db">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="2"/>
+                            <path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3" stroke="currentColor" stroke-width="2"/>
+                            <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <div class="debug-summary-content">
+                        <div class="debug-summary-value" id="summary-db-value">-</div>
+                        <div class="debug-summary-label" id="summary-db-detail">DB Records</div>
+                    </div>
+                </div>
+
+                <div class="debug-summary-card">
+                    <div class="debug-summary-icon enrichment">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div class="debug-summary-content">
+                        <div class="debug-summary-value" id="summary-enrichment-value">-</div>
+                        <div class="debug-summary-label" id="summary-enrichment-detail">Enrichment Rate</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NATS Section -->
+            <div class="debug-nats-section">
+                <div class="debug-nats-header">
+                    <div class="debug-nats-header-left">
+                        <h3>NATS Server</h3>
+                        <span class="nats-url-badge" id="nats-url">--</span>
+                    </div>
+                    <span class="nats-status-badge disconnected" id="nats-status">
+                        <span class="nats-status-dot"></span>--
+                    </span>
+                </div>
+
+                <div class="debug-nats-stats">
+                    <div class="nats-stat">
+                        <span class="nats-stat-value" id="nats-in-msgs">-</span>
+                        <span class="nats-stat-label">Messages In</span>
+                    </div>
+                    <div class="nats-stat">
+                        <span class="nats-stat-value" id="nats-out-msgs">-</span>
+                        <span class="nats-stat-label">Messages Out</span>
+                    </div>
+                    <div class="nats-stat">
+                        <span class="nats-stat-value" id="nats-in-bytes">-</span>
+                        <span class="nats-stat-label">Bytes In</span>
+                    </div>
+                    <div class="nats-stat">
+                        <span class="nats-stat-value" id="nats-out-bytes">-</span>
+                        <span class="nats-stat-label">Bytes Out</span>
+                    </div>
+                    <div class="nats-stat">
+                        <span class="nats-stat-value" id="nats-connections">-</span>
+                        <span class="nats-stat-label">Connections</span>
+                    </div>
+                    <div class="nats-stat">
+                        <span class="nats-stat-value" id="nats-reconnects">-</span>
+                        <span class="nats-stat-label">Reconnects</span>
+                    </div>
+                </div>
+
+                <div class="nats-clients-title" id="nats-clients-title">Clients (0)</div>
+                <div class="nats-clients-grid" id="nats-clients-grid">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <!-- Bottom Row: Enrichment + Top Services -->
+            <div class="debug-bottom-row">
+                <!-- Enrichment Pipeline -->
+                <div class="enrichment-progress-card">
+                    <div class="enrichment-progress-header">
+                        <h3>Enrichment Pipeline</h3>
+                    </div>
+                    <div class="enrichment-progress-body">
+                        <div class="progress-stacked">
+                            <div class="progress-segment enriched" id="progress-enriched" style="width: 0%"></div>
+                            <div class="progress-segment pending" id="progress-pending" style="width: 0%"></div>
+                            <div class="progress-segment failed" id="progress-failed" style="width: 0%"></div>
+                        </div>
+                        <div class="enrichment-counters">
+                            <div class="enrichment-counter">
+                                <span class="enrichment-counter-dot enriched"></span>
+                                <div class="enrichment-counter-info">
+                                    <div class="enrichment-counter-value" id="enrichment-enriched-count">0</div>
+                                    <div class="enrichment-counter-label">Enriched</div>
+                                </div>
+                            </div>
+                            <div class="enrichment-counter">
+                                <span class="enrichment-counter-dot pending"></span>
+                                <div class="enrichment-counter-info">
+                                    <div class="enrichment-counter-value" id="enrichment-pending-count">0</div>
+                                    <div class="enrichment-counter-label">Unenriched</div>
+                                </div>
+                            </div>
+                            <div class="enrichment-counter">
+                                <span class="enrichment-counter-dot failed"></span>
+                                <div class="enrichment-counter-info">
+                                    <div class="enrichment-counter-value" id="enrichment-failed-count">0</div>
+                                    <div class="enrichment-counter-label">Failed</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Services -->
+                <div class="top-services-card">
+                    <div class="top-services-header">
+                        <h3>Top Services</h3>
+                    </div>
+                    <div class="top-services-body" id="top-services-body">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+            </div>
+        </div>
+{{template "foot" .}}

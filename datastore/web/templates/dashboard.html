@@ -1,0 +1,126 @@
+{{template "head" .}}
+        {{template "topbar_dashboard" .}}
+
+        <!-- Dashboard Content -->
+        <div class="dashboard-grid">
+            <!-- Summary Cards -->
+            <div class="summary-cards">
+                <div class="summary-card primary">
+                    <div class="card-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div class="card-content">
+                        <div class="card-value" id="total-hosts">-</div>
+                        <div class="card-label">Total Hosts</div>
+                    </div>
+                </div>
+
+                <div class="summary-card secondary">
+                    <div class="card-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <rect x="3" y="9" width="18" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
+                            <path d="M8 9V7a4 4 0 018 0v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="12" cy="14" r="1" fill="currentColor"/>
+                        </svg>
+                    </div>
+                    <div class="card-content">
+                        <div class="card-value" id="total-services">-</div>
+                        <div class="card-label">Services</div>
+                    </div>
+                </div>
+
+                <div class="summary-card accent">
+                    <div class="card-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2l8 5v9c0 3.866-3.582 7-8 7s-8-3.134-8-7V7l8-5z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div class="card-content">
+                        <div class="card-value" id="total-certs">-</div>
+                        <div class="card-label">Certificates</div>
+                    </div>
+                </div>
+
+                <div class="summary-card info">
+                    <div class="card-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 21v-8m0 0l-3-3m3 3l3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M20 10c0 4.418-4 8-8 8s-8-3.582-8-8 4-8 8-8 8 3.582 8 8z" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <div class="card-content">
+                        <div class="card-value" id="total-countries">-</div>
+                        <div class="card-label">Countries</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row 1 -->
+            <div class="charts-row">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Top Countries</h3>
+                        <button class="chart-action" onclick="refreshCountryChart()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="chart-content">
+                        <canvas id="countriesChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Top Services</h3>
+                        <button class="chart-action" onclick="refreshServiceChart()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="chart-content">
+                        <canvas id="servicesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row 2 -->
+            <div class="charts-row">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Port Distribution</h3>
+                        <button class="chart-action" onclick="refreshPortChart()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="chart-content">
+                        <canvas id="portsChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Technologies</h3>
+                        <button class="chart-action" onclick="refreshCloudChart()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="chart-content">
+                        <canvas id="cloudChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+{{template "foot" .}}

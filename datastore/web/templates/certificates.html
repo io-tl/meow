@@ -1,0 +1,235 @@
+{{template "head" .}}
+        {{template "topbar_certificates" .}}
+
+        <!-- Search Section -->
+        <section class="search-section">
+            <div class="search-container">
+                <div class="search-bar">
+                    <div class="search-input-wrapper">
+                        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+                            <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        <input type="text" id="main-search" placeholder="Search by domain, fingerprint, issuer, serial number, organization..." class="search-input">
+                    </div>
+                    <button id="search-btn" class="search-btn-certs">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                            <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2.5"/>
+                            <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="filters-bar">
+                    <div class="filter-group">
+                        <label>Subject CN</label>
+                        <input type="text" id="subject-filter" placeholder="Common name" class="filter-input">
+                    </div>
+                    <div class="filter-group">
+                        <label>Issuer</label>
+                        <input type="text" id="issuer-filter" placeholder="Issuer name or org" class="filter-input">
+                    </div>
+                    <div class="filter-group">
+                        <label>Status</label>
+                        <select id="status-filter" class="filter-select">
+                            <option value="">All Status</option>
+                            <option value="valid">Valid</option>
+                            <option value="expired">Expired</option>
+                            <option value="expiring-soon">Expiring Soon (30d)</option>
+                            <option value="self-signed">Self-Signed</option>
+                            <option value="ca">CA Certificates</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Algorithm</label>
+                        <select id="algo-filter" class="filter-select">
+                            <option value="">All Algorithms</option>
+                            <option value="RSA">RSA</option>
+                            <option value="ECDSA">ECDSA</option>
+                            <option value="Ed25519">Ed25519</option>
+                        </select>
+                    </div>
+                    <button id="clear-filters" class="clear-filters-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        Clear
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats Cards -->
+        <section class="stats-cards">
+            <div class="stat-card" data-filter="valid">
+                <div class="stat-icon valid">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="valid-certs">-</div>
+                    <div class="stat-label">Valid</div>
+                </div>
+            </div>
+            <div class="stat-card" data-filter="expired">
+                <div class="stat-icon expired">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="expired-certs">-</div>
+                    <div class="stat-label">Expired</div>
+                </div>
+            </div>
+            <div class="stat-card" data-filter="self-signed">
+                <div class="stat-icon selfsigned">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="selfsigned-certs">-</div>
+                    <div class="stat-label">Self-Signed</div>
+                </div>
+            </div>
+            <div class="stat-card" data-filter="ca">
+                <div class="stat-icon ca">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2l8 5v9c0 3.866-3.582 7-8 7s-8-3.134-8-7V7l8-5z" stroke="currentColor" stroke-width="2"/>
+                        <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="ca-certs">-</div>
+                    <div class="stat-label">CA</div>
+                </div>
+            </div>
+            <div class="stat-card stat-card-accent">
+                <div class="stat-icon total">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+                        <path d="M9 3v18M3 9h18" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="total-certs">-</div>
+                    <div class="stat-label">Total</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Facets Bar -->
+        <section class="facets-bar" id="facets-bar">
+            <div class="facets-container">
+                <div class="facet-group" id="facet-issuers">
+                    <span class="facet-title">Top Issuers</span>
+                    <div class="facet-chips" id="facet-issuer-chips"></div>
+                </div>
+                <div class="facet-group" id="facet-algos">
+                    <span class="facet-title">Algorithms</span>
+                    <div class="facet-chips" id="facet-algo-chips"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="results-section">
+            <!-- Pagination Top -->
+            <div class="pagination-top">
+                <div class="pagination-info">
+                    <span>Showing <span id="showing-from">0</span> to <span id="showing-to">0</span> of <span id="total-results">0</span> results</span>
+                </div>
+                <div class="pagination-controls" id="pagination-top"></div>
+            </div>
+
+            <!-- Certificates Table -->
+            <div class="certificates-table-container">
+                <table class="certificates-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="subject_cn">
+                                <span>Subject</span>
+                                <svg class="sort-icon" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v8M3 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                            </th>
+                            <th class="sortable" data-sort="san_count">
+                                <span>SANs</span>
+                                <svg class="sort-icon" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v8M3 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                            </th>
+                            <th class="sortable" data-sort="issuer_cn">
+                                <span>Issuer</span>
+                                <svg class="sort-icon" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v8M3 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                            </th>
+                            <th class="sortable" data-sort="public_key_algorithm">
+                                <span>Algorithm</span>
+                                <svg class="sort-icon" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v8M3 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                            </th>
+                            <th class="sortable active desc" data-sort="not_after">
+                                <span>Expires</span>
+                                <svg class="sort-icon" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v8M3 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                            </th>
+                            <th>Status</th>
+                            <th class="sortable" data-sort="host_count">
+                                <span>Hosts</span>
+                                <svg class="sort-icon" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v8M3 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="certificates-tbody"></tbody>
+                </table>
+            </div>
+
+            <!-- Pagination Bottom -->
+            <div class="pagination-bottom">
+                <div class="pagination-info">
+                    <span>Page <span id="current-page">1</span> of <span id="total-pages">1</span></span>
+                </div>
+                <div class="pagination-controls" id="pagination-bottom"></div>
+            </div>
+        </section>
+
+        <!-- Certificate Detail Modal -->
+        <div id="cert-modal" class="modal" style="display: none;">
+            <div class="modal-content cert-detail-modal">
+                <div class="modal-header">
+                    <div class="cert-modal-title-group">
+                        <h2 class="modal-title" id="cert-modal-title">Certificate Details</h2>
+                        <div class="cert-modal-badges" id="cert-modal-badges"></div>
+                    </div>
+                    <button onclick="certificatesPage.closeCertModal()" class="modal-close">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body" id="cert-modal-body"></div>
+            </div>
+        </div>
+
+        <!-- Hosts Modal -->
+        <div id="hosts-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title">Hosts Using This Certificate</h2>
+                    <button onclick="certificatesPage.closeHostsModal()" class="modal-close">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body" id="hosts-modal-body"></div>
+            </div>
+        </div>
+
+        <!-- Toast notification -->
+        <div id="toast" class="toast" style="display: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span id="toast-message">Copied!</span>
+        </div>
+{{template "foot" .}}

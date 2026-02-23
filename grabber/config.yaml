@@ -1,0 +1,23 @@
+# NATS
+nats:
+  url: "nats://localhost:4222"
+  auth:
+    token: ""  # keep empty if no auth
+
+# Fingerprinting 
+fingerprint:
+  workers: 500
+  probe_timeout_ms: 9000    # Probe timeout 
+  global_timeout_ms: 30000  # Total timeout
+
+enrichment:
+  workers: 500
+  enrich_timeout_ms: 10000  # Enrich timeout
+  global_timeout_ms: 30000  # # Total timeout
+
+# Logging
+logging:
+  level: "info"      # debug, info, warn, error
+  format: "console"  # console  json
+
+# Pipeline : scan.port.open → fingerprint → scan.port.fingerprinted → enrichment → scan.port.enriched

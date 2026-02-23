@@ -1,0 +1,13 @@
+{{define "topbar_left"}}
+<div class="top-bar-left">
+    <button id="sidebar-toggle" class="sidebar-toggle-btn" title="Toggle Menu (Ctrl+B)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+    </button>
+    <div class="title-group">
+        <h1 class="page-title">{{.PageTitle}}</h1>
+        <div class="breadcrumb"><span>{{.Breadcrumb}}</span></div>
+    </div>
+</div>
+{{end}}

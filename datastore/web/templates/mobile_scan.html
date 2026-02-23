@@ -1,0 +1,121 @@
+{{template "mobile_head" .}}
+
+    <!-- Header -->
+    <header class="mobile-header">
+        <div class="header-left">
+            <a href="/mobile" class="header-back">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </a>
+            <span class="header-title">Scan</span>
+        </div>
+        <div class="header-right">
+            <span class="scanner-status" id="scanner-status">
+                <span class="scanner-status-dot" id="scanner-status-dot"></span>
+                <span id="scanner-count">0 scanners</span>
+            </span>
+        </div>
+    </header>
+
+    <!-- Scrollable Content -->
+    <main class="mobile-content" id="mobile-content">
+
+        <!-- Empty state (no scanners) -->
+        <section class="m-scan-empty" id="scan-empty-state">
+            <div class="m-scan-empty-icon">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                    <path d="M2 12h4l3-9 6 18 3-9h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <p class="m-scan-empty-title">No scanner connected</p>
+            <span class="m-scan-empty-hint">Start a SynScan daemon to enable scanning</span>
+        </section>
+
+        <!-- Scanner Nodes -->
+        <section class="m-scan-scanners" id="scanner-chips" style="display:none"></section>
+
+        <!-- Scan Form -->
+        <section class="m-scan-form-card disabled" id="scan-form-card">
+            <form id="scan-form">
+                <div class="m-scan-field">
+                    <label for="scan-target">Target</label>
+                    <input type="text" id="scan-target" class="m-scan-input" placeholder="192.168.1.0/24 or 10.0.0.1-10" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="m-scan-field">
+                    <div class="m-scan-label-row">
+                        <label for="scan-ports">Ports</label>
+                        <div class="m-port-presets">
+                            <button type="button" class="m-port-preset" data-preset="top20">Top 20</button>
+                            <button type="button" class="m-port-preset" data-preset="top50">Top 50</button>
+                            <button type="button" class="m-port-preset" data-preset="top100">Top 100</button>
+                            <button type="button" class="m-port-preset m-port-preset-clear" data-preset="clear">Clear</button>
+                        </div>
+                    </div>
+                    <input type="text" id="scan-ports" class="m-scan-input" placeholder="80,443,22,8080" value="80,443,22,8080,8443" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="m-scan-row">
+                    <div class="m-scan-field m-scan-rate">
+                        <label for="scan-rate">Rate (pkt/s)</label>
+                        <input type="number" id="scan-rate" class="m-scan-input" placeholder="1000" min="1" max="100000">
+                    </div>
+                    <button type="submit" id="scan-submit-btn" class="m-scan-submit" disabled>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M2 12h4l3-9 6 18 3-9h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Scan
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Live Feed -->
+        <section class="m-scan-feed" id="feed-section">
+            <div class="m-feed-header">
+                <span class="m-feed-title">Live Feed</span>
+                <span class="m-feed-count" id="feed-count"></span>
+            </div>
+            <div class="m-feed-list" id="feed-list">
+                <div class="m-feed-empty">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M2 12h4l3-9 6 18 3-9h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>No recent events</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- DNS Resolver Tool -->
+        <section class="m-scan-tool-card">
+            <div class="m-tool-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                    <path d="M3 12h18M12 3c2.5 2.5 4 5.5 4 9s-1.5 6.5-4 9c-2.5-2.5-4-5.5-4-9s1.5-6.5 4-9z" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                <span>DNS Resolver</span>
+            </div>
+            <div class="m-tool-body">
+                <div class="m-dns-input-row">
+                    <input type="text" id="dns-query" class="m-scan-input" placeholder="example.com or 1.2.3.4" autocomplete="off" spellcheck="false">
+                    <button type="button" id="dns-resolve-btn" class="m-dns-btn m-dns-btn-resolve">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+                            <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <button type="button" id="dns-clear-btn" class="m-dns-btn m-dns-btn-clear">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="m-dns-results" id="dns-results"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Toast -->
+    <div id="scan-toast" class="m-scan-toast"></div>
+
+    {{template "mobile_nav" .}}

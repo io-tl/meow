@@ -1,0 +1,9 @@
+{{define "loading"}}
+<!-- Loading Overlay -->
+<div id="loading-overlay" class="loading-overlay" style="display: none;">
+    <div class="loading-spinner">
+        <div class="spinner"></div>
+        <span>{{if .LoadingText}}{{.LoadingText}}{{else}}Loading...{{end}}</span>
+    </div>
+</div>
+{{end}}

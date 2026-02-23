@@ -1,0 +1,167 @@
+{{template "head" .}}
+        {{template "topbar_domains" .}}
+
+        <!-- Search Section -->
+        <section class="search-section">
+            <div class="search-container">
+                <div class="search-bar">
+                    <div class="search-input-wrapper">
+                        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+                            <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        <input type="text" id="main-search" placeholder="Search domains (e.g. example.com, *.gov)..." class="search-input">
+                    </div>
+                    <button id="search-btn" class="search-btn-domains">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                            <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2.5"/>
+                            <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="filters-bar">
+                    <div class="filter-group">
+                        <label>Protocol</label>
+                        <select id="protocol-filter" class="filter-select">
+                            <option value="">All Protocols</option>
+                            <option value="http">HTTP</option>
+                            <option value="https">HTTPS</option>
+                            <option value="ssh">SSH</option>
+                            <option value="ftp">FTP</option>
+                            <option value="smtp">SMTP</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Status Code</label>
+                        <select id="status-code-filter" class="filter-select">
+                            <option value="">All Status</option>
+                            <option value="200">200 OK</option>
+                            <option value="301">301 Redirect</option>
+                            <option value="302">302 Redirect</option>
+                            <option value="403">403 Forbidden</option>
+                            <option value="404">404 Not Found</option>
+                            <option value="500">500 Server Error</option>
+                        </select>
+                    </div>
+                    <button id="clear-filters" class="clear-filters-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        Clear
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats Cards -->
+        <section class="stats-cards">
+            <div class="stat-card">
+                <div class="stat-icon domains-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                        <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="stat-domains">-</div>
+                    <div class="stat-label">Domains</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon endpoints-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="stat-endpoints">-</div>
+                    <div class="stat-label">Endpoints</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon http-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2l8 5v9c0 3.866-3.582 7-8 7s-8-3.134-8-7V7l8-5z" stroke="currentColor" stroke-width="2"/>
+                        <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="stat-http-domains">-</div>
+                    <div class="stat-label">HTTP Domains</div>
+                </div>
+            </div>
+            <div class="stat-card stat-card-accent">
+                <div class="stat-icon ips-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+                        <path d="M9 3v18M3 9h18" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="stat-unique-ips">-</div>
+                    <div class="stat-label">Unique IPs</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="results-section">
+            <!-- Pagination Top -->
+            <div class="pagination-top">
+                <div class="pagination-info">
+                    <span>Showing <span id="showing-from">0</span> to <span id="showing-to">0</span> of <span id="total-results">0</span> results</span>
+                </div>
+                <div class="pagination-controls" id="pagination-top"></div>
+            </div>
+
+            <!-- Domain Cards -->
+            <div class="domain-cards-container" id="domain-cards"></div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="empty-state" style="display: none;">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" opacity="0.3"/>
+                    <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z" stroke="currentColor" stroke-width="1.5" opacity="0.3"/>
+                </svg>
+                <p>No domains found</p>
+                <span>Try adjusting your search or filters</span>
+            </div>
+
+            <!-- Pagination Bottom -->
+            <div class="pagination-bottom">
+                <div class="pagination-info">
+                    <span>Page <span id="current-page">1</span> of <span id="total-pages">1</span></span>
+                </div>
+                <div class="pagination-controls" id="pagination-bottom"></div>
+            </div>
+        </section>
+
+        <!-- Preview Modal -->
+        <div id="preview-modal" class="modal" style="display: none;">
+            <div class="modal-content preview-modal-content">
+                <div class="modal-header">
+                    <div class="preview-modal-title-group">
+                        <h2 class="modal-title" id="preview-modal-title">Page Preview</h2>
+                        <div class="preview-modal-subtitle" id="preview-modal-subtitle"></div>
+                    </div>
+                    <button onclick="domainsPage.closePreviewModal()" class="modal-close">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body preview-modal-body">
+                    <iframe id="preview-iframe" sandbox="" class="preview-iframe"></iframe>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast notification -->
+        <div id="toast" class="toast" style="display: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span id="toast-message">Copied!</span>
+        </div>
+{{template "foot" .}}

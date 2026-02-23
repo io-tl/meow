@@ -1,0 +1,181 @@
+{{template "head" .}}
+        {{template "topbar_map" .}}
+
+        <!-- Map Content -->
+        <div class="map-content">
+            <!-- Filters Bar -->
+            <div class="map-filters">
+                <div class="map-filters-row">
+                    <div class="search-group">
+                        <div class="search-input-wrapper">
+                            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+                                <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            <input type="text" id="meowql-search" class="search-input" placeholder="MeowQL: port:443 service:http country:US ...">
+                        </div>
+                        <button id="search-btn" class="filter-btn primary" title="Search">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+                                <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            Search
+                        </button>
+                    </div>
+                    <div class="dropdown-filters">
+                        <select id="filter-country" class="filter-select">
+                            <option value="">Country</option>
+                        </select>
+                        <input type="text" id="filter-port" class="filter-input-sm" placeholder="Port">
+                        <select id="filter-service" class="filter-select">
+                            <option value="">Service</option>
+                        </select>
+                        <select id="filter-asn" class="filter-select">
+                            <option value="">ASN</option>
+                        </select>
+                        <select id="filter-cloud" class="filter-select">
+                            <option value="">Cloud</option>
+                        </select>
+                        <button id="clear-filters" class="filter-btn ghost" title="Clear all filters">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="active-filters" id="active-filters"></div>
+            </div>
+
+            <!-- Map Body: Sidebar + Map -->
+            <div class="map-body">
+                <!-- Ranking Sidebar -->
+                <div class="map-sidebar" id="map-sidebar">
+                    <div class="sidebar-header">
+                        <span class="sidebar-title">Rankings</span>
+                        <select id="sort-field" class="sort-select">
+                            <option value="host_count">Hosts</option>
+                            <option value="total_ports">Ports</option>
+                            <option value="unique_asns">ASNs</option>
+                            <option value="cloud_count">Cloud</option>
+                        </select>
+                    </div>
+                    <div class="sidebar-list" id="country-rankings">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
+                <!-- Map Container -->
+                <div class="map-container">
+                    <div id="world-map" class="world-map"></div>
+
+                    <!-- Map Controls -->
+                    <div class="map-controls-overlay">
+                        <button id="zoom-in" class="map-control-btn" title="Zoom in">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                                <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </button>
+                        <button id="zoom-out" class="map-control-btn" title="Zoom out">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                                <path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </button>
+                        <button id="reset-view" class="map-control-btn" title="Reset view">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M3 3v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                        <div class="map-control-divider"></div>
+                        <button id="fullscreen" class="map-control-btn" title="Fullscreen">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Legend -->
+                    <div class="map-legend" id="map-legend">
+                        <div class="legend-title">Density</div>
+                        <div class="legend-gradient">
+                            <div class="legend-bar"></div>
+                            <div class="legend-labels">
+                                <span id="legend-min">0</span>
+                                <span id="legend-max">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Country Details Panel -->
+        <div class="country-panel" id="country-panel">
+            <div class="panel-header">
+                <div class="panel-title-group">
+                    <span class="panel-flag" id="country-flag"></span>
+                    <h3 id="country-name">Country Details</h3>
+                </div>
+                <button id="close-panel" class="panel-close">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="panel-content">
+                <div class="country-stats-grid">
+                    <div class="country-stat-card">
+                        <span class="stat-value" id="country-hosts">-</span>
+                        <span class="stat-label">Hosts</span>
+                    </div>
+                    <div class="country-stat-card">
+                        <span class="stat-value" id="country-ports">-</span>
+                        <span class="stat-label">Open Ports</span>
+                    </div>
+                    <div class="country-stat-card">
+                        <span class="stat-value" id="country-asns">-</span>
+                        <span class="stat-label">ASNs</span>
+                    </div>
+                    <div class="country-stat-card">
+                        <span class="stat-value" id="country-cloud">-</span>
+                        <span class="stat-label">Cloud</span>
+                    </div>
+                </div>
+
+                <div class="detail-section" id="section-services">
+                    <h4>Top Services</h4>
+                    <div class="bar-list" id="country-services"></div>
+                </div>
+
+                <div class="detail-section" id="section-ports">
+                    <h4>Top Ports</h4>
+                    <div class="bar-list" id="country-top-ports"></div>
+                </div>
+
+                <div class="detail-section" id="section-asns">
+                    <h4>Top ASNs</h4>
+                    <div class="bar-list" id="country-top-asns"></div>
+                </div>
+
+                <div class="detail-section" id="section-cloud">
+                    <h4>Cloud Providers</h4>
+                    <div class="bar-list" id="country-top-cloud"></div>
+                </div>
+
+                <div class="detail-section" id="section-cities">
+                    <h4>Top Cities</h4>
+                    <div class="bar-list" id="country-top-cities"></div>
+                </div>
+
+                <div class="panel-actions">
+                    <a id="browse-hosts-link" class="browse-btn" href="/hosts">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span id="browse-hosts-text">Browse hosts</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+{{template "foot" .}}

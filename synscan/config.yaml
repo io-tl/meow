@@ -1,0 +1,21 @@
+nats:
+  url: ""  # Ex: nats://localhost:4222
+  auth:
+    token: ""  # Token 
+
+synscan:
+  target:
+    cidr: ""
+    ports: "80,443,22,8080,8443"
+
+  network:
+    interface: ""  # Autodetected
+
+  # Performance
+  performance:
+    rate_limit: 1000    # pps
+    timeout_ms: 5000    # port timeout (ms)
+
+# Logging
+logging:
+  level: "info"      # debug, info, warn, error

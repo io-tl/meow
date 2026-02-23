@@ -1,0 +1,150 @@
+{{define "sidebar"}}
+<!-- Apply collapsed state immediately to prevent flash -->
+<script>
+(function(){
+    var s = localStorage.getItem('sidebar-collapsed');
+    if (s === 'true') {
+        document.write('<nav class="sidebar collapsed no-transition">');
+    } else {
+        document.write('<nav class="sidebar">');
+    }
+})();
+</script>
+    <div class="sidebar-header">
+        <div class="logo">
+            <svg class="cat-logo" width="64" height="64" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+                <defs>
+                    <radialGradient id="sBodyGrad" cx="88.59" cy="129.81" r="67.73" gradientTransform="scale(1.129,0.886)" fx="88.59" fy="129.81" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#1a6fd4"/><stop offset="100%" stop-color="#0a1f6b"/>
+                    </radialGradient>
+                    <radialGradient id="sEyeGradL" cx="69.98" cy="101.98" r="29.5" gradientTransform="scale(1.042,0.96)" fx="69.98" fy="101.98" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#ffe94d"/><stop offset="70%" stop-color="#f0a500"/><stop offset="100%" stop-color="#c47800"/>
+                    </radialGradient>
+                    <radialGradient id="sEyeGradR" cx="112.22" cy="101.98" r="29.5" gradientTransform="scale(1.042,0.96)" fx="112.22" fy="101.98" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#ffe94d"/><stop offset="70%" stop-color="#f0a500"/><stop offset="100%" stop-color="#c47800"/>
+                    </radialGradient>
+                </defs>
+                <ellipse cx="100" cy="115" rx="55" ry="50" fill="url(#sBodyGrad)" stroke="#00eeff" stroke-width="1.5"/>
+                <g class="cat-ear-wrap-left"><g transform="rotate(-6.28,90.45,82.01)"><polygon points="40,45 75,68 55,80" fill="#0a2a8a" stroke="#00eeff" stroke-width="1.5"/><polygon points="46,52 72,70 57,76" fill="#1a3fcc" opacity="0.6"/></g></g>
+                <g class="cat-ear-wrap-right"><g transform="matrix(-0.994,-0.109,-0.109,0.994,209.37,11.67)"><polygon points="40,45 75,68 55,80" fill="#0a2a8a" stroke="#00eeff" stroke-width="1.5"/><polygon points="46,52 72,70 57,76" fill="#1a3fcc" opacity="0.6"/></g></g>
+                <g class="cat-eyes">
+                    <g class="cat-eye-left">
+                        <ellipse cx="78" cy="105" rx="16" ry="14" fill="url(#sEyeGradL)"/>
+                        <g class="cat-pupil-left"><ellipse cx="78" cy="105" rx="5" ry="12" fill="#0a0a0a"/><ellipse cx="74" cy="101" rx="3" ry="2" fill="#fff" opacity="0.8"/></g>
+                    </g>
+                    <g class="cat-eye-right">
+                        <ellipse cx="122" cy="105" rx="16" ry="14" fill="url(#sEyeGradR)"/>
+                        <g class="cat-pupil-right"><ellipse cx="122" cy="105" rx="5" ry="12" fill="#0a0a0a"/><ellipse cx="118" cy="101" rx="3" ry="2" fill="#fff" opacity="0.8"/></g>
+                    </g>
+                </g>
+                <polygon class="cat-nose" points="93.7,131.9 103.7,131.9 98.7,125.9" fill="#00eeff" opacity="0.9"/>
+                <ellipse class="cat-mouth" cx="98.7" cy="140" rx="10" ry="8" fill="#0a0a0a" opacity="0"/>
+                <path class="cat-smile" d="M91,135 Q98.7,143 106,135" stroke="#00eeff" stroke-width="2" fill="none" stroke-linecap="round" opacity="0"/>
+                <ellipse class="cat-tongue" cx="98.7" cy="138" rx="5" ry="4" fill="#ff6b9d" opacity="0"/>
+                <text class="cat-zzz cat-z1" x="138" y="85" fill="#00eeff" font-size="14" font-family="monospace" font-weight="bold" opacity="0">Z</text>
+                <text class="cat-zzz cat-z2" x="148" y="73" fill="#00eeff" font-size="11" font-family="monospace" font-weight="bold" opacity="0">Z</text>
+                <text class="cat-zzz cat-z3" x="155" y="63" fill="#00eeff" font-size="8" font-family="monospace" font-weight="bold" opacity="0">z</text>
+            </svg>
+            <span class="logo-text">MEOW</span>
+        </div>
+    </div>
+
+    <div class="nav-sections">
+        <div class="nav-group nav-group-overview">
+            <span class="nav-group-label">Overview</span>
+            <a href="/dashboard" class="nav-item{{if eq .ActivePage "dashboard"}} active{{end}}">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                <span>Dashboard</span>
+            </a>
+        </div>
+        <div class="nav-group nav-group-search">
+            <span class="nav-group-label">Search</span>
+            <a href="/query" class="nav-item{{if eq .ActivePage "query"}} active{{end}}">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 17l6-5-6-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 19h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>Query</span>
+            </a>
+            <a href="/scan" id="nav-scan" class="nav-item{{if eq .ActivePage "scan"}} active{{end}}" style="display: none;">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M2 12h4l3-9 6 18 3-9h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Scan</span>
+            </a>
+        </div>
+        <div class="nav-group nav-group-assets">
+            <span class="nav-group-label">Assets</span>
+            <a href="/hosts" class="nav-item{{if eq .ActivePage "hosts"}} active{{end}}">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>Hosts</span>
+            </a>
+            <a href="/certificates" class="nav-item{{if eq .ActivePage "certificates"}} active{{end}}">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 2l8 5v9c0 3.866-3.582 7-8 7s-8-3.134-8-7V7l8-5z" stroke="currentColor" stroke-width="2"/>
+                    <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>Certificates</span>
+            </a>
+            <a href="/domains" class="nav-item{{if eq .ActivePage "domains"}} active{{end}}">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                <span>Domains</span>
+            </a>
+            <a href="/map" class="nav-item{{if eq .ActivePage "map"}} active{{end}}">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 21v-8m0 0l-3-3m3 3l3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M20 10c0 4.418-4 8-8 8s-8-3.582-8-8 4-8 8-8 8 3.582 8 8z" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                <span>Map</span>
+            </a>
+        </div>
+        <div class="nav-group nav-group-system">
+            <span class="nav-group-label">System</span>
+            <a href="/docs" class="nav-item{{if eq .ActivePage "docs"}} active{{end}}">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M8 7h8M8 11h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>Docs</span>
+            </a>
+            <a href="/status" class="nav-item{{if eq .ActivePage "status"}} active{{end}}">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>Status</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="sidebar-shortcut-hint">
+        <kbd>Ctrl</kbd> + <kbd>B</kbd>
+    </div>
+
+<script>
+(function(){
+    function checkScanners(){
+        fetch('/api/scanners').then(function(r){return r.json()}).then(function(data){
+            var el=document.getElementById('nav-scan');
+            if(el) el.style.display = (data.count > 0) ? '' : 'none';
+        }).catch(function(){});
+    }
+    checkScanners();
+    setInterval(checkScanners, 15000);
+})();
+</script>
+
+</nav>
+{{end}}

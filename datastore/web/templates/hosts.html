@@ -1,0 +1,124 @@
+{{template "head" .}}
+        {{template "topbar_hosts" .}}
+
+        <!-- Content -->
+        <div class="content">
+            <!-- Active Filters Chips -->
+            <div class="active-filters" id="active-filters" style="display: none;">
+                <div class="active-filters-label">Active filters:</div>
+                <div class="active-filters-chips" id="active-filters-chips">
+                    <!-- Dynamically populated -->
+                </div>
+                <button class="clear-all-filters" onclick="meowSearch.clearFilters()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    Clear all
+                </button>
+            </div>
+
+            <!-- Search Results Layout -->
+            <div class="search-layout">
+                <!-- Left Sidebar with Filters -->
+                <aside class="filters-sidebar">
+                    <div class="filter-section">
+                        <h3>Filters</h3>
+                        <div class="advanced-filters">
+                            <div class="filter-group">
+                                <label>Search</label>
+                                <input type="text" id="filter-search" placeholder="IP, hostname, domain..." class="filter-input">
+                            </div>
+
+                            <div class="filter-group">
+                                <label>Country</label>
+                                <select id="filter-country" class="filter-select">
+                                    <option value="">All Countries</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label>Port</label>
+                                <input type="text" id="filter-port" placeholder="22, 80, 443..." class="filter-input">
+                            </div>
+
+                            <div class="filter-group">
+                                <label>Technology</label>
+                                <input type="text" id="filter-technology" placeholder="nginx, apache, php..." class="filter-input">
+                            </div>
+
+                            <div class="filter-group filter-toggle">
+                                <label class="toggle-label">
+                                    <input type="checkbox" id="filter-verified" onchange="meowSearch.applyAdvancedFilters()">
+                                    <span>Hide unverified</span>
+                                </label>
+                            </div>
+
+                            <div class="filter-actions">
+                                <button class="btn btn-primary" onclick="meowSearch.applyAdvancedFilters()">Apply Filters</button>
+                                <button class="btn btn-outline" onclick="meowSearch.clearFilters()">Clear</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="filter-section">
+                        <h3>Top Ports</h3>
+                        <ul class="facet-list" id="port-facets">
+                            <!-- Dynamically populated -->
+                        </ul>
+                    </div>
+                </aside>
+
+                <!-- Main Results Area -->
+                <div class="results-area">
+                    <div class="results-header">
+                        <h2>Hosts</h2>
+                        <div class="results-header-right">
+                            <div class="results-info">
+                                <span id="results-count">0</span> results
+                            </div>
+                            <div class="page-size-select">
+                                <select id="page-size" onchange="meowSearch.changePageSize(this.value)">
+                                    <option value="25">25</option>
+                                    <option value="50" selected>50</option>
+                                    <option value="100">100</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="hosts-list" id="hosts-list">
+                        <!-- Host items will be dynamically added here -->
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="pagination">
+                        <button class="pagination-btn" id="prev-page" disabled>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <polyline points="15 18 9 12 15 6" stroke="currentColor" stroke-width="2"/>
+                            </svg>
+                            Previous
+                        </button>
+                        <span class="page-info">Page <span id="current-page">1</span> of <span id="total-pages">1</span></span>
+                        <button class="pagination-btn" id="next-page">
+                            Next
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <polyline points="9 18 15 12 9 6" stroke="currentColor" stroke-width="2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar with Details -->
+                <aside class="details-sidebar" id="details-sidebar">
+                    <div class="empty-state">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" opacity="0.3">
+                            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        <h3>Select a Host</h3>
+                        <p>Click on any host to view detailed information</p>
+                    </div>
+                </aside>
+            </div>
+        </div>
+{{template "foot" .}}

@@ -1,0 +1,1242 @@
+{{template "head" .}}
+        {{template "topbar_docs" .}}
+
+        <!-- Tabs -->
+        <div class="docs-tabs">
+            <button class="docs-tab active" data-tab="quickstart">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                Quickstart
+            </button>
+            <button class="docs-tab" data-tab="api">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 14.66V20a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h5.34" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><polygon points="18,2 22,6 12,16 8,16 8,12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                API Reference
+            </button>
+            <button class="docs-tab" data-tab="meowql">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 17l6-5-6-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 19h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                MeowQL
+            </button>
+            <button class="docs-tab" data-tab="enrichment">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Enrichment
+            </button>
+            <button class="docs-tab" data-tab="config">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg>
+                Configuration
+            </button>
+            <button class="docs-tab" data-tab="debugger">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke="currentColor" stroke-width="2"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z" stroke="currentColor" stroke-width="2"/></svg>
+                API Debugger
+            </button>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB: API Reference -->
+        <!-- ============================================================ -->
+        <div class="docs-tab-content" data-tab="api">
+            <div class="docs-content">
+
+                <!-- Hosts -->
+                <div class="docs-section" id="section-hosts">
+                    <h2 class="docs-section-title">Hosts</h2>
+                    <p class="docs-section-desc">Query and inspect discovered hosts with their services, geolocation, and cloud metadata.</p>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header">
+                            <span class="endpoint-method get">GET</span>
+                            <code class="endpoint-path">/api/hosts</code>
+                        </div>
+                        <p class="endpoint-desc">Search and filter hosts. Supports text search, country, cloud, port, ASN, service, and technology filters.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">q</span></td><td><span class="param-type">string</span></td><td>Text search (IP, hostname, org)</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">country</span></td><td><span class="param-type">string</span></td><td>Country code (US, FR, DE...)</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">cloud</span></td><td><span class="param-type">string</span></td><td>Cloud provider (aws, gcp, azure, do)</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">port</span></td><td><span class="param-type">int</span></td><td>Filter by open port</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">asn</span></td><td><span class="param-type">int</span></td><td>AS number</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">service</span></td><td><span class="param-type">string</span></td><td>Service name (http, ssh, ftp...)</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">technology</span></td><td><span class="param-type">string</span></td><td>Detected technology</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">verified</span></td><td><span class="param-type">bool</span></td><td>Only verified hosts</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">limit</span></td><td><span class="param-type">int</span></td><td>Results per page</td><td>50</td></tr>
+                                    <tr><td><span class="param-name">page</span></td><td><span class="param-type">int</span></td><td>Page number</td><td>1</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl">
+                            <h4 class="endpoint-curl-title">Example</h4>
+                            <div class="curl-block"><button class="curl-copy-btn" title="Copy">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg>
+                            </button><code>curl "http://localhost:8080/api/hosts?country=FR&port=443&limit=10"</code></div>
+                        </div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header">
+                            <span class="endpoint-method get">GET</span>
+                            <code class="endpoint-path">/api/hosts/:ip</code>
+                        </div>
+                        <p class="endpoint-desc">Get detailed host information including all services, certificates, domains, and enrichment data.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">ip</span> <span class="param-required">required</span></td><td><span class="param-type">string</span></td><td>IP address (path parameter)</td><td>-</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl">
+                            <h4 class="endpoint-curl-title">Example</h4>
+                            <div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/hosts/192.168.1.1"</code></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Services -->
+                <div class="docs-section" id="section-services">
+                    <h2 class="docs-section-title">Services</h2>
+                    <p class="docs-section-desc">Search services discovered across all scanned hosts.</p>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header">
+                            <span class="endpoint-method get">GET</span>
+                            <code class="endpoint-path">/api/services</code>
+                        </div>
+                        <p class="endpoint-desc">Search services by name, product, or text query.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">q</span></td><td><span class="param-type">string</span></td><td>Text search</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">service</span></td><td><span class="param-type">string</span></td><td>Service name filter</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">product</span></td><td><span class="param-type">string</span></td><td>Product name filter</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">limit</span></td><td><span class="param-type">int</span></td><td>Results per page</td><td>50</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl">
+                            <h4 class="endpoint-curl-title">Example</h4>
+                            <div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/services?service=ssh&limit=20"</code></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Certificates -->
+                <div class="docs-section" id="section-certificates">
+                    <h2 class="docs-section-title">Certificates</h2>
+                    <p class="docs-section-desc">Search and inspect TLS/X.509 certificates collected during scans.</p>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header">
+                            <span class="endpoint-method get">GET</span>
+                            <code class="endpoint-path">/api/certificates</code>
+                        </div>
+                        <p class="endpoint-desc">Search certificates by subject, issuer, or text query.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">q</span></td><td><span class="param-type">string</span></td><td>Text search</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">subject</span></td><td><span class="param-type">string</span></td><td>Subject CN filter</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">issuer</span></td><td><span class="param-type">string</span></td><td>Issuer CN filter</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">limit</span></td><td><span class="param-type">int</span></td><td>Results per page</td><td>50</td></tr>
+                                    <tr><td><span class="param-name">page</span></td><td><span class="param-type">int</span></td><td>Page number</td><td>1</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl">
+                            <h4 class="endpoint-curl-title">Example</h4>
+                            <div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/certificates?subject=*.example.com"</code></div>
+                        </div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header">
+                            <span class="endpoint-method get">GET</span>
+                            <code class="endpoint-path">/api/certificates/:fingerprint/hosts</code>
+                        </div>
+                        <p class="endpoint-desc">Get all hosts using a specific certificate identified by its SHA256 fingerprint.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">fingerprint</span> <span class="param-required">required</span></td><td><span class="param-type">string</span></td><td>Certificate SHA256 fingerprint (path parameter)</td><td>-</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl">
+                            <h4 class="endpoint-curl-title">Example</h4>
+                            <div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/certificates/abc123def456/hosts"</code></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Domains -->
+                <div class="docs-section" id="section-domains">
+                    <h2 class="docs-section-title">Domains</h2>
+                    <p class="docs-section-desc">Explore domains discovered through certificates, SNI, and reverse DNS.</p>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header">
+                            <span class="endpoint-method get">GET</span>
+                            <code class="endpoint-path">/api/domains</code>
+                        </div>
+                        <p class="endpoint-desc">Search discovered domains with optional protocol and status filters.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">q</span></td><td><span class="param-type">string</span></td><td>Domain name search</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">protocol</span></td><td><span class="param-type">string</span></td><td>Protocol filter (http, ssh, ftp, smtp)</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">status</span></td><td><span class="param-type">int</span></td><td>HTTP status code filter</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">limit</span></td><td><span class="param-type">int</span></td><td>Results per page</td><td>50</td></tr>
+                                    <tr><td><span class="param-name">page</span></td><td><span class="param-type">int</span></td><td>Page number</td><td>1</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl">
+                            <h4 class="endpoint-curl-title">Example</h4>
+                            <div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/domains?q=example.com&protocol=http"</code></div>
+                        </div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header">
+                            <span class="endpoint-method get">GET</span>
+                            <code class="endpoint-path">/api/domains/stats</code>
+                        </div>
+                        <p class="endpoint-desc">Get domain statistics overview (total domains, protocols, top TLDs).</p>
+                        <div class="endpoint-curl">
+                            <h4 class="endpoint-curl-title">Example</h4>
+                            <div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/domains/stats"</code></div>
+                        </div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header">
+                            <span class="endpoint-method get">GET</span>
+                            <code class="endpoint-path">/api/domains/:domain/services</code>
+                        </div>
+                        <p class="endpoint-desc">Get all services discovered on a specific domain.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">domain</span> <span class="param-required">required</span></td><td><span class="param-type">string</span></td><td>Domain name (path parameter)</td><td>-</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl">
+                            <h4 class="endpoint-curl-title">Example</h4>
+                            <div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/domains/example.com/services"</code></div>
+                        </div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header">
+                            <span class="endpoint-method get">GET</span>
+                            <code class="endpoint-path">/api/body</code>
+                        </div>
+                        <p class="endpoint-desc">Get HTTP response body preview for a specific IP:port service.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">ip</span> <span class="param-required">required</span></td><td><span class="param-type">string</span></td><td>IP address</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">port</span> <span class="param-required">required</span></td><td><span class="param-type">int</span></td><td>Port number</td><td>-</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl">
+                            <h4 class="endpoint-curl-title">Example</h4>
+                            <div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/body?ip=192.168.1.1&port=443"</code></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search (MeowQL) -->
+                <div class="docs-section" id="section-search">
+                    <h2 class="docs-section-title">Search (MeowQL)</h2>
+                    <p class="docs-section-desc">Advanced search using the MeowQL query language. See the <a href="#" onclick="docsPage.switchTab('meowql');return false;" class="docs-link">MeowQL tab</a> for full syntax reference.</p>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header">
+                            <span class="endpoint-method get">GET</span>
+                            <code class="endpoint-path">/api/search</code>
+                        </div>
+                        <p class="endpoint-desc">Host-centric MeowQL search. Returns hosts matching the query with their matched services.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">q</span> <span class="param-required">required</span></td><td><span class="param-type">string</span></td><td>MeowQL query (e.g. <code>port:443 country:US</code>)</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">limit</span></td><td><span class="param-type">int</span></td><td>Results per page</td><td>50</td></tr>
+                                    <tr><td><span class="param-name">page</span></td><td><span class="param-type">int</span></td><td>Page number</td><td>1</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl">
+                            <h4 class="endpoint-curl-title">Example</h4>
+                            <div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/search?q=port%3A443+country%3AUS&limit=20"</code></div>
+                        </div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header">
+                            <span class="endpoint-method get">GET</span>
+                            <code class="endpoint-path">/api/search/services</code>
+                        </div>
+                        <p class="endpoint-desc">Service-centric MeowQL search. Returns individual services matching the query.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">q</span> <span class="param-required">required</span></td><td><span class="param-type">string</span></td><td>MeowQL query</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">limit</span></td><td><span class="param-type">int</span></td><td>Results per page</td><td>50</td></tr>
+                                    <tr><td><span class="param-name">page</span></td><td><span class="param-type">int</span></td><td>Page number</td><td>1</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl">
+                            <h4 class="endpoint-curl-title">Example</h4>
+                            <div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/search/services?q=service%3Assh+country%3AFR"</code></div>
+                        </div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header">
+                            <span class="endpoint-method get">GET</span>
+                            <code class="endpoint-path">/api/autocomplete</code>
+                        </div>
+                        <p class="endpoint-desc">Autocomplete suggestions for MeowQL fields and values.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">q</span> <span class="param-required">required</span></td><td><span class="param-type">string</span></td><td>Partial input to autocomplete</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">field</span></td><td><span class="param-type">string</span></td><td>Field name to get value suggestions for</td><td>-</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl">
+                            <h4 class="endpoint-curl-title">Example</h4>
+                            <div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/autocomplete?q=coun&field=country"</code></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics -->
+                <div class="docs-section" id="section-stats">
+                    <h2 class="docs-section-title">Statistics</h2>
+                    <p class="docs-section-desc">Aggregated statistics about your scan data: countries, services, cloud providers, technologies.</p>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/stats/dashboard</code></div>
+                        <p class="endpoint-desc">Dashboard overview: total hosts, services, certificates, top countries, top services, cloud distribution.</p>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/stats/dashboard"</code></div></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/stats/countries</code></div>
+                        <p class="endpoint-desc">Country breakdown with host count and cloud provider presence per country.</p>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/stats/countries"</code></div></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/stats/services</code></div>
+                        <p class="endpoint-desc">Service distribution across all hosts.</p>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/stats/services"</code></div></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/stats/cloud</code></div>
+                        <p class="endpoint-desc">Cloud provider distribution (AWS, GCP, Azure, DigitalOcean, etc.).</p>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/stats/cloud"</code></div></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/stats/technologies</code></div>
+                        <p class="endpoint-desc">Detected technologies and web frameworks distribution.</p>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/stats/technologies"</code></div></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/stats/products</code></div>
+                        <p class="endpoint-desc">Product and version distribution.</p>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/stats/products"</code></div></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/facets</code></div>
+                        <p class="endpoint-desc">Facet counts for filter dropdowns (distinct ports, services, countries, cloud providers).</p>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/facets"</code></div></div>
+                    </div>
+                </div>
+
+                <!-- Geographic -->
+                <div class="docs-section" id="section-geo">
+                    <h2 class="docs-section-title">Geographic</h2>
+                    <p class="docs-section-desc">Geographic distribution data for map visualizations and country analysis.</p>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/geomap</code></div>
+                        <p class="endpoint-desc">Geographic host distribution data with optional service group filtering.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">groups</span></td><td><span class="param-type">string</span></td><td>Comma-separated service groups (admin, http, mail, db)</td><td>-</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/geomap?groups=admin,http"</code></div></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/geomap/country/:code</code></div>
+                        <p class="endpoint-desc">Detailed country breakdown: services, ports, ASNs, cities, cloud providers.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">code</span> <span class="param-required">required</span></td><td><span class="param-type">string</span></td><td>ISO country code (e.g. US, FR)</td><td>-</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/geomap/country/FR"</code></div></div>
+                    </div>
+                </div>
+
+                <!-- Export & Debug -->
+                <div class="docs-section" id="section-export">
+                    <h2 class="docs-section-title">Export & Debug</h2>
+                    <p class="docs-section-desc">Data export and system diagnostics endpoints.</p>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/export</code></div>
+                        <p class="endpoint-desc">Export scan data in JSON or CSV format.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">format</span></td><td><span class="param-type">string</span></td><td>Output format (json, csv)</td><td>json</td></tr>
+                                    <tr><td><span class="param-name">type</span></td><td><span class="param-type">string</span></td><td>Data type (hosts, services)</td><td>hosts</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/export?format=csv&type=services"</code></div></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/debug/stats</code></div>
+                        <p class="endpoint-desc">Detailed system statistics: NATS server, database records, enrichment pipeline state.</p>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/debug/stats"</code></div></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/tools/dns</code></div>
+                        <p class="endpoint-desc">DNS resolution helper. Resolves a domain name to IP addresses.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Parameters</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">domain</span> <span class="param-required">required</span></td><td><span class="param-type">string</span></td><td>Domain name to resolve</td><td>-</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/tools/dns?domain=example.com"</code></div></div>
+                    </div>
+                </div>
+
+                <!-- Scanning -->
+                <div class="docs-section" id="section-scanning">
+                    <h2 class="docs-section-title">Scanning</h2>
+                    <p class="docs-section-desc">On-demand scan management. Requires a SynScan daemon connected via NATS.</p>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/scanners</code></div>
+                        <p class="endpoint-desc">List active scanner nodes connected via NATS.</p>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/scanners"</code></div></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method post">POST</span><code class="endpoint-path">/api/scan</code></div>
+                        <p class="endpoint-desc">Submit a new scan request to connected scanner daemons. Requires JSON body.</p>
+                        <div class="endpoint-params">
+                            <h4 class="endpoint-params-title">Body Parameters (JSON)</h4>
+                            <table class="endpoint-params-table">
+                                <thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Default</th></tr></thead>
+                                <tbody>
+                                    <tr><td><span class="param-name">target</span> <span class="param-required">required</span></td><td><span class="param-type">string</span></td><td>Target CIDR or IP range</td><td>-</td></tr>
+                                    <tr><td><span class="param-name">ports</span></td><td><span class="param-type">string</span></td><td>Ports to scan (e.g. 80,443,22)</td><td>80,443</td></tr>
+                                    <tr><td><span class="param-name">rate</span></td><td><span class="param-type">int</span></td><td>Packets per second</td><td>1000</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl -X POST "http://localhost:8080/api/scan" \
+  -H "Content-Type: application/json" \
+  -d '{"target":"192.168.1.0/24","ports":"80,443","rate":5000}'</code></div></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="endpoint-method get">GET</span><code class="endpoint-path">/api/events/recent</code></div>
+                        <p class="endpoint-desc">Get recent scan events feed (live discovery results).</p>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Example</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl "http://localhost:8080/api/events/recent"</code></div></div>
+                    </div>
+                </div>
+
+                <!-- Auth note -->
+                <div class="docs-section" id="section-auth">
+                    <h2 class="docs-section-title">Authentication</h2>
+                    <p class="docs-section-desc">API authentication is optional and controlled by the <code>-api-pass</code> flag on the datastore binary.</p>
+                    <div class="endpoint-card">
+                        <p class="endpoint-desc">When authentication is enabled, include the <code>X-API-Key</code> header with every request:</p>
+                        <div class="endpoint-curl"><h4 class="endpoint-curl-title">Authenticated Request</h4><div class="curl-block"><button class="curl-copy-btn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg></button><code>curl -H "X-API-Key: YOUR_SECRET" "http://localhost:8080/api/hosts"</code></div></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB: MeowQL -->
+        <!-- ============================================================ -->
+        <div class="docs-tab-content" data-tab="meowql">
+            <div class="docs-content">
+
+                <div class="meowql-section">
+                    <h2 class="meowql-section-title">MeowQL Query Language</h2>
+                    <p class="docs-section-desc">MeowQL is a query language inspired by Censys, Shodan, and FOFA. It compiles to optimized SQL queries with parameterized values.</p>
+                </div>
+
+                <div class="meowql-section">
+                    <h3 class="meowql-section-title">Operators</h3>
+                    <table class="meowql-table">
+                        <thead><tr><th>Syntax</th><th>Description</th><th>SQL Equivalent</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">field:value</span></td><td>Contains (case-insensitive)</td><td>LIKE '%value%'</td></tr>
+                            <tr><td><span class="meowql-code">field="exact"</span></td><td>Exact match</td><td>= 'exact'</td></tr>
+                            <tr><td><span class="meowql-code">field!=value</span></td><td>Not equal</td><td>!= 'value'</td></tr>
+                            <tr><td><span class="meowql-code">field=~pattern</span></td><td>Regex match</td><td>GLOB</td></tr>
+                            <tr><td><span class="meowql-code">field*=wild*</span></td><td>Wildcard match</td><td>GLOB</td></tr>
+                            <tr><td><span class="meowql-code">field&gt;10</span></td><td>Greater than</td><td>&gt; 10</td></tr>
+                            <tr><td><span class="meowql-code">field&lt;100</span></td><td>Less than</td><td>&lt; 100</td></tr>
+                            <tr><td><span class="meowql-code">field&gt;=5</span></td><td>Greater or equal</td><td>&gt;= 5</td></tr>
+                            <tr><td><span class="meowql-code">field&lt;=20</span></td><td>Less or equal</td><td>&lt;= 20</td></tr>
+                            <tr><td><span class="meowql-code">field:*</span></td><td>Field exists</td><td>IS NOT NULL</td></tr>
+                            <tr><td><span class="meowql-code">field:{a,b,c}</span></td><td>Set / IN (multiple values)</td><td>IN ('a','b','c')</td></tr>
+                            <tr><td><span class="meowql-code">A and B</span></td><td>Logical AND (explicit)</td><td>AND</td></tr>
+                            <tr><td><span class="meowql-code">A B</span></td><td>Logical AND (implicit, space)</td><td>AND</td></tr>
+                            <tr><td><span class="meowql-code">A or B</span></td><td>Logical OR</td><td>OR</td></tr>
+                            <tr><td><span class="meowql-code">not A</span></td><td>Negation</td><td>NOT</td></tr>
+                            <tr><td><span class="meowql-code">-field:value</span></td><td>Negation prefix</td><td>NOT ... LIKE</td></tr>
+                            <tr><td><span class="meowql-code">(A or B)</span></td><td>Grouping</td><td>( ... )</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="meowql-section">
+                    <h3 class="meowql-section-title">Fields Reference</h3>
+
+                    <div class="meowql-field-category">Host Fields</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">ip</span></td><td>IP</td><td>IP address, supports CIDR notation</td></tr>
+                            <tr><td><span class="meowql-code">hostname</span></td><td>String</td><td>Hostname</td></tr>
+                            <tr><td><span class="meowql-code">domain</span></td><td>String</td><td>Associated domains</td></tr>
+                            <tr><td><span class="meowql-code">domain.source</span></td><td>String</td><td>Domain source (certificate, sni, reverse_dns)</td></tr>
+                            <tr><td><span class="meowql-code">country</span></td><td>String</td><td>ISO country code</td></tr>
+                            <tr><td><span class="meowql-code">city</span></td><td>String</td><td>City name</td></tr>
+                            <tr><td><span class="meowql-code">asn</span></td><td>Integer</td><td>AS number</td></tr>
+                            <tr><td><span class="meowql-code">org</span></td><td>String</td><td>AS organization</td></tr>
+                            <tr><td><span class="meowql-code">cloud</span></td><td>String</td><td>Cloud provider (aws, gcp, azure)</td></tr>
+                            <tr><td><span class="meowql-code">cloud.region</span></td><td>String</td><td>Cloud region</td></tr>
+                            <tr><td><span class="meowql-code">timezone</span></td><td>String</td><td>Timezone</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="meowql-field-category">Service Fields</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">port</span></td><td>Integer</td><td>Port number</td></tr>
+                            <tr><td><span class="meowql-code">service</span></td><td>String</td><td>Service name (http, ssh, ftp...)</td></tr>
+                            <tr><td><span class="meowql-code">product</span></td><td>String</td><td>Product name (nginx, OpenSSH...)</td></tr>
+                            <tr><td><span class="meowql-code">version</span></td><td>String</td><td>Version string</td></tr>
+                            <tr><td><span class="meowql-code">banner</span></td><td>String</td><td>Service banner</td></tr>
+                            <tr><td><span class="meowql-code">enrichment</span></td><td>String</td><td>Enrichment status</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="meowql-field-category">HTTP Fields</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">http.title</span></td><td>String</td><td>Page title</td></tr>
+                            <tr><td><span class="meowql-code">http.server</span></td><td>String</td><td>Server header</td></tr>
+                            <tr><td><span class="meowql-code">http.status</span></td><td>Integer</td><td>HTTP status code</td></tr>
+                            <tr><td><span class="meowql-code">http.body</span></td><td>String</td><td>Response body preview</td></tr>
+                            <tr><td><span class="meowql-code">http.webserver</span></td><td>String</td><td>Webserver software</td></tr>
+                            <tr><td><span class="meowql-code">http.ssl</span></td><td>Boolean</td><td>Uses SSL/TLS</td></tr>
+                            <tr><td><span class="meowql-code">http.body_hash</span></td><td>String</td><td>SHA256 body hash</td></tr>
+                            <tr><td><span class="meowql-code">http.favicon</span></td><td>String</td><td>Favicon MD5 hash</td></tr>
+                            <tr><td><span class="meowql-code">tech</span></td><td>String</td><td>Detected technologies</td></tr>
+                            <tr><td><span class="meowql-code">framework</span></td><td>String</td><td>Detected framework</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="meowql-field-category">TLS Fields</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">tls.cert.cn</span></td><td>String</td><td>Subject Common Name</td></tr>
+                            <tr><td><span class="meowql-code">tls.cert.issuer</span></td><td>String</td><td>Issuer Common Name</td></tr>
+                            <tr><td><span class="meowql-code">tls.cert.names</span></td><td>String</td><td>Subject Alternative Names (SANs)</td></tr>
+                            <tr><td><span class="meowql-code">tls.cert.issuer_org</span></td><td>String</td><td>Issuer organization</td></tr>
+                            <tr><td><span class="meowql-code">tls.cert.not_before</span></td><td>Integer</td><td>Not before timestamp</td></tr>
+                            <tr><td><span class="meowql-code">tls.cert.expired</span></td><td>Integer</td><td>Not after timestamp</td></tr>
+                            <tr><td><span class="meowql-code">tls.cert.is_ca</span></td><td>Boolean</td><td>Is CA certificate</td></tr>
+                            <tr><td><span class="meowql-code">tls.cert.sig_algo</span></td><td>String</td><td>Signature algorithm</td></tr>
+                            <tr><td><span class="meowql-code">tls.cert.serial</span></td><td>String</td><td>Serial number (hex)</td></tr>
+                            <tr><td><span class="meowql-code">tls.jarm</span></td><td>String</td><td>JARM TLS fingerprint</td></tr>
+                            <tr><td><span class="meowql-code">tls.self_signed</span></td><td>Boolean</td><td>Self-signed certificate</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="meowql-field-category">Dynamic JSON Fields</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Prefix</th><th>Source</th><th>Example</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">enrichment.*</span></td><td>services.enrichment_data</td><td><span class="meowql-code">enrichment.anonymous_login:true</span></td></tr>
+                            <tr><td><span class="meowql-code">fingerprint.*</span></td><td>services.fingerprint_data</td><td><span class="meowql-code">fingerprint.jarm:"2ad..."</span></td></tr>
+                            <tr><td><span class="meowql-code">http.headers.*</span></td><td>http_data.headers</td><td><span class="meowql-code">http.headers.X-Powered-By:"PHP"</span></td></tr>
+                            <tr><td><span class="meowql-code">http.tech.*</span></td><td>http_data.technologies</td><td><span class="meowql-code">http.tech.name:"jQuery"</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="meowql-section">
+                    <h3 class="meowql-section-title">Examples</h3>
+                    <div class="meowql-examples-grid">
+                        <div class="meowql-example-chip" data-query="port:443 country:FR"><div class="meowql-example-code">port:443 country:FR</div><div class="meowql-example-desc">HTTPS servers in France</div></div>
+                        <div class="meowql-example-chip" data-query='http.title:"login" and not cloud:aws'><div class="meowql-example-code">http.title:"login" and not cloud:aws</div><div class="meowql-example-desc">Login pages not on AWS</div></div>
+                        <div class="meowql-example-chip" data-query="ip:192.168.1.0/24 and service:ssh"><div class="meowql-example-code">ip:192.168.1.0/24 and service:ssh</div><div class="meowql-example-desc">SSH in a subnet</div></div>
+                        <div class="meowql-example-chip" data-query='(port:8443 or port:443) and tls.cert.cn:"*.com"'><div class="meowql-example-code">(port:8443 or port:443) and tls.cert.cn:"*.com"</div><div class="meowql-example-desc">Web servers with *.com cert</div></div>
+                        <div class="meowql-example-chip" data-query='port:{22,80,443} and org:"Google"'><div class="meowql-example-code">port:{22,80,443} and org:"Google"</div><div class="meowql-example-desc">Common ports at Google</div></div>
+                        <div class="meowql-example-chip" data-query="enrichment.anonymous_login:true and service:ftp"><div class="meowql-example-code">enrichment.anonymous_login:true and service:ftp</div><div class="meowql-example-desc">FTP with anonymous login</div></div>
+                        <div class="meowql-example-chip" data-query="http.headers.Vary:RSC"><div class="meowql-example-code">http.headers.Vary:RSC</div><div class="meowql-example-desc">React Server Components</div></div>
+                        <div class="meowql-example-chip" data-query="-cloud:* and country:FR"><div class="meowql-example-code">-cloud:* and country:FR</div><div class="meowql-example-desc">Non-cloud hosts in France</div></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB: Modules -->
+        <!-- ============================================================ -->
+        <div class="docs-tab-content active" data-tab="quickstart">
+            <div class="docs-content">
+
+                <!-- Deployment -->
+                <div class="modules-section">
+                    <div class="modules-section-header">
+                        <h2 class="modules-section-title">Quick Start</h2>
+                    </div>
+                    <p class="module-desc"> The datastore must start first as it embeds the NATS server if not messages will be lost. For local usage:</p>
+
+                    <div class="module-example-block"><code>$ ./datastore 
+$ ./grab local
+$ ./synscan -d # to get scan capabilities from datastore</code>
+                    </div>
+
+                    <p class="module-desc"> For multi module usage:</p>
+                    <div class="module-example-block"><code>$ ./datastore -nats-host 192.168.0.12 -nats-token natssecret
+$ ./grab enrich --nats-token natssecret --nats-url nats://192.168.0.12:4222
+$ ./grab finger --nats-token natssecret --nats-url nats://192.168.0.12:4222
+$ ./synscan -d --nats-token natssecret --nats-url nats://192.168.0.12:4222 # daemon mode
+$ ./synscan --nats-token natssecret --nats-url nats://192.168.0.12:4222 -t 192.168.0.0/24 -P 50 # direct scan mode </code>
+                    </div>
+
+                </div>
+
+                <!-- NATS Topics Overview -->
+                <div class="modules-section">
+                    <div class="modules-section-header">
+                        <h2 class="modules-section-title">Pipeline Overview</h2>
+                    </div>
+                    <p class="module-desc">The three modules communicate via NATS topics in a processing pipeline:</p>
+                    <div class="module-example-block"><code>SynScan ──scan.port.open──&gt; Grabber (finger) ──scan.port.fingerprinted──&gt; Grabber (enrich) ──scan.port.enriched──&gt; Datastore</code></div>
+                    <table class="nats-topics-table">
+                        <thead><tr><th>Topic</th><th>Producer</th><th>Consumer</th><th>Queue Group</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="module-code">scan.port.open</span></td><td>SynScan</td><td>Grabber (finger), Datastore</td><td>fingerprint-workers, datastore-workers</td></tr>
+                            <tr><td><span class="module-code">scan.port.fingerprinted</span></td><td>Grabber (finger)</td><td>Grabber (enrich), Datastore</td><td>enrichment-workers, datastore-workers</td></tr>
+                            <tr><td><span class="module-code">scan.port.enriched</span></td><td>Grabber (enrich)</td><td>Datastore</td><td>datastore-workers</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB: Enrichment Modules -->
+        <!-- ============================================================ -->
+        <div class="docs-tab-content" data-tab="enrichment">
+            <div class="docs-content">
+
+                <div class="meowql-section">
+                    <h2 class="meowql-section-title">Enrichment Modules</h2>
+                    <p class="docs-section-desc">The grabber includes 60 enrichment modules that extract protocol-specific data from discovered services. Each module connects to the target, speaks the native protocol, and returns structured JSON data stored in <span class="meowql-code">enrichment_data</span>. Query enrichment results via MeowQL: <span class="meowql-code">enrichment.field:value</span>.</p>
+                </div>
+
+                <div class="meowql-section">
+                    <div class="meowql-field-category">Web & HTTP</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Module</th><th>Aliases</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">http</span></td><td>https, http-proxy, https-proxy</td><td>HTTP headers, title, status, body hash, favicon, technologies (Wappalyzer), framework, CMS, redirects, SSL info</td></tr>
+                            <tr><td><span class="meowql-code">ipp</span></td><td>ipps</td><td>Internet Printing Protocol: printer name, state, model, firmware, URIs, jobs</td></tr>
+                            <tr><td><span class="meowql-code">icecast</span></td><td>-</td><td>Icecast streaming server: version, station info, stream metadata</td></tr>
+                            <tr><td><span class="meowql-code">couchdb</span></td><td>-</td><td>CouchDB: version, server info, database list, cluster config</td></tr>
+                            <tr><td><span class="meowql-code">elasticsearch</span></td><td>-</td><td>Elasticsearch: version, cluster name/status, node count, indices</td></tr>
+                            <tr><td><span class="meowql-code">influxdb</span></td><td>-</td><td>InfluxDB: version, build info, database list</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="meowql-section">
+                    <div class="meowql-field-category">Email</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Module</th><th>Aliases</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">smtp</span></td><td>smtps, submission</td><td>SMTP banner, EHLO capabilities, STARTTLS, auth methods, relay testing</td></tr>
+                            <tr><td><span class="meowql-code">pop3</span></td><td>pop-3</td><td>POP3 banner, capabilities, STLS support</td></tr>
+                            <tr><td><span class="meowql-code">pop3s</span></td><td>pop3-ssl</td><td>POP3 over TLS: same as pop3 with native TLS</td></tr>
+                            <tr><td><span class="meowql-code">imap</span></td><td>-</td><td>IMAP banner, capabilities, STARTTLS, auth mechanisms</td></tr>
+                            <tr><td><span class="meowql-code">imaps</span></td><td>imap-ssl</td><td>IMAP over TLS: same as imap with native TLS</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="meowql-section">
+                    <div class="meowql-field-category">Databases</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Module</th><th>Aliases</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">mysql</span></td><td>mariadb</td><td>MySQL/MariaDB: version, server capabilities, auth plugin, charset, connection ID</td></tr>
+                            <tr><td><span class="meowql-code">postgres</span></td><td>postgresql</td><td>PostgreSQL: version, server parameters, auth methods, SSL state</td></tr>
+                            <tr><td><span class="meowql-code">mongodb</span></td><td>mongod</td><td>MongoDB: version, server info (buildInfo), databases, replicaSet status</td></tr>
+                            <tr><td><span class="meowql-code">redis</span></td><td>-</td><td>Redis: version, mode, OS, memory, connected clients, auth required</td></tr>
+                            <tr><td><span class="meowql-code">oracle</span></td><td>oracle-tns</td><td>Oracle TNS: version, service names, listener status</td></tr>
+                            <tr><td><span class="meowql-code">mssql</span></td><td>ms-sql-s</td><td>Microsoft SQL Server: version, instance name, named pipes, TCP port</td></tr>
+                            <tr><td><span class="meowql-code">cassandra</span></td><td>-</td><td>Cassandra: version, cluster name, datacenter, CQL version, partitioner</td></tr>
+                            <tr><td><span class="meowql-code">memcached</span></td><td>-</td><td>Memcached: version, uptime, current connections, items, memory stats</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="meowql-section">
+                    <div class="meowql-field-category">Directory & Discovery</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Module</th><th>Aliases</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">ldap</span></td><td>-</td><td>LDAP: root DSE, naming contexts, supported controls, server info</td></tr>
+                            <tr><td><span class="meowql-code">ldaps</span></td><td>ldap-ssl</td><td>LDAP over TLS: same as ldap with native TLS</td></tr>
+                            <tr><td><span class="meowql-code">dns</span></td><td>domain</td><td>DNS: version.bind, recursion available, DNSSEC support, zone transfer test</td></tr>
+                            <tr><td><span class="meowql-code">netbios</span></td><td>netbios-ns, netbios-ssn</td><td>NetBIOS: computer name, domain, MAC address, group names</td></tr>
+                            <tr><td><span class="meowql-code">x11</span></td><td>-</td><td>X11: version, vendor, auth required, screens info</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="meowql-section">
+                    <div class="meowql-field-category">Remote Access</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Module</th><th>Aliases</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">ssh</span></td><td>-</td><td>SSH: version, key exchange algorithms, host key types, ciphers, MACs, compressions</td></tr>
+                            <tr><td><span class="meowql-code">telnet</span></td><td>-</td><td>Telnet: banner, negotiated options, terminal type</td></tr>
+                            <tr><td><span class="meowql-code">vnc</span></td><td>-</td><td>VNC: version, security types, auth required, desktop name</td></tr>
+                            <tr><td><span class="meowql-code">rdp</span></td><td>ms-wbt-server</td><td>RDP: version, NLA required, TLS support, certificate info</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="meowql-section">
+                    <div class="meowql-field-category">File Transfer</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Module</th><th>Aliases</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">ftp</span></td><td>ftps</td><td>FTP: banner, FEAT capabilities, anonymous login, STARTTLS, system type</td></tr>
+                            <tr><td><span class="meowql-code">rsync</span></td><td>-</td><td>Rsync: version, module list with descriptions</td></tr>
+                            <tr><td><span class="meowql-code">tftp</span></td><td>-</td><td>TFTP: accessibility check, error responses</td></tr>
+                            <tr><td><span class="meowql-code">nfs</span></td><td>nfsd</td><td>NFS: version, exported shares, access permissions</td></tr>
+                            <tr><td><span class="meowql-code">git</span></td><td>-</td><td>Git: version, protocol capabilities</td></tr>
+                            <tr><td><span class="meowql-code">afp</span></td><td>-</td><td>Apple Filing Protocol: server name, machine type, AFP versions, UAMs, flags</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="meowql-section">
+                    <div class="meowql-field-category">Messaging</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Module</th><th>Aliases</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">mqtt</span></td><td>-</td><td>MQTT: version, broker info, anonymous access, CONNACK response</td></tr>
+                            <tr><td><span class="meowql-code">amqp</span></td><td>-</td><td>AMQP: version, product, platform, capabilities, mechanisms</td></tr>
+                            <tr><td><span class="meowql-code">xmpp</span></td><td>jabber</td><td>XMPP: server features, mechanisms, TLS support, stream info</td></tr>
+                            <tr><td><span class="meowql-code">irc</span></td><td>ircd</td><td>IRC: server name, version, network, user count, MOTD, supported features</td></tr>
+                            <tr><td><span class="meowql-code">mumble</span></td><td>-</td><td>Mumble: version, users online, max users, bandwidth, welcome text</td></tr>
+                            <tr><td><span class="meowql-code">teamspeak</span></td><td>ts3</td><td>TeamSpeak 3: version, platform, clients online, channels, server name</td></tr>
+                            <tr><td><span class="meowql-code">sip</span></td><td>-</td><td>SIP: server/user-agent, supported methods, allow headers</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="meowql-section">
+                    <div class="meowql-field-category">Network & Infrastructure</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Module</th><th>Aliases</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">smb</span></td><td>microsoft-ds</td><td>SMB: version, OS, computer name, domain, signing required, shares list</td></tr>
+                            <tr><td><span class="meowql-code">snmp</span></td><td>-</td><td>SNMP: sysDescr, sysName, sysLocation, sysContact, uptime</td></tr>
+                            <tr><td><span class="meowql-code">ntp</span></td><td>-</td><td>NTP: version, stratum, reference ID, monlist support</td></tr>
+                            <tr><td><span class="meowql-code">modbus</span></td><td>-</td><td>Modbus: device identification, vendor, product code, model</td></tr>
+                            <tr><td><span class="meowql-code">coap</span></td><td>-</td><td>CoAP: resources (/.well-known/core), supported content formats</td></tr>
+                            <tr><td><span class="meowql-code">openvpn</span></td><td>-</td><td>OpenVPN: protocol detection, key exchange response</td></tr>
+                            <tr><td><span class="meowql-code">pptp</span></td><td>-</td><td>PPTP: vendor, hostname, firmware version, framing/bearer capabilities</td></tr>
+                            <tr><td><span class="meowql-code">upnp</span></td><td>ssdp</td><td>UPnP/SSDP: device description, services, manufacturer, model</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="meowql-section">
+                    <div class="meowql-field-category">Other Protocols</div>
+                    <table class="meowql-table">
+                        <thead><tr><th>Module</th><th>Aliases</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">rpc</span></td><td>rpcbind, portmapper</td><td>RPC portmapper: registered programs, versions, protocols, ports</td></tr>
+                            <tr><td><span class="meowql-code">rtsp</span></td><td>-</td><td>RTSP: server, supported methods, content-base</td></tr>
+                            <tr><td><span class="meowql-code">minecraft</span></td><td>-</td><td>Minecraft: version, protocol, description (MOTD), player count, max players</td></tr>
+                            <tr><td><span class="meowql-code">ajp13</span></td><td>-</td><td>AJP (Apache JServ): CPing/CPong detection, backend server info</td></tr>
+                            <tr><td><span class="meowql-code">lpd</span></td><td>printer</td><td>LPD (Line Printer Daemon): queue list, printer status</td></tr>
+                            <tr><td><span class="meowql-code">mpd</span></td><td>-</td><td>Music Player Daemon: version, status, stats, current playlist</td></tr>
+                            <tr><td><span class="meowql-code">nntp</span></td><td>-</td><td>NNTP (Usenet): banner, capabilities, posting allowed, groups count</td></tr>
+                            <tr><td><span class="meowql-code">syslog</span></td><td>-</td><td>Syslog: protocol detection, message format</td></tr>
+                            <tr><td><span class="meowql-code">ldp</span></td><td>-</td><td>Label Distribution Protocol: version, keepalive, label space, capabilities</td></tr>
+                            <tr><td><span class="meowql-code">banner</span></td><td>-</td><td>Generic banner grabber: raw TCP banner for unrecognized services</td></tr>
+                            <tr><td><span class="meowql-code">ntlm_parser</span></td><td>-</td><td>NTLM challenge parser: OS version, hostname, domain, DNS info from NTLMSSP</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="meowql-section">
+                    <p class="docs-section-desc">Query enrichment data in MeowQL using the <span class="meowql-code">enrichment.*</span> prefix:</p>
+                    <div class="meowql-examples-grid">
+                        <div class="meowql-example-chip" data-query="enrichment.anonymous_login:true and service:ftp"><div class="meowql-example-code">enrichment.anonymous_login:true and service:ftp</div><div class="meowql-example-desc">FTP servers with anonymous access</div></div>
+                        <div class="meowql-example-chip" data-query='enrichment.auth_required:false and service:redis'><div class="meowql-example-code">enrichment.auth_required:false and service:redis</div><div class="meowql-example-desc">Redis without authentication</div></div>
+                        <div class="meowql-example-chip" data-query='enrichment.version:"8.0" and service:mysql'><div class="meowql-example-code">enrichment.version:"8.0" and service:mysql</div><div class="meowql-example-desc">MySQL 8.0 instances</div></div>
+                        <div class="meowql-example-chip" data-query="enrichment.signing_required:false and service:smb"><div class="meowql-example-code">enrichment.signing_required:false and service:smb</div><div class="meowql-example-desc">SMB without signing</div></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB: Configuration -->
+        <!-- ============================================================ -->
+        <div class="docs-tab-content" data-tab="config">
+            <div class="docs-content">
+
+                <div class="meowql-section">
+                    <h2 class="meowql-section-title">Configuration</h2>
+                    <p class="docs-section-desc">All three modules support CLI flags and optional YAML config files. CLI flags always take priority. Config files are optional when NATS is running on localhost or <span class="meowql-code">--nats-url</span> is provided.</p>
+                </div>
+
+                <!-- Grabber config.yaml -->
+                <div class="modules-section">
+                    <div class="modules-section-header">
+                        <h2 class="modules-section-title">Grabber</h2>
+                        <span class="module-badge">CLI flags</span>
+                        <span class="module-badge">config.yaml</span>
+                    </div>
+                    <p class="docs-section-desc" style="padding: 14px 20px; margin-bottom: 0; border-bottom: 1px solid var(--border-primary);">All settings can be provided via CLI flags, a YAML config file, or both. CLI flags always take priority. Without <span class="meowql-code">-c</span> or <span class="meowql-code">--nats-url</span>, the grabber tries <span class="meowql-code">config.yaml</span> in the current directory, then falls back to defaults with <span class="meowql-code">nats://localhost:4222</span>.</p>
+
+                    <div class="config-block">
+                        <div class="config-section-label">CLI Flags — finger</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">-c, --config</span></td><td>config.yaml</td><td>Path to YAML config file (optional)</td></tr>
+                                <tr><td><span class="module-code">-w, --workers</span></td><td>500</td><td>Override worker count</td></tr>
+                                <tr><td><span class="module-code">--nats-url</span></td><td>nats://localhost:4222</td><td>NATS server URL</td></tr>
+                                <tr><td><span class="module-code">--nats-token</span></td><td>-</td><td>NATS auth token</td></tr>
+                                <tr><td><span class="module-code">--probe-timeout</span></td><td>9000</td><td>Per-probe timeout in ms</td></tr>
+                                <tr><td><span class="module-code">--global-timeout</span></td><td>30000</td><td>Global timeout per port in ms</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="config-block">
+                        <div class="config-section-label">CLI Flags — enrich</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">-c, --config</span></td><td>config.yaml</td><td>Path to YAML config file (optional)</td></tr>
+                                <tr><td><span class="module-code">-w, --workers</span></td><td>500</td><td>Override worker count</td></tr>
+                                <tr><td><span class="module-code">--nats-url</span></td><td>nats://localhost:4222</td><td>NATS server URL</td></tr>
+                                <tr><td><span class="module-code">--nats-token</span></td><td>-</td><td>NATS auth token</td></tr>
+                                <tr><td><span class="module-code">--enrich-timeout</span></td><td>10000</td><td>Per-module scan timeout in ms</td></tr>
+                                <tr><td><span class="module-code">--global-timeout</span></td><td>30000</td><td>Hard deadline per job in ms</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="config-block">
+                        <div class="config-section-label">CLI Flags — local</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">-c, --config</span></td><td>config.yaml</td><td>Path to YAML config file (optional)</td></tr>
+                                <tr><td><span class="module-code">-w, --workers</span></td><td>500</td><td>Override worker count</td></tr>
+                                <tr><td><span class="module-code">--nats-url</span></td><td>nats://localhost:4222</td><td>NATS server URL</td></tr>
+                                <tr><td><span class="module-code">--nats-token</span></td><td>-</td><td>NATS auth token</td></tr>
+                                <tr><td><span class="module-code">--probe-timeout</span></td><td>9000</td><td>Per-probe timeout in ms</td></tr>
+                                <tr><td><span class="module-code">--enrich-timeout</span></td><td>10000</td><td>Per-module scan timeout in ms</td></tr>
+                                <tr><td><span class="module-code">--global-timeout</span></td><td>30000</td><td>Global timeout in ms</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="config-block">
+                        <div class="config-section-label">config.yaml — NATS Connection</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">nats.url</span></td><td>string</td><td>nats://localhost:4222</td><td>NATS server URL</td></tr>
+                                <tr><td><span class="module-code">nats.auth.token</span></td><td>string</td><td>""</td><td>Authentication token (leave empty if no auth)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="config-block">
+                        <div class="config-section-label">config.yaml — Fingerprint</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">fingerprint.workers</span></td><td>int</td><td>500</td><td>Number of concurrent fingerprint workers</td></tr>
+                                <tr><td><span class="module-code">fingerprint.probe_timeout_ms</span></td><td>int</td><td>9000</td><td>Timeout per individual nmap probe (ms)</td></tr>
+                                <tr><td><span class="module-code">fingerprint.global_timeout_ms</span></td><td>int</td><td>30000</td><td>Total timeout for all probes on a single port (ms)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="config-block">
+                        <div class="config-section-label">config.yaml — Enrichment</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">enrichment.workers</span></td><td>int</td><td>500</td><td>Number of concurrent enrichment workers</td></tr>
+                                <tr><td><span class="module-code">enrichment.enrich_timeout_ms</span></td><td>int</td><td>10000</td><td>Per-module scan timeout (ms), overrides module defaults</td></tr>
+                                <tr><td><span class="module-code">enrichment.global_timeout_ms</span></td><td>int</td><td>30000</td><td>Hard deadline per enrichment job (ms)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="config-block">
+                        <div class="config-section-label">config.yaml — Logging</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">logging.level</span></td><td>string</td><td>info</td><td>Log level: debug, info, warn, error</td></tr>
+                                <tr><td><span class="module-code">logging.format</span></td><td>string</td><td>console</td><td>Output format: console (human-readable) or json</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h4 class="endpoint-curl-title" style="padding: 0 20px;">Example config.yaml</h4>
+                    <div class="module-example-block"><code>nats:
+  url: "nats://localhost:4222"
+  auth:
+    token: "SECRET"
+
+fingerprint:
+  workers: 500
+  probe_timeout_ms: 9000
+  global_timeout_ms: 30000
+
+enrichment:
+  workers: 500
+  enrich_timeout_ms: 10000
+  global_timeout_ms: 30000
+
+logging:
+  level: "info"
+  format: "console"</code></div>
+
+                    <h4 class="endpoint-curl-title" style="padding: 0 20px;">CLI-only examples (no config.yaml needed)</h4>
+                    <div class="module-example-block"><code># Fingerprint with all defaults (NATS on localhost)
+./grab finger
+
+# Fingerprint with explicit NATS + token
+./grab finger --nats-url nats://10.0.0.1:4222 --nats-token SECRET
+
+# Enrichment with custom timeouts
+./grab enrich --nats-url nats://10.0.0.1:4222 --enrich-timeout 15000 --global-timeout 60000
+
+# Local mode (finger + enrich) with workers override
+./grab local --nats-url nats://10.0.0.1:4222 --nats-token SECRET -w 100
+
+# Mix: config file + CLI overrides
+./grab finger -c config.yaml --nats-token NEW_TOKEN --probe-timeout 5000</code></div>
+                </div>
+
+                <!-- SynScan config -->
+                <div class="modules-section">
+                    <div class="modules-section-header">
+                        <h2 class="modules-section-title">SynScan</h2>
+                        <span class="module-badge">CLI flags</span>
+                        <span class="module-badge">config.yaml</span>
+                    </div>
+                    <p class="docs-section-desc" style="padding: 14px 20px; margin-bottom: 0; border-bottom: 1px solid var(--border-primary);">TCP SYN scanner. Config file is optional — if present it provides defaults that CLI flags override. Requires root or CAP_NET_RAW on Linux.</p>
+
+                    <div class="config-block">
+                        <div class="config-section-label">CLI Flags</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">-t, --target</span></td><td>-</td><td>Target CIDR or IP range (required in scan mode)</td></tr>
+                                <tr><td><span class="module-code">-p, --ports</span></td><td>80,443,22,8080,8443</td><td>Ports to scan</td></tr>
+                                <tr><td><span class="module-code">-P, --top-ports</span></td><td>-</td><td>Scan the N most common ports (mutually exclusive with -p)</td></tr>
+                                <tr><td><span class="module-code">-i, --interface</span></td><td>auto</td><td>Network interface</td></tr>
+                                <tr><td><span class="module-code">-r, --rate-limit</span></td><td>1000</td><td>Packets per second</td></tr>
+                                <tr><td><span class="module-code">-T, --timeout</span></td><td>5000</td><td>Timeout in ms</td></tr>
+                                <tr><td><span class="module-code">-c, --config</span></td><td>config.yaml</td><td>YAML config file (optional)</td></tr>
+                                <tr><td><span class="module-code">--nats-url</span></td><td>nats://localhost:4222</td><td>NATS server URL</td></tr>
+                                <tr><td><span class="module-code">--nats-token</span></td><td>-</td><td>NATS auth token</td></tr>
+                                <tr><td><span class="module-code">--resume</span></td><td>-</td><td>Resume scan from token (hex 24 chars)</td></tr>
+                                <tr><td><span class="module-code">-d, --daemon</span></td><td>false</td><td>Daemon mode: wait for scan requests via NATS</td></tr>
+                                <tr><td><span class="module-code">-v, --verbose</span></td><td>false</td><td>Verbose output</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="config-block">
+                        <div class="config-section-label">config.yaml — Target</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">synscan.target.cidr</span></td><td>string</td><td>-</td><td>Target CIDR or IP range</td></tr>
+                                <tr><td><span class="module-code">synscan.target.ports</span></td><td>string</td><td>80,443,22,8080,8443</td><td>Ports to scan</td></tr>
+                                <tr><td><span class="module-code">synscan.target.top_ports</span></td><td>int</td><td>0</td><td>Scan the N most common ports (overrides ports if set)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="config-block">
+                        <div class="config-section-label">config.yaml — Network & Performance</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">synscan.network.interface</span></td><td>string</td><td>auto</td><td>Network interface name</td></tr>
+                                <tr><td><span class="module-code">synscan.performance.rate_limit</span></td><td>int</td><td>1000</td><td>Packets per second</td></tr>
+                                <tr><td><span class="module-code">synscan.performance.timeout_ms</span></td><td>int</td><td>5000</td><td>Timeout in ms</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="config-block">
+                        <div class="config-section-label">config.yaml — NATS & Logging</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">nats.url</span></td><td>string</td><td>nats://localhost:4222</td><td>NATS server URL</td></tr>
+                                <tr><td><span class="module-code">nats.auth.token</span></td><td>string</td><td>""</td><td>NATS auth token</td></tr>
+                                <tr><td><span class="module-code">logging.level</span></td><td>string</td><td>info</td><td>Log level: debug, info, warn, error</td></tr>
+                                <tr><td><span class="module-code">logging.format</span></td><td>string</td><td>console</td><td>Output format: console or json</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h4 class="endpoint-curl-title" style="padding: 0 20px;">Example config.yaml</h4>
+                    <div class="module-example-block"><code>nats:
+  url: "nats://localhost:4222"
+  auth:
+    token: "SECRET"
+
+synscan:
+  target:
+    cidr: "192.168.1.0/24"
+    ports: "22,80,443,8080,8443"
+  network:
+    interface: ""
+  performance:
+    rate_limit: 5000
+    timeout_ms: 5000
+
+logging:
+  level: "info"
+  format: "console"</code></div>
+
+                    <h4 class="endpoint-curl-title" style="padding: 0 20px;">CLI examples</h4>
+                    <div class="module-example-block"><code># Basic scan
+sudo ./synscan -t 192.168.1.0/24 -p 80,443
+
+# Top 100 ports at high rate
+sudo ./synscan -t 10.0.0.0/16 --top-ports 100 -r 10000
+
+# With NATS auth
+sudo ./synscan -t 192.168.1.0/24 -p 1-1000 --nats-token SECRET
+
+# Daemon mode (waits for NATS scan requests)
+sudo ./synscan --daemon --nats-url nats://10.0.0.1:4222 --nats-token SECRET
+
+# Resume interrupted scan
+sudo ./synscan -t 10.0.0.0/8 -p 80,443 --resume a1b2c3d4e5f6...</code></div>
+                </div>
+
+                <!-- Datastore config -->
+                <div class="modules-section">
+                    <div class="modules-section-header">
+                        <h2 class="modules-section-title">Datastore</h2>
+                        <span class="module-badge">CLI flags</span>
+                        <span class="module-badge">ENV vars</span>
+                    </div>
+                    <p class="docs-section-desc" style="padding: 14px 20px; margin-bottom: 0; border-bottom: 1px solid var(--border-primary);">The datastore is configured via CLI flags. Several flags can also be set via environment variables.</p>
+
+                    <div class="config-block">
+                        <div class="config-section-label">NATS Server</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Flag</th><th>Env Var</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">-nats-url</span></td><td>-</td><td>-</td><td>External NATS URL. If empty, starts embedded NATS server</td></tr>
+                                <tr><td><span class="module-code">-nats-host</span></td><td>-</td><td>0.0.0.0</td><td>Embedded NATS listen address</td></tr>
+                                <tr><td><span class="module-code">-nats-port</span></td><td>-</td><td>4222</td><td>Embedded NATS port</td></tr>
+                                <tr><td><span class="module-code">-nats-token</span></td><td>DATASTORE_NATS_TOKEN</td><td>-</td><td>NATS auth token</td></tr>
+                                <tr><td><span class="module-code">-nats-user</span></td><td>DATASTORE_NATS_USER</td><td>-</td><td>NATS username</td></tr>
+                                <tr><td><span class="module-code">-nats-pass</span></td><td>DATASTORE_NATS_PASSWORD</td><td>-</td><td>NATS password</td></tr>
+                                <tr><td><span class="module-code">-queue-group</span></td><td>-</td><td>datastore-workers</td><td>NATS consumer queue group name</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="config-block">
+                        <div class="config-section-label">Database</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Flag</th><th>Env Var</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">-db-path</span></td><td>-</td><td>./scanner.db</td><td>SQLite database file path</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="config-block">
+                        <div class="config-section-label">API & Web UI</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Flag</th><th>Env Var</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">-no-api</span></td><td>-</td><td>false</td><td>Disable REST API and Web UI entirely</td></tr>
+                                <tr><td><span class="module-code">-api-port</span></td><td>-</td><td>18080</td><td>API and Web UI listen port</td></tr>
+                                <tr><td><span class="module-code">-api-bind</span></td><td>-</td><td>127.0.0.1</td><td>API and Web UI bind address</td></tr>
+                                <tr><td><span class="module-code">-api-pass</span></td><td>DATASTORE_API_PASSWORD</td><td>-</td><td>API password (sent via X-API-Key header)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="config-block">
+                        <div class="config-section-label">General</div>
+                        <table class="module-flags-table">
+                            <thead><tr><th>Flag</th><th>Env Var</th><th>Default</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="module-code">-verbose</span></td><td>-</td><td>false</td><td>Enable debug logging</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h4 class="endpoint-curl-title" style="padding: 0 20px;">Examples</h4>
+                    <div class="module-example-block"><code># Minimal (embedded NATS, no auth, API on :8080)
+./datastore -verbose
+
+# Production (embedded NATS + auth + API password)
+./datastore -nats-token="SECRET" -api-pass="APIKEY"
+
+# External NATS with user/password
+./datastore -nats-url="nats://remote:4222" -nats-user="admin" -nats-pass="secret"
+
+# Using environment variables
+export DATASTORE_NATS_TOKEN="SECRET"
+export DATASTORE_API_PASSWORD="APIKEY"
+./datastore -verbose</code></div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB: Debugger -->
+        <!-- ============================================================ -->
+        <div class="docs-tab-content" data-tab="debugger">
+            <div class="docs-content">
+                <div class="dbg">
+                    <!-- Request -->
+                    <div class="dbg-card">
+                        <div class="dbg-bar">
+                            <select id="debugger-endpoint-select" class="dbg-select">
+                                <option value="">Select an endpoint...</option>
+                            </select>
+                            <button id="debugger-send-btn" class="dbg-send" disabled>
+                                <svg class="dbg-send-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                <span class="dbg-send-text">Send</span>
+                            </button>
+                        </div>
+                        <div id="debugger-params" class="debugger-params"></div>
+                    </div>
+
+                    <!-- Curl -->
+                    <div class="dbg-card dbg-curl-card">
+                        <div class="dbg-section-bar">
+                            <span class="dbg-section-label">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M4 17l6-5-6-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 19h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                curl
+                            </span>
+                            <button id="debugger-copy-curl" class="dbg-copy-btn" title="Copy">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg>
+                            </button>
+                        </div>
+                        <pre id="debugger-curl-output" class="dbg-curl-pre">Select an endpoint to generate command</pre>
+                    </div>
+
+                    <!-- Response -->
+                    <div id="debugger-response" class="dbg-card dbg-response-card">
+                        <div class="debugger-empty">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" style="opacity:0.15">
+                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <p>Select an endpoint and send a request</p>
+                            <span>Response data will appear here</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+{{template "foot" .}}
