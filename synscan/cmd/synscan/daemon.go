@@ -50,6 +50,7 @@ func runDaemon(ctx context.Context, config *YAMLConfig, verbose bool) error {
 	currentStatus := "idle"
 	currentScanID := ""
 	currentTransport := ""
+	var currentScanner *scanner.Scanner
 
 	// Heartbeat goroutine
 	go func() {
@@ -57,7 +58,7 @@ func runDaemon(ctx context.Context, config *YAMLConfig, verbose bool) error {
 		defer ticker.Stop()
 
 		// Send initial heartbeat immediately
-		sendHeartbeat(pub, nodeID, hostname, currentStatus, currentScanID, currentTransport, startTime)
+		sendHeartbeat(pub, nodeID, hostname, currentStatus, currentScanID, currentTransport, startTime, nil)
 
 		for {
 			select {
@@ -68,8 +69,9 @@ func runDaemon(ctx context.Context, config *YAMLConfig, verbose bool) error {
 				status := currentStatus
 				scanID := currentScanID
 				transport := currentTransport
+				scan := currentScanner
 				mu.Unlock()
-				sendHeartbeat(pub, nodeID, hostname, status, scanID, transport, startTime)
+				sendHeartbeat(pub, nodeID, hostname, status, scanID, transport, startTime, scan)
 			}
 		}
 	}()
@@ -90,11 +92,16 @@ func runDaemon(ctx context.Context, config *YAMLConfig, verbose bool) error {
 		currentScanID = req.RequestID
 		mu.Unlock()
 
-		transport := executeScanFromRequest(ctx, config, &req, pub, verbose)
+		transport := executeScanFromRequest(ctx, config, &req, pub, verbose, func(s *scanner.Scanner) {
+			mu.Lock()
+			currentScanner = s
+			mu.Unlock()
+		})
 
 		mu.Lock()
 		currentStatus = "idle"
 		currentScanID = ""
+		currentScanner = nil
 		currentTransport = transport
 		mu.Unlock()
 
@@ -110,7 +117,7 @@ func runDaemon(ctx context.Context, config *YAMLConfig, verbose bool) error {
 	return nil
 }
 
-func sendHeartbeat(pub *natspub.Publisher, nodeID, hostname, status, scanID, transport string, startTime time.Time) {
+func sendHeartbeat(pub *natspub.Publisher, nodeID, hostname, status, scanID, transport string, startTime time.Time, scan *scanner.Scanner) {
 	hb := &types.ScannerHeartbeat{
 		NodeID:    nodeID,
 		Hostname:  hostname,
@@ -120,12 +127,17 @@ func sendHeartbeat(pub *natspub.Publisher, nodeID, hostname, status, scanID, tra
 		Transport: transport,
 		Timestamp: time.Now().Unix(),
 	}
+	if scan != nil {
+		done, total := scan.Progress()
+		hb.PacketsSent = int64(done)
+		hb.PacketsTotal = int64(total)
+	}
 	if err := pub.PublishHeartbeat(hb); err != nil {
 		log.Printf("Failed to publish heartbeat: %v", err)
 	}
 }
 
-func executeScanFromRequest(ctx context.Context, config *YAMLConfig, req *types.ScanRequest, pub *natspub.Publisher, verbose bool) string {
+func executeScanFromRequest(ctx context.Context, config *YAMLConfig, req *types.ScanRequest, pub *natspub.Publisher, verbose bool, onScannerReady func(*scanner.Scanner)) string {
 	ports := req.Ports
 	if ports == "" {
 		ports = config.Synscan.Target.Ports
@@ -152,6 +164,10 @@ func executeScanFromRequest(ctx context.Context, config *YAMLConfig, req *types.
 		return ""
 	}
 	defer scan.Close()
+
+	if onScannerReady != nil {
+		onScannerReady(scan)
+	}
 
 	if verbose {
 		log.Printf("Scan %s: starting (%d IPs, %d ports)", req.RequestID, len(targetIPs), len(parsedPorts))

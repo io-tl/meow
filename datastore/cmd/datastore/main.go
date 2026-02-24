@@ -39,6 +39,11 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to run migrations")
 	}
 
+	// Run PRAGMA optimize to update query planner statistics
+	if _, err := db.Exec("PRAGMA optimize"); err != nil {
+		log.Warn().Err(err).Msg("PRAGMA optimize failed (non-fatal)")
+	}
+
 	nc, ns, err := initNATS(cfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize NATS")

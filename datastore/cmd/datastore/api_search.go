@@ -34,7 +34,19 @@ func (api *API) searchQuery(c *gin.Context) {
 		return
 	}
 
-	// Build the full SQL query
+	// Count query first (lightweight, no sorting, no heavy columns)
+	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM hosts h WHERE %s", result.Where)
+	var total int
+	if err := api.db.QueryRow(countSQL, result.Args...).Scan(&total); err != nil {
+		log.Error().Err(err).
+			Str("meowql", query).
+			Str("sql_where", result.Where).
+			Msg("search count failed")
+		c.JSON(500, gin.H{"error": "query execution failed"})
+		return
+	}
+
+	// Data query with LIMIT (no COUNT(*) OVER() avoids full materialization)
 	selectCols := `h.ip, h.country_code, h.country_name, h.city,
 		h.asn, h.as_org, h.cloud_provider, h.cloud_region, h.cloud_type,
 		h.first_seen, h.last_scan, h.open_ports_count, h.services_count`
@@ -58,14 +70,6 @@ func (api *API) searchQuery(c *gin.Context) {
 	defer rows.Close()
 
 	hosts := scanHostRows(rows)
-
-	// Count total matches (reuse WHERE clause, no LIMIT/OFFSET)
-	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM hosts h WHERE %s", result.Where)
-	var total int
-	if err := api.db.QueryRow(countSQL, result.Args...).Scan(&total); err != nil {
-		log.Warn().Err(err).Msg("failed to get search total count")
-		total = len(hosts)
-	}
 
 	c.JSON(200, gin.H{
 		"hosts": hosts,
@@ -102,8 +106,20 @@ func (api *API) searchQueryServices(c *gin.Context) {
 	}
 	_ = parseErr // CompileServiceCentric already handles parse errors
 
-	// Service-centric query with rich data for cards.
-	// LEFT JOIN http_data is 1:1 on PK (ip,port) → zero perf impact.
+	// Count query first (lightweight: no http_data JOIN, no heavy JSON columns)
+	countSQL := fmt.Sprintf(`
+		SELECT COUNT(*) FROM services s
+		INNER JOIN hosts h ON s.ip = h.ip
+		WHERE %s AND s.enrichment_status != 'pending'`, result.Where)
+
+	var total int
+	if err := api.db.QueryRow(countSQL, result.Args...).Scan(&total); err != nil {
+		log.Error().Err(err).Str("meowql", query).Msg("service count failed")
+		c.JSON(500, gin.H{"error": "query execution failed"})
+		return
+	}
+
+	// Data query with LIMIT (no COUNT(*) OVER() avoids full materialization)
 	querySQL := fmt.Sprintf(`
 		SELECT s.ip, s.port, s.service, s.product, s.version, s.banner,
 		       s.detected_at, s.enrichment_status,
@@ -169,17 +185,6 @@ func (api *API) searchQueryServices(c *gin.Context) {
 	}
 	if err := rows.Err(); err != nil {
 		log.Warn().Err(err).Msg("Error iterating service search rows")
-	}
-
-	// Count total matching services (no need for LEFT JOIN in COUNT)
-	countSQL := fmt.Sprintf(`
-		SELECT COUNT(*) FROM services s
-		INNER JOIN hosts h ON s.ip = h.ip
-		WHERE %s AND s.enrichment_status != 'pending'`, result.Where)
-	var total int
-	if err := api.db.QueryRow(countSQL, result.Args...).Scan(&total); err != nil {
-		log.Warn().Err(err).Msg("failed to get service search total count")
-		total = len(services)
 	}
 
 	c.JSON(200, gin.H{

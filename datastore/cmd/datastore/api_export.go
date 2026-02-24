@@ -49,7 +49,6 @@ func (api *API) buildExportFilters(c *gin.Context) (hostWhere string, hostArgs [
 			hostArgs = append(hostArgs, q+"%")
 		} else {
 			hostWhere += ` AND (
-				LOWER(h.ip) LIKE ? OR
 				LOWER(h.hostnames) LIKE ? OR
 				LOWER(h.domains) LIKE ? OR
 				LOWER(h.as_org) LIKE ? OR
@@ -57,9 +56,9 @@ func (api *API) buildExportFilters(c *gin.Context) (hostWhere string, hostArgs [
 				LOWER(h.city) LIKE ? OR
 				EXISTS (SELECT 1 FROM http_data ehd WHERE ehd.ip = h.ip AND LOWER(ehd.headers) LIKE ?) OR
 				EXISTS (SELECT 1 FROM services es WHERE es.ip = h.ip AND (LOWER(es.product) LIKE ? OR LOWER(es.banner) LIKE ?)) OR
-				EXISTS (SELECT 1 FROM service_enrichments ese JOIN services es2 ON ese.ip = es2.ip AND ese.port = es2.port WHERE es2.ip = h.ip AND (LOWER(ese.banner) LIKE ? OR LOWER(ese.version) LIKE ?))
+				EXISTS (SELECT 1 FROM service_enrichments ese WHERE ese.ip = h.ip AND (LOWER(ese.banner) LIKE ? OR LOWER(ese.version) LIKE ?))
 			)`
-			hostArgs = append(hostArgs, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery)
+			hostArgs = append(hostArgs, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery)
 		}
 	}
 

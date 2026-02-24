@@ -39,7 +39,6 @@ func (api *API) searchHosts(c *gin.Context) {
 		} else {
 			// Text search - search across multiple fields (case-insensitive)
 			whereClause += ` AND (
-				LOWER(h.ip) LIKE ? OR
 				LOWER(h.hostnames) LIKE ? OR
 				LOWER(h.domains) LIKE ? OR
 				LOWER(h.as_org) LIKE ? OR
@@ -47,9 +46,9 @@ func (api *API) searchHosts(c *gin.Context) {
 				LOWER(h.city) LIKE ? OR
 				EXISTS (SELECT 1 FROM http_data hd WHERE hd.ip = h.ip AND LOWER(hd.headers) LIKE ?) OR
 				EXISTS (SELECT 1 FROM services s WHERE s.ip = h.ip AND (LOWER(s.product) LIKE ? OR LOWER(s.banner) LIKE ?)) OR
-				EXISTS (SELECT 1 FROM service_enrichments se JOIN services s2 ON se.ip = s2.ip AND se.port = s2.port WHERE s2.ip = h.ip AND (LOWER(se.banner) LIKE ? OR LOWER(se.version) LIKE ?))
+				EXISTS (SELECT 1 FROM service_enrichments se WHERE se.ip = h.ip AND (LOWER(se.banner) LIKE ? OR LOWER(se.version) LIKE ?))
 			)`
-			args = append(args, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery)
+			args = append(args, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery)
 		}
 	}
 
@@ -126,6 +125,16 @@ func (api *API) searchHosts(c *gin.Context) {
 		}
 	}
 
+	// Count query first (lightweight, no sorting)
+	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM hosts h %s", whereClause)
+	var total int
+	if err := api.db.QueryRow(countSQL, args...).Scan(&total); err != nil {
+		log.Error().Err(err).Msg("searchHosts count failed")
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Data query with LIMIT (no COUNT(*) OVER() avoids full materialization)
 	querySQL := fmt.Sprintf(`
 		SELECT h.ip, h.country_code, h.country_name, h.city, h.asn, h.as_org,
 		       h.cloud_provider, h.cloud_region, h.cloud_type, h.first_seen, h.last_scan,
@@ -222,14 +231,6 @@ func (api *API) searchHosts(c *gin.Context) {
 				}
 			}
 		}
-	}
-
-	// Get total count (reuse args without limit/offset)
-	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM hosts h %s", whereClause)
-	var total int
-	if err := api.db.QueryRow(countSQL, args[:len(args)-2]...).Scan(&total); err != nil {
-		log.Warn().Err(err).Msg("Failed to get total host count")
-		total = len(hosts)
 	}
 
 	c.JSON(200, gin.H{

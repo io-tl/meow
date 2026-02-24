@@ -22,7 +22,9 @@ func (api *API) searchServices(c *gin.Context) {
 	whereClause := "WHERE 1=1"
 	args := []any{}
 
+	needHTTPJoin := false
 	if query != "" {
+		needHTTPJoin = true
 		likeQuery := "%" + query + "%"
 		likeQueryLower := "%" + strings.ToLower(query) + "%"
 		whereClause += ` AND (
@@ -51,16 +53,21 @@ func (api *API) searchServices(c *gin.Context) {
 		args = append(args, protocol)
 	}
 
+	httpJoin := ""
+	if needHTTPJoin {
+		httpJoin = "LEFT JOIN http_data hd ON s.ip = hd.ip AND s.port = hd.port"
+	}
+
 	querySQL := fmt.Sprintf(`
 		SELECT s.ip, s.port, s.service, s.product, s.version, s.banner,
 		       s.detected_at, s.enrichment_status,
 		       h.country_code, h.cloud_provider
 		FROM services s
 		LEFT JOIN hosts h ON s.ip = h.ip
-		LEFT JOIN http_data hd ON s.ip = hd.ip AND s.port = hd.port
+		%s
 		%s
 		ORDER BY s.detected_at DESC
-		LIMIT ? OFFSET ?`, whereClause)
+		LIMIT ? OFFSET ?`, httpJoin, whereClause)
 
 	args = append(args, limitInt, offset)
 
@@ -143,11 +150,10 @@ func (api *API) searchCertificates(c *gin.Context) {
 		       c.public_key_bits, c.public_key_algorithm, c.signature_algorithm,
 		       c.is_self_signed, c.is_ca, c.first_seen, c.last_seen,
 		       c.parsed_cert,
-		       COALESCE(COUNT(DISTINCT sc.ip), 0) as host_count
+		       (SELECT COUNT(DISTINCT ip) FROM service_certificates
+		        WHERE cert_fingerprint = c.fingerprint_sha256) as host_count
 		FROM certificates c
-		LEFT JOIN service_certificates sc ON c.fingerprint_sha256 = sc.cert_fingerprint
 		%s
-		GROUP BY c.fingerprint_sha256
 		ORDER BY host_count DESC, c.not_after DESC
 		LIMIT ?`, whereClause)
 

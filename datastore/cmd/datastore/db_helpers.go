@@ -44,38 +44,18 @@ func (db *DB) getTableCounts() (hosts, services, certs int64, err error) {
 }
 
 // getEnrichmentStatusCounts returns enrichment status counts from the services table.
+// Uses SUM(CASE) to return all counts in a single row instead of GROUP BY.
 func (db *DB) getEnrichmentStatusCounts() (enriched, pending, failed, skipped int, err error) {
-	rows, err := db.Query(`
-		SELECT COALESCE(enrichment_status, '') as status, COUNT(*)
+	err = db.QueryRow(`
+		SELECT
+			SUM(CASE WHEN enrichment_status = 'enriched' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN enrichment_status = 'pending' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN enrichment_status = 'failed' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN enrichment_status NOT IN ('enriched','pending','failed') OR enrichment_status IS NULL THEN 1 ELSE 0 END)
 		FROM services
-		GROUP BY COALESCE(enrichment_status, '')
-	`)
+	`).Scan(&enriched, &pending, &failed, &skipped)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to get enrichment status counts")
-		return
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var status string
-		var count int
-		if scanErr := rows.Scan(&status, &count); scanErr != nil {
-			continue
-		}
-		switch status {
-		case StatusEnriched:
-			enriched = count
-		case StatusPending:
-			pending = count
-		case StatusFailed:
-			failed = count
-		default:
-			// NULL, empty, 'skipped' — services not expected to be enriched
-			skipped += count
-		}
-	}
-	if rowsErr := rows.Err(); rowsErr != nil {
-		log.Warn().Err(rowsErr).Msg("Error iterating enrichment status rows")
 	}
 	return
 }

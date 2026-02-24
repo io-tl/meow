@@ -390,38 +390,12 @@ func (c *compiler) compileCIDRMatch(ipNet *net.IPNet, col string) string {
 		return col + " = " + c.addArg(ip.String())
 	}
 
-	// Non-octet-aligned: compute start/end and generate multiple LIKE patterns
-	// or use a string-based range comparison with zero-padded IPs.
-	// For simplicity, enumerate possible third-octet values for /17-/23,
-	// and use LIKE prefix for larger ranges.
+	// Non-octet-aligned: use ip_int BETWEEN for precise CIDR matching.
+	// This requires the ip_int column to be populated (see ensureHost).
 	start := ipToUint32(ipNet.IP)
 	mask := ipToUint32(net.IP(ipNet.Mask))
 	end := start | ^mask
 
-	// For small ranges, enumerate
-	startIP := uint32ToIP(start)
-	endIP := uint32ToIP(end)
-
-	// Use the padded comparison trick: convert IPs to zero-padded form
-	// and compare as strings. This works because zero-padded IPs sort lexicographically.
-	// We use printf to generate: ip >= '010.000.000.000' AND ip <= '010.255.255.255'
-	// But our IPs aren't zero-padded in the DB, so we need a different approach.
-
-	// Best practical approach: generate LIKE patterns for the common prefix,
-	// then filter in application code if needed.
-	// For /25-/31, the first 3 octets are fixed, enumerate the 4th octet range.
-	if ones >= 24 {
-		prefix := fmt.Sprintf("%d.%d.%d.", ip[0], ip[1], ip[2])
-		startOctet := startIP.To4()[3]
-		endOctet := endIP.To4()[3]
-		// Generate: (ip LIKE 'prefix%' AND CAST(substr(ip, len+1) AS INTEGER) BETWEEN start AND end)
-		return "(" + col + " LIKE " + c.addArg(prefix+"%") +
-			" AND CAST(SUBSTR(" + col + ", " + c.addArg(len(prefix)+1) + ") AS INTEGER) BETWEEN " +
-			c.addArg(int(startOctet)) + " AND " + c.addArg(int(endOctet)) + ")"
-	}
-
-	// For /9-/23, use ip_int BETWEEN for precise CIDR matching
-	// This requires the ip_int column to be populated (see ensureHost)
 	return "h.ip_int BETWEEN " + c.addArg(int64(start)) + " AND " + c.addArg(int64(end))
 }
 
@@ -555,9 +529,7 @@ func (c *compiler) wrapWithTable(field FieldInfo, conditionSQL string) string {
 		return "EXISTS (SELECT 1 FROM host_domains _hdom WHERE _hdom.ip = h.ip AND " + conditionSQL + ")"
 
 	case TableServiceEnrichments:
-		return "EXISTS (SELECT 1 FROM service_enrichments _se " +
-			"INNER JOIN services _s ON _se.ip = _s.ip AND _se.port = _s.port " +
-			"WHERE _s.ip = h.ip AND " + conditionSQL + ")"
+		return "EXISTS (SELECT 1 FROM service_enrichments _se WHERE _se.ip = h.ip AND " + conditionSQL + ")"
 
 	default:
 		c.err = fmt.Errorf("unknown table %q for field", field.Table)

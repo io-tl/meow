@@ -9,13 +9,15 @@ const scannerTimeout = 10 * time.Second
 
 // ScannerNode represents a connected scanner instance
 type ScannerNode struct {
-	NodeID    string `json:"node_id"`
-	Hostname  string `json:"hostname"`
-	Status    string `json:"status"`
-	ScanID    string `json:"scan_id,omitempty"`
-	UptimeSec int64  `json:"uptime_sec"`
-	Transport string `json:"transport,omitempty"`
-	LastSeen  int64  `json:"last_seen"`
+	NodeID       string `json:"node_id"`
+	Hostname     string `json:"hostname"`
+	Status       string `json:"status"`
+	ScanID       string `json:"scan_id,omitempty"`
+	UptimeSec    int64  `json:"uptime_sec"`
+	Transport    string `json:"transport,omitempty"`
+	PacketsSent  int64  `json:"packets_sent,omitempty"`
+	PacketsTotal int64  `json:"packets_total,omitempty"`
+	LastSeen     int64  `json:"last_seen"`
 }
 
 // ScannerTracker tracks connected scanner nodes via heartbeats
@@ -37,13 +39,15 @@ func (t *ScannerTracker) UpdateHeartbeat(hb *ScannerHeartbeat) {
 	defer t.mu.Unlock()
 
 	t.scanners[hb.NodeID] = &ScannerNode{
-		NodeID:    hb.NodeID,
-		Hostname:  hb.Hostname,
-		Status:    hb.Status,
-		ScanID:    hb.ScanID,
-		UptimeSec: hb.UptimeSec,
-		Transport: hb.Transport,
-		LastSeen:  time.Now().Unix(),
+		NodeID:       hb.NodeID,
+		Hostname:     hb.Hostname,
+		Status:       hb.Status,
+		ScanID:       hb.ScanID,
+		UptimeSec:    hb.UptimeSec,
+		Transport:    hb.Transport,
+		PacketsSent:  hb.PacketsSent,
+		PacketsTotal: hb.PacketsTotal,
+		LastSeen:     time.Now().Unix(),
 	}
 }
 

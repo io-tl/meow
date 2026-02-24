@@ -422,6 +422,52 @@
     text-align: right;
 }
 
+/* ===== Scanner Progress Bar ===== */
+.scanner-chip.has-progress {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.scanner-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding-top: 2px;
+}
+
+.scanner-progress-bar {
+    flex: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.scanner-progress-fill {
+    height: 100%;
+    background: var(--accent-primary);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+}
+
+.scanner-progress-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-primary);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.scanner-progress-detail {
+    color: var(--text-dim);
+    font-weight: 400;
+    margin-left: 4px;
+    font-size: 11px;
+}
+
 /* ===== Pulse animation ===== */
 @keyframes pulse {
     0%, 100% { opacity: 1; }

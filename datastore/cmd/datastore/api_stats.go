@@ -2,8 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
-	"sort"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -209,64 +208,33 @@ func (api *API) getCloudStats(c *gin.Context) {
 // getTechnologyStats gets web technology statistics from http_data
 func (api *API) getTechnologyStats(c *gin.Context) {
 	rows, err := api.db.Query(`
-		SELECT technologies
-		FROM http_data
-		WHERE technologies IS NOT NULL AND technologies != ''`)
+		SELECT json_extract(value, '$.name') as tech_name, COUNT(*) as cnt
+		FROM http_data, json_each(technologies)
+		WHERE technologies IS NOT NULL AND technologies != ''
+		  AND tech_name IS NOT NULL AND tech_name != ''
+		GROUP BY tech_name
+		ORDER BY cnt DESC
+		LIMIT 20`)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 	defer rows.Close()
 
-	// Count technologies
-	techCounts := make(map[string]int)
+	var technologies []gin.H
 	for rows.Next() {
-		var technologiesJSON string
-		if err := rows.Scan(&technologiesJSON); err != nil {
+		var name string
+		var count int
+		if err := rows.Scan(&name, &count); err != nil {
 			continue
 		}
-
-		// Parse JSON array of technology objects like [{"name":"Nginx","categories":["Reverse proxies"]}]
-		var techArray []map[string]any
-		if err := json.Unmarshal([]byte(technologiesJSON), &techArray); err == nil {
-			for _, tech := range techArray {
-				if name, ok := tech["name"].(string); ok && name != "" {
-					techCounts[name]++
-				}
-			}
-		}
+		technologies = append(technologies, gin.H{
+			"technology": name,
+			"count":      count,
+		})
 	}
 	if err := rows.Err(); err != nil {
 		log.Warn().Err(err).Msg("Error iterating technology rows")
-	}
-
-	// Convert to sorted slice
-	type techStat struct {
-		Name  string
-		Count int
-	}
-	var techStats []techStat
-	for name, count := range techCounts {
-		techStats = append(techStats, techStat{Name: name, Count: count})
-	}
-
-	// Sort by count descending
-	sort.Slice(techStats, func(i, j int) bool {
-		return techStats[i].Count > techStats[j].Count
-	})
-
-	// Take top 20
-	if len(techStats) > 20 {
-		techStats = techStats[:20]
-	}
-
-	// Convert to response format
-	var technologies []gin.H
-	for _, ts := range techStats {
-		technologies = append(technologies, gin.H{
-			"technology": ts.Name,
-			"count":      ts.Count,
-		})
 	}
 
 	c.JSON(200, gin.H{"technologies": technologies})
@@ -307,95 +275,119 @@ func (api *API) getProductStats(c *gin.Context) {
 	c.JSON(200, gin.H{"products": products})
 }
 
-// getFacets returns available filter facets for dynamic filtering
+// getFacets returns available filter facets for dynamic filtering.
+// Combines host-table and services-table facets into fewer queries to reduce DB round-trips.
 func (api *API) getFacets(c *gin.Context) {
 	facets := gin.H{}
 
-	// Top countries
-	facets["countries"] = api.queryValueCounts(`
-		SELECT country_code, COUNT(*) as count
-		FROM hosts
-		WHERE country_code IS NOT NULL AND country_code != ''
-		GROUP BY country_code
-		ORDER BY count DESC
-		LIMIT 20`, "value")
-
-	// Top ports (int values, needs custom scan)
+	// === Query 1: All host-table facets in one pass using UNION ALL ===
+	// Each sub-select is wrapped in a subquery so ORDER BY/LIMIT apply per-facet.
 	rows, err := api.db.Query(`
-		SELECT port, COUNT(*) as count
-		FROM services
-		GROUP BY port
-		ORDER BY count DESC
-		LIMIT 20`)
+		SELECT * FROM (
+			SELECT 'country' as facet, country_code as value, '' as label, COUNT(*) as count
+			FROM hosts WHERE country_code IS NOT NULL AND country_code != ''
+			GROUP BY country_code ORDER BY count DESC LIMIT 20
+		)
+		UNION ALL
+		SELECT * FROM (
+			SELECT 'cloud_provider', cloud_provider, '', COUNT(*)
+			FROM hosts WHERE cloud_provider IS NOT NULL AND cloud_provider != ''
+			GROUP BY cloud_provider ORDER BY COUNT(*) DESC
+		)
+		UNION ALL
+		SELECT * FROM (
+			SELECT 'cloud_type', cloud_type, '', COUNT(*)
+			FROM hosts WHERE cloud_type IS NOT NULL AND cloud_type != ''
+			GROUP BY cloud_type ORDER BY COUNT(*) DESC
+		)
+		UNION ALL
+		SELECT * FROM (
+			SELECT 'asn', CAST(asn AS TEXT), COALESCE(as_org, ''), COUNT(*)
+			FROM hosts WHERE asn IS NOT NULL
+			GROUP BY asn, as_org ORDER BY COUNT(*) DESC LIMIT 20
+		)`)
 	if err != nil {
-		log.Warn().Err(err).Msg("Failed to query facet ports")
+		log.Warn().Err(err).Msg("Failed to query host facets")
 	} else {
-		var ports []gin.H
+		countries := []gin.H{}
+		cloudProviders := []gin.H{}
+		cloudTypes := []gin.H{}
+		asns := []gin.H{}
+
 		for rows.Next() {
-			var port, count int
-			if err := rows.Scan(&port, &count); err != nil {
+			var facet, value, label string
+			var count int
+			if err := rows.Scan(&facet, &value, &label, &count); err != nil {
 				continue
 			}
-			ports = append(ports, gin.H{"value": port, "count": count})
+			switch facet {
+			case "country":
+				countries = append(countries, gin.H{"value": value, "count": count})
+			case "cloud_provider":
+				cloudProviders = append(cloudProviders, gin.H{"value": value, "count": count})
+			case "cloud_type":
+				cloudTypes = append(cloudTypes, gin.H{"value": value, "count": count})
+			case "asn":
+				entry := gin.H{"value": value, "count": count}
+				if label != "" {
+					entry["label"] = label
+				}
+				asns = append(asns, entry)
+			}
 		}
 		if err := rows.Err(); err != nil {
-			log.Warn().Err(err).Msg("Error iterating facet ports rows")
+			log.Warn().Err(err).Msg("Error iterating host facets rows")
 		}
 		rows.Close()
-		facets["ports"] = ports
-	}
 
-	// Top services
-	facets["services"] = api.queryValueCounts(`
-		SELECT service, COUNT(*) as count
-		FROM services
-		WHERE service IS NOT NULL
-		GROUP BY service
-		ORDER BY count DESC
-		LIMIT 20`, "value")
-
-	// Top ASNs (multi-column, needs custom scan)
-	rows2, err := api.db.Query(`
-		SELECT asn, as_org, COUNT(*) as count
-		FROM hosts
-		WHERE asn IS NOT NULL
-		GROUP BY asn, as_org
-		ORDER BY count DESC
-		LIMIT 20`)
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to query facet ASNs")
-	} else {
-		var asns []gin.H
-		for rows2.Next() {
-			var asn, count int
-			var asOrg sql.NullString
-			if err := rows2.Scan(&asn, &asOrg, &count); err != nil {
-				continue
-			}
-			asns = append(asns, gin.H{"value": asn, "label": nullStr(asOrg), "count": count})
-		}
-		if err := rows2.Err(); err != nil {
-			log.Warn().Err(err).Msg("Error iterating facet ASN rows")
-		}
-		rows2.Close()
+		facets["countries"] = countries
+		facets["cloud_providers"] = cloudProviders
+		facets["cloud_types"] = cloudTypes
 		facets["asns"] = asns
 	}
 
-	// Cloud providers
-	facets["cloud_providers"] = api.queryValueCounts(`
-		SELECT cloud_provider, COUNT(*) as count
-		FROM hosts
-		WHERE cloud_provider IS NOT NULL AND cloud_provider != ''
-		GROUP BY cloud_provider
-		ORDER BY count DESC`, "value")
+	// === Query 2: All services-table facets in one pass ===
+	rows2, err := api.db.Query(`
+		SELECT * FROM (
+			SELECT 'port' as facet, CAST(port AS TEXT) as value, COUNT(*) as count
+			FROM services GROUP BY port ORDER BY count DESC LIMIT 20
+		)
+		UNION ALL
+		SELECT * FROM (
+			SELECT 'service', service, COUNT(*)
+			FROM services WHERE service IS NOT NULL
+			GROUP BY service ORDER BY COUNT(*) DESC LIMIT 20
+		)`)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to query services facets")
+	} else {
+		ports := []gin.H{}
+		services := []gin.H{}
 
-	// Cloud types (cdn, cloud, waf)
-	facets["cloud_types"] = api.queryValueCounts(`
-		SELECT cloud_type, COUNT(*) as count
-		FROM hosts
-		WHERE cloud_type IS NOT NULL AND cloud_type != ''
-		GROUP BY cloud_type
-		ORDER BY count DESC`, "value")
+		for rows2.Next() {
+			var facet, value string
+			var count int
+			if err := rows2.Scan(&facet, &value, &count); err != nil {
+				continue
+			}
+			switch facet {
+			case "port":
+				// Convert back to int for API compatibility
+				if p, err := strconv.Atoi(value); err == nil {
+					ports = append(ports, gin.H{"value": p, "count": count})
+				}
+			case "service":
+				services = append(services, gin.H{"value": value, "count": count})
+			}
+		}
+		if err := rows2.Err(); err != nil {
+			log.Warn().Err(err).Msg("Error iterating services facets rows")
+		}
+		rows2.Close()
+
+		facets["ports"] = ports
+		facets["services"] = services
+	}
 
 	c.JSON(200, facets)
 }

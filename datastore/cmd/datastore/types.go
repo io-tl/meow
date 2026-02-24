@@ -111,13 +111,15 @@ type ScanRequest struct {
 
 // ScannerHeartbeat is received from daemon-mode scanners
 type ScannerHeartbeat struct {
-	NodeID    string `json:"node_id"`
-	Hostname  string `json:"hostname"`
-	Status    string `json:"status"`
-	ScanID    string `json:"scan_id,omitempty"`
-	UptimeSec int64  `json:"uptime_sec"`
-	Transport string `json:"transport,omitempty"`
-	Timestamp int64  `json:"timestamp"`
+	NodeID       string `json:"node_id"`
+	Hostname     string `json:"hostname"`
+	Status       string `json:"status"`
+	ScanID       string `json:"scan_id,omitempty"`
+	UptimeSec    int64  `json:"uptime_sec"`
+	Transport    string `json:"transport,omitempty"`
+	PacketsSent  int64  `json:"packets_sent,omitempty"`
+	PacketsTotal int64  `json:"packets_total,omitempty"`
+	Timestamp    int64  `json:"timestamp"`
 }
 
 // stringOrNil converts []byte to *string, returns nil if empty

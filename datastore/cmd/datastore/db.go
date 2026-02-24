@@ -46,6 +46,11 @@ func initDB(cfg *Config) (*DB, error) {
 		return nil, err
 	}
 
+	// Memory-map the database file for faster reads (256MB)
+	if _, err := db.Exec("PRAGMA mmap_size=268435456"); err != nil {
+		log.Warn().Err(err).Msg("PRAGMA mmap_size failed (non-fatal)")
+	}
+
 	return &DB{db}, nil
 }
 
@@ -61,6 +66,11 @@ func runMigrations(db *DB) error {
 	// Run additive migrations for existing databases
 	if err := migrateEnrichmentFields(db); err != nil {
 		log.Warn().Err(err).Msg("Failed to run enrichment fields migration (non-fatal)")
+	}
+
+	// Drop redundant indexes (covered by primary keys)
+	for _, idx := range []string{"idx_http_ip", "idx_service_enrichments_ip_port"} {
+		db.Exec("DROP INDEX IF EXISTS " + idx)
 	}
 
 	return nil

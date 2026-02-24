@@ -126,7 +126,7 @@ html, body {
 .mobile-content {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ===== Summary Cards (horizontal scroll) ===== */

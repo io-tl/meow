@@ -61,7 +61,8 @@ class ScanPage {
             const shortId = node.node_id.length > 18 ? node.node_id.substring(0, 18) + '...' : node.node_id;
             const hostname = node.hostname || '';
             const tooltip = [node.node_id, node.transport, node.scan_id].filter(Boolean).join(' | ');
-            return `<div class="scanner-chip" title="${this.escapeHtml(tooltip)}"><span class="scanner-chip-dot ${statusClass}"></span><span class="scanner-chip-id">${this.escapeHtml(shortId)}</span>${hostname ? `<span class="scanner-chip-host">(${this.escapeHtml(hostname)})</span>` : ''}<span class="scanner-chip-status ${statusClass}">${statusLabel}</span><span class="scanner-chip-uptime">&middot; ${uptime}</span></div>`;
+            const progressHtml = this.renderProgress(node);
+            return `<div class="scanner-chip${progressHtml ? ' has-progress' : ''}" title="${this.escapeHtml(tooltip)}"><span class="scanner-chip-dot ${statusClass}"></span><span class="scanner-chip-id">${this.escapeHtml(shortId)}</span>${hostname ? `<span class="scanner-chip-host">(${this.escapeHtml(hostname)})</span>` : ''}<span class="scanner-chip-status ${statusClass}">${statusLabel}</span><span class="scanner-chip-uptime">&middot; ${uptime}</span>${progressHtml}</div>`;
         }).join('');
     }
 
@@ -197,6 +198,24 @@ class ScanPage {
             const label = e.type === 'open' ? 'OPEN' : e.type === 'fingerprinted' ? 'FINGER' : 'ENRICH';
             return `<div class="event-feed-row"><span class="event-feed-type ${this.escapeHtml(e.type)}">${label}</span><span class="event-feed-target">${this.escapeHtml(e.ip)}:${e.port}</span><span class="event-feed-svc">${this.escapeHtml(svc)}</span><span class="event-feed-ago">${ago}</span></div>`;
         }).join('');
+    }
+
+    renderProgress(node) {
+        if (node.status !== 'scanning' || !node.packets_total || node.packets_total <= 0) {
+            return '';
+        }
+        const sent = node.packets_sent || 0;
+        const total = node.packets_total;
+        const pct = Math.min(100, Math.round((sent / total) * 100));
+        const sentFmt = this.formatCount(sent);
+        const totalFmt = this.formatCount(total);
+        return `<div class="scanner-progress"><div class="scanner-progress-bar"><div class="scanner-progress-fill" style="width:${pct}%"></div></div><span class="scanner-progress-text">${pct}%<span class="scanner-progress-detail">${sentFmt}/${totalFmt}</span></span></div>`;
+    }
+
+    formatCount(n) {
+        if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+        if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+        return String(n);
     }
 
     formatAgo(sec) {

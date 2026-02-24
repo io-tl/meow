@@ -340,8 +340,7 @@ CREATE INDEX IF NOT EXISTS idx_http_favicon ON http_data(favicon_md5) WHERE favi
 CREATE INDEX IF NOT EXISTS idx_http_ssl ON http_data(uses_ssl, cert_fingerprint) WHERE uses_ssl = 1;
 CREATE INDEX IF NOT EXISTS idx_http_scanned_at ON http_data(scanned_at DESC);
 
--- IP-based lookup for JOINs from services
-CREATE INDEX IF NOT EXISTS idx_http_ip ON http_data(ip);
+-- NOTE: idx_http_ip removed — redundant with PRIMARY KEY (ip, port)
 
 -- ============================================================================
 -- CERTIFICATES INDEXES
@@ -372,7 +371,7 @@ CREATE INDEX IF NOT EXISTS idx_host_domains_port ON host_domains(discovered_port
 -- ============================================================================
 -- SERVICE_ENRICHMENTS INDEXES
 -- ============================================================================
-CREATE INDEX IF NOT EXISTS idx_service_enrichments_ip_port ON service_enrichments(ip, port);
+-- NOTE: idx_service_enrichments_ip_port removed — redundant with PRIMARY KEY (ip, port, domain)
 CREATE INDEX IF NOT EXISTS idx_service_enrichments_domain ON service_enrichments(domain) WHERE domain IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_service_enrichments_status ON service_enrichments(status);
 CREATE INDEX IF NOT EXISTS idx_service_enrichments_pending ON service_enrichments(created_at ASC) WHERE status = 'pending';

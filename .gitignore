@@ -5,4 +5,5 @@ dist/
 synscan/synscan
 grabber/grab
 datastore/datastore
+datastore/scanner.db*
 .venv
