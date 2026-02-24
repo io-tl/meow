@@ -350,12 +350,13 @@ func (api *API) getFacets(c *gin.Context) {
 	rows2, err := api.db.Query(`
 		SELECT * FROM (
 			SELECT 'port' as facet, CAST(port AS TEXT) as value, COUNT(*) as count
-			FROM services GROUP BY port ORDER BY count DESC LIMIT 20
+			FROM services WHERE enrichment_status IN ('enriched', 'skipped')
+			GROUP BY port ORDER BY count DESC LIMIT 20
 		)
 		UNION ALL
 		SELECT * FROM (
 			SELECT 'service', service, COUNT(*)
-			FROM services WHERE service IS NOT NULL
+			FROM services WHERE service IS NOT NULL AND enrichment_status IN ('enriched', 'skipped')
 			GROUP BY service ORDER BY COUNT(*) DESC LIMIT 20
 		)`)
 	if err != nil {
