@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -118,7 +119,7 @@ func init() {
 	Register(&SMBModule{
 		BaseModule: NewBaseModule(
 			"smb",
-			[]string{"microsoft-ds", "netbios-ssn"},
+			[]string{"microsoft-ds"},
 			true, // Should enrich
 			15*time.Second,
 		),
@@ -134,6 +135,64 @@ func (m *SMBModule) ScanWithSNI(ip string, port int, domain string) (interface{}
 	return m.Scan(ip, port)
 }
 
+// readSMBMessage reads a full NetBIOS-framed SMB message from the connection.
+// The NetBIOS header is 4 bytes: type (1) + length (3).
+// Returns the complete message including the 4-byte header.
+func readSMBMessage(conn net.Conn) ([]byte, error) {
+	// Read the 4-byte NetBIOS header
+	hdr := make([]byte, 4)
+	if _, err := io.ReadFull(conn, hdr); err != nil {
+		return nil, fmt.Errorf("failed to read NetBIOS header: %w", err)
+	}
+
+	// Length is 3 bytes big-endian (max ~16MB)
+	length := int(hdr[1])<<16 | int(hdr[2])<<8 | int(hdr[3])
+	if length == 0 {
+		return hdr, nil
+	}
+	if length > 1<<20 { // sanity cap at 1MB
+		return nil, fmt.Errorf("SMB message too large: %d bytes", length)
+	}
+
+	// Read the payload
+	payload := make([]byte, length)
+	if _, err := io.ReadFull(conn, payload); err != nil {
+		return nil, fmt.Errorf("failed to read SMB payload: %w", err)
+	}
+
+	return append(hdr, payload...), nil
+}
+
+// setupNetBIOSSession establishes a NetBIOS session on port 139.
+// Must be called before sending SMB traffic on port 139.
+func setupNetBIOSSession(conn net.Conn) error {
+	sessionRequest := buildNetBIOSSessionRequest()
+	if _, err := conn.Write(sessionRequest); err != nil {
+		return fmt.Errorf("failed to send NetBIOS session request: %w", err)
+	}
+
+	// Read the 4-byte response header
+	hdr := make([]byte, 4)
+	if _, err := io.ReadFull(conn, hdr); err != nil {
+		return fmt.Errorf("failed to read NetBIOS session response: %w", err)
+	}
+
+	msgType := hdr[0]
+	switch msgType {
+	case 0x82:
+		// Positive session response - success
+		return nil
+	case 0x83:
+		// Negative session response
+		return fmt.Errorf("NetBIOS session rejected (0x83)")
+	case 0x84:
+		// Retarget
+		return fmt.Errorf("NetBIOS session retarget (0x84)")
+	default:
+		return fmt.Errorf("unexpected NetBIOS response type: 0x%02x", msgType)
+	}
+}
+
 // scanSMB performs SMB enrichment
 func scanSMB(host string, port int, timeout time.Duration) (*SMBResult, error) {
 	// Connect using helper
@@ -143,31 +202,33 @@ func scanSMB(host string, port int, timeout time.Duration) (*SMBResult, error) {
 	}
 	defer conn.Close()
 
+	// Port 139 requires NetBIOS session setup before SMB traffic
+	if port == 139 {
+		if err := setupNetBIOSSession(conn); err != nil {
+			return nil, fmt.Errorf("NetBIOS session setup failed: %w", err)
+		}
+	}
+
 	// Send SMB2 NEGOTIATE
 	negotiateReq := buildSMB2NegotiateRequest()
 	if _, err := conn.Write(negotiateReq); err != nil {
 		return nil, fmt.Errorf("failed to send negotiate: %w", err)
 	}
 
-	// Read response
-	buf := make([]byte, 4096)
-	n, err := conn.Read(buf)
+	// Read full response using NetBIOS framing
+	buf, err := readSMBMessage(conn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	// Parse SMB2 response
-	result, err := parseSMB2NegotiateResponse(buf[:n])
+	result, err := parseSMB2NegotiateResponse(buf)
 	if err != nil {
 		return nil, err
 	}
 
-	// Try multiple methods to get NetBIOS name and domain, in order of reliability:
-	// 1. NTLM challenge via SESSION_SETUP (works for modern Windows and Samba)
-	// 2. Server GUID (fallback for Samba)
-
-	// Try NTLM first
-	if err := extractNTLMInfo(conn, result, timeout); err == nil {
+	// Try NTLM challenge via SESSION_SETUP on the same connection
+	if err := extractNTLMInfo(conn, result); err == nil {
 		result.HasNTLM = true
 	}
 
@@ -415,131 +476,106 @@ func parseSMB2NegotiateResponse(data []byte) (*SMBResult, error) {
 	return result, nil
 }
 
-// extractNTLMInfo attempts to obtain the NTLM challenge via SESSION_SETUP
-func extractNTLMInfo(conn net.Conn, result *SMBResult, timeout time.Duration) error {
-	// Get host and port from the existing connection
-	host, portStr, _ := net.SplitHostPort(conn.RemoteAddr().String())
-
-	// Create a new connection for SESSION_SETUP
-	newConn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%s", host, portStr), timeout)
-	if err != nil {
-		return err
-	}
-	defer newConn.Close()
-
-	newConn.SetDeadline(time.Now().Add(timeout))
-
-	// First, do a fresh NEGOTIATE on this new connection
-	negotiateReq := buildSMB2NegotiateRequest()
-	if _, err := newConn.Write(negotiateReq); err != nil {
-		return err
-	}
-
-	// Read negotiate response
-	buf := make([]byte, 4096)
-	n, err := newConn.Read(buf)
-	if err != nil {
-		return err
-	}
-
-	// Now send SESSION_SETUP request with NTLMSSP_NEGOTIATE
+// extractNTLMInfo attempts to obtain the NTLM challenge via SESSION_SETUP.
+// Reuses the existing connection (negotiate already done on it).
+func extractNTLMInfo(conn net.Conn, result *SMBResult) error {
+	// Send SESSION_SETUP request with NTLMSSP_NEGOTIATE on the same connection
 	sessionSetup := buildSMB2SessionSetupRequest()
-	if _, err := newConn.Write(sessionSetup); err != nil {
+	if _, err := conn.Write(sessionSetup); err != nil {
 		return err
 	}
 
-	// Read SESSION_SETUP response
-	n, err = newConn.Read(buf)
+	// Read full SESSION_SETUP response
+	buf, err := readSMBMessage(conn)
 	if err != nil {
 		return err
 	}
 
-	// Parse SESSION_SETUP response to extract NTLM challenge
-	if n > 64 {
-		data := buf[4:] // Skip NetBIOS header
+	// Need at least NetBIOS header (4) + SMB2 header (64) + session setup response (8)
+	if len(buf) < 76 {
+		return fmt.Errorf("session setup response too short")
+	}
 
-		// Check for STATUS_MORE_PROCESSING_REQUIRED (0xC0000016)
-		status := binary.LittleEndian.Uint32(data[8:12])
-		if status == 0xC0000016 {
-			// Parse session setup response
-			// SMB2 SESSION_SETUP Response structure (starting at offset 64 in data):
-			// StructureSize (2): offset 64-65
-			// SessionFlags (2): offset 66-67
-			// SecurityBufferOffset (2): offset 68-69
-			// SecurityBufferLength (2): offset 70-71
-			if len(data) >= 72 {
-				securityBufferOffset := binary.LittleEndian.Uint16(data[68:70])
-				securityBufferLength := binary.LittleEndian.Uint16(data[70:72])
+	data := buf[4:] // Skip NetBIOS header
 
-				if securityBufferOffset > 0 && securityBufferLength > 0 {
-					// SecurityBufferOffset is relative to the start of SMB2 header
-					// data already skipped NetBIOS header (4 bytes), so offset is relative to data
-					offset := int(securityBufferOffset)
-					if offset < len(data) && offset+int(securityBufferLength) <= len(data) {
-						secBuf := data[offset : offset+int(securityBufferLength)]
+	// Check for STATUS_MORE_PROCESSING_REQUIRED (0xC0000016)
+	status := binary.LittleEndian.Uint32(data[8:12])
+	if status != 0xC0000016 {
+		return fmt.Errorf("unexpected status: 0x%08x", status)
+	}
 
-						// Use the clean NTLM parser from ntlm_parser.go
-						targetName, nbComputerName, nbDomainName, dnsComputerName, dnsDomainName, osVer, err := parseNTLMChallengeMessage(secBuf)
-						if err == nil {
+	// Parse session setup response
+	if len(data) < 72 {
+		return fmt.Errorf("session setup data too short")
+	}
 
-							// Update result with parsed values
-							// Priority order for NetBIOS name:
-							// 1. DNS Computer name (most reliable for Windows)
-							// 2. NetBIOS Computer name (reliable for both Windows and Samba)
-							// 3. Target name (fallback)
+	securityBufferOffset := binary.LittleEndian.Uint16(data[68:70])
+	securityBufferLength := binary.LittleEndian.Uint16(data[70:72])
 
-							if targetName != "" {
-								result.TargetName = targetName
-							}
+	if securityBufferOffset == 0 || securityBufferLength == 0 {
+		return fmt.Errorf("no security buffer in response")
+	}
 
-							// Format OS version if available
-							if osVer != nil {
-								result.OSVersion = formatOSVersion(osVer)
-							}
+	offset := int(securityBufferOffset)
+	if offset >= len(data) || offset+int(securityBufferLength) > len(data) {
+		return fmt.Errorf("security buffer out of bounds")
+	}
 
-							// Start with NetBIOS computer name
-							if nbComputerName != "" && !isInvalidName(nbComputerName) {
-								result.NetBIOSName = nbComputerName
-							}
+	secBuf := data[offset : offset+int(securityBufferLength)]
 
-							// DNS Computer name might be more reliable - but only use if it's actually better
-							if dnsComputerName != "" && !isInvalidName(dnsComputerName) && len(dnsComputerName) > 2 {
-								parts := strings.Split(dnsComputerName, ".")
-								if len(parts) > 0 && parts[0] != "" && len(parts[0]) > 2 {
-									// Only overwrite if we don't have a NetBIOS name, or if DNS name is clearly better
-									if result.NetBIOSName == "" || len(parts[0]) > len(result.NetBIOSName) {
-										result.NetBIOSName = parts[0]
-									}
-								}
-							}
+	// Find NTLMSSP in the security buffer (may be wrapped in SPNEGO/GSS-API)
+	ntlmData := secBuf
+	if idx := bytes.Index(secBuf, []byte("NTLMSSP\x00")); idx > 0 {
+		ntlmData = secBuf[idx:]
+	}
 
-							// Domain names
-							if nbDomainName != "" && !isInvalidName(nbDomainName) {
-								// NetBIOS domain is often the same as computer name for workgroups
-								// Only use if it's different from computer name
-								if nbDomainName != result.NetBIOSName {
-									result.DomainName = nbDomainName
-								}
-							}
-							if dnsDomainName != "" && !isInvalidName(dnsDomainName) {
-								result.DomainName = dnsDomainName
-							}
+	targetName, nbComputerName, nbDomainName, dnsComputerName, dnsDomainName, osVer, err := parseNTLMChallengeMessage(ntlmData)
+	if err != nil {
+		return err
+	}
 
-							// Extract negotiate flags for logging
-							if len(secBuf) >= 24 {
-								negotiateFlags := binary.LittleEndian.Uint32(secBuf[20:24])
-								result.SessionSetupLog = &SessionSetupLog{
-									ProtocolID:     []byte(SMB2ProtocolID),
-									Status:         status,
-									Command:        SMB2SessionSetup,
-									NegotiateFlags: negotiateFlags,
-									TargetName:     result.TargetName,
-								}
-							}
-						}
-					}
-				}
+	if targetName != "" {
+		result.TargetName = targetName
+	}
+
+	if osVer != nil {
+		result.OSVersion = formatOSVersion(osVer)
+	}
+
+	// Start with NetBIOS computer name
+	if nbComputerName != "" && !isInvalidName(nbComputerName) {
+		result.NetBIOSName = nbComputerName
+	}
+
+	// DNS Computer name might be more reliable
+	if dnsComputerName != "" && !isInvalidName(dnsComputerName) && len(dnsComputerName) > 2 {
+		parts := strings.Split(dnsComputerName, ".")
+		if len(parts) > 0 && parts[0] != "" && len(parts[0]) > 2 {
+			if result.NetBIOSName == "" || len(parts[0]) > len(result.NetBIOSName) {
+				result.NetBIOSName = parts[0]
 			}
+		}
+	}
+
+	// Domain names
+	if nbDomainName != "" && !isInvalidName(nbDomainName) {
+		if nbDomainName != result.NetBIOSName {
+			result.DomainName = nbDomainName
+		}
+	}
+	if dnsDomainName != "" && !isInvalidName(dnsDomainName) {
+		result.DomainName = dnsDomainName
+	}
+
+	// Extract negotiate flags for logging
+	if len(ntlmData) >= 24 {
+		negotiateFlags := binary.LittleEndian.Uint32(ntlmData[20:24])
+		result.SessionSetupLog = &SessionSetupLog{
+			ProtocolID:     []byte(SMB2ProtocolID),
+			Status:         status,
+			Command:        SMB2SessionSetup,
+			NegotiateFlags: negotiateFlags,
+			TargetName:     result.TargetName,
 		}
 	}
 
@@ -819,6 +855,13 @@ func enumerateSharesSMBv1RAP(host string, port int) ([]ShareInfo, error) {
 	defer conn.Close()
 
 	conn.SetDeadline(time.Now().Add(10 * time.Second))
+
+	// Port 139 requires NetBIOS session setup first
+	if port == 139 {
+		if err := setupNetBIOSSession(conn); err != nil {
+			return nil, fmt.Errorf("NetBIOS session setup failed: %w", err)
+		}
+	}
 
 	// 1. SMBv1 Negotiate
 	negotiateReq := buildSMBv1NegotiateRequest()
