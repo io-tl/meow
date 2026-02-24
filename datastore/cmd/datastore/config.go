@@ -31,6 +31,9 @@ type Config struct {
 	APIPort     int
 	APIPassword string
 
+	// MCP
+	EnableMCP bool
+
 	// GeoIP
 	GeoIPCityPath string
 	GeoIPASNPath  string
@@ -77,6 +80,9 @@ func loadConfig() *Config {
 
 	// Enrichment
 	flag.IntVar(&cfg.DomainEnrichThreshold, "domain-enrich-threshold", 50, "Skip domain enrichment when domain seen on more than N distinct IPs (0 = unlimited)")
+
+	// MCP
+	flag.BoolVar(&cfg.EnableMCP, "mcp", false, "Enable MCP server on stdio (disables API)")
 
 	// Logging
 	flag.BoolVar(&cfg.Verbose, "verbose", false, "Enable debug logging")
@@ -147,6 +153,9 @@ API (default: enabled on 127.0.0.1:18080):
   -api-port int      API server port (default: 18080)
   -api-pass string   Require X-API-Key header for /api/* (or env: DATASTORE_API_PASSWORD)
 
+MCP (Model Context Protocol):
+  -mcp               Enable MCP server on stdio (disables API, for Claude Code integration)
+
 GeoIP (default: embedded databases):
   -geoip-city string Path to GeoLite2-City.mmdb (or env: DATASTORE_GEOIP_CITY)
   -geoip-asn string  Path to GeoLite2-ASN.mmdb (or env: DATASTORE_GEOIP_ASN)
@@ -162,6 +171,7 @@ Examples:
   datastore -nats-url="nats://prod:4222" -nats-user="admin" -nats-pass="pass"
   datastore -db-path=/data/scan.db -api-port=9090
   datastore -no-api
+  datastore -mcp -db-path=./scanner.db
 
 Environment variables:
   DATASTORE_NATS_TOKEN    Alternative to -nats-token
