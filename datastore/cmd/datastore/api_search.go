@@ -3,11 +3,45 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"meow/datastore/pkg/meowql"
 )
+
+// explainQuery runs EXPLAIN QUERY PLAN on a SQL query and logs the result.
+// Only called when api.verbose is true.
+func (api *API) explainQuery(label, query string, args []any) {
+	rows, err := api.db.Query("EXPLAIN QUERY PLAN "+query, args...)
+	if err != nil {
+		log.Debug().Err(err).Str("label", label).Msg("EXPLAIN failed")
+		return
+	}
+	defer rows.Close()
+
+	var lines []string
+	for rows.Next() {
+		var id, parent, notused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
+			continue
+		}
+		prefix := ""
+		if parent != 0 {
+			prefix = "   "
+		}
+		lines = append(lines, fmt.Sprintf("%s|--%-3d %s", prefix, id, detail))
+	}
+
+	plan := strings.Join(lines, "\n")
+	log.Debug().
+		Str("label", label).
+		Str("sql", query).
+		Str("plan", plan).
+		Msg("EXPLAIN QUERY PLAN")
+}
 
 // searchQuery handles MeowQL-powered search across the entire dataset.
 // GET /api/search?q=<meowql>&limit=50&page=1
@@ -34,9 +68,23 @@ func (api *API) searchQuery(c *gin.Context) {
 		return
 	}
 
+	if api.verbose {
+		log.Debug().
+			Str("meowql", query).
+			Str("where", result.Where).
+			Interface("args", result.Args).
+			Msg("MeowQL compiled (host-centric)")
+	}
+
 	// Count query first (lightweight, no sorting, no heavy columns)
 	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM hosts h WHERE %s", result.Where)
+
+	if api.verbose {
+		api.explainQuery("search/count", countSQL, result.Args)
+	}
+
 	var total int
+	t0 := time.Now()
 	if err := api.db.QueryRow(countSQL, result.Args...).Scan(&total); err != nil {
 		log.Error().Err(err).
 			Str("meowql", query).
@@ -44,6 +92,9 @@ func (api *API) searchQuery(c *gin.Context) {
 			Msg("search count failed")
 		c.JSON(500, gin.H{"error": "query execution failed"})
 		return
+	}
+	if api.verbose {
+		log.Debug().Dur("took", time.Since(t0)).Int("total", total).Msg("search count done")
 	}
 
 	// Data query with LIMIT (no COUNT(*) OVER() avoids full materialization)
@@ -58,6 +109,11 @@ func (api *API) searchQuery(c *gin.Context) {
 
 	args := append(result.Args, limitInt, offset)
 
+	if api.verbose {
+		api.explainQuery("search/data", querySQL, args)
+	}
+
+	t0 = time.Now()
 	rows, err := api.db.Query(querySQL, args...)
 	if err != nil {
 		log.Error().Err(err).
@@ -70,6 +126,9 @@ func (api *API) searchQuery(c *gin.Context) {
 	defer rows.Close()
 
 	hosts := scanHostRows(rows)
+	if api.verbose {
+		log.Debug().Dur("took", time.Since(t0)).Int("rows", len(hosts)).Msg("search data done")
+	}
 
 	c.JSON(200, gin.H{
 		"hosts": hosts,
@@ -106,17 +165,33 @@ func (api *API) searchQueryServices(c *gin.Context) {
 	}
 	_ = parseErr // CompileServiceCentric already handles parse errors
 
+	if api.verbose {
+		log.Debug().
+			Str("meowql", query).
+			Str("where", result.Where).
+			Interface("args", result.Args).
+			Msg("MeowQL compiled (service-centric)")
+	}
+
 	// Count query first (lightweight: no http_data JOIN, no heavy JSON columns)
 	countSQL := fmt.Sprintf(`
 		SELECT COUNT(*) FROM services s
 		INNER JOIN hosts h ON s.ip = h.ip
 		WHERE %s AND s.enrichment_status != 'pending'`, result.Where)
 
+	if api.verbose {
+		api.explainQuery("search-services/count", countSQL, result.Args)
+	}
+
 	var total int
+	t0 := time.Now()
 	if err := api.db.QueryRow(countSQL, result.Args...).Scan(&total); err != nil {
 		log.Error().Err(err).Str("meowql", query).Msg("service count failed")
 		c.JSON(500, gin.H{"error": "query execution failed"})
 		return
+	}
+	if api.verbose {
+		log.Debug().Dur("took", time.Since(t0)).Int("total", total).Msg("service count done")
 	}
 
 	// Data query with LIMIT (no COUNT(*) OVER() avoids full materialization)
@@ -135,6 +210,11 @@ func (api *API) searchQueryServices(c *gin.Context) {
 
 	args := append(result.Args, limitInt, offset)
 
+	if api.verbose {
+		api.explainQuery("search-services/data", querySQL, args)
+	}
+
+	t0 = time.Now()
 	rows, err := api.db.Query(querySQL, args...)
 	if err != nil {
 		log.Error().Err(err).Str("meowql", query).Msg("service search failed")
@@ -185,6 +265,10 @@ func (api *API) searchQueryServices(c *gin.Context) {
 	}
 	if err := rows.Err(); err != nil {
 		log.Warn().Err(err).Msg("Error iterating service search rows")
+	}
+
+	if api.verbose {
+		log.Debug().Dur("took", time.Since(t0)).Int("rows", len(services)).Msg("service data done")
 	}
 
 	c.JSON(200, gin.H{

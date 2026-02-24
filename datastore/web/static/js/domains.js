@@ -614,6 +614,8 @@ class DomainsPage {
         if (this.searchQuery) params.set('q', this.searchQuery);
         if (this.protocolFilter) params.set('protocol', this.protocolFilter);
         if (this.statusCodeFilter) params.set('status_code', this.statusCodeFilter);
+        const apiKey = localStorage.getItem('meow_api_key');
+        if (apiKey) params.set('key', apiKey);
         window.open(`/api/domains?${params}`, '_blank');
     }
 

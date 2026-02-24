@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
@@ -15,7 +16,9 @@ import (
 
 func startAPI(cfg *Config, db *DB, nc *nats.Conn, ns *natsserver.Server, scanTracker *ScannerTracker, eventFeed *EventFeed) {
 	gin.SetMode(gin.ReleaseMode)
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(zerologGinMiddleware())
 
 	// CORS middleware
 	r.Use(func(c *gin.Context) {
@@ -37,7 +40,7 @@ func startAPI(cfg *Config, db *DB, nc *nats.Conn, ns *natsserver.Server, scanTra
 		c.Next()
 	})
 
-	api := &API{db: db, nc: nc, ns: ns, scanTracker: scanTracker, eventFeed: eventFeed}
+	api := &API{db: db, nc: nc, ns: ns, scanTracker: scanTracker, eventFeed: eventFeed, verbose: cfg.Verbose}
 
 	// Serve static files from embedded filesystem
 	staticFS, _ := fs.Sub(datastore.StaticFS, "web/static")
@@ -197,6 +200,9 @@ func startAPI(cfg *Config, db *DB, nc *nats.Conn, ns *natsserver.Server, scanTra
 		})
 	})
 
+	// Shell RC (no auth — bootstrap script only, no data)
+	r.GET("/api/rc", api.getShellRC)
+
 	// API routes group
 	apiGroup := r.Group("/api")
 	apiGroup.Use(apiAuthMiddleware(cfg.APIPassword))
@@ -258,6 +264,39 @@ type API struct {
 	ns          *natsserver.Server
 	scanTracker *ScannerTracker
 	eventFeed   *EventFeed
+	verbose     bool
+}
+
+func zerologGinMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		latency := time.Since(start)
+
+		evt := log.Info()
+		status := c.Writer.Status()
+		if status >= 500 {
+			evt = log.Error()
+		} else if status >= 400 {
+			evt = log.Warn()
+		}
+
+		evt.Int("status", status).
+			Str("method", c.Request.Method).
+			Str("path", c.Request.URL.Path).
+			Str("client_ip", c.ClientIP()).
+			Dur("latency", latency)
+
+		if c.Request.URL.RawQuery != "" {
+			evt.Str("query", c.Request.URL.RawQuery)
+		}
+
+		if len(c.Errors) > 0 {
+			evt.Str("errors", c.Errors.ByType(gin.ErrorTypePrivate).String())
+		}
+
+		evt.Msg("HTTP request")
+	}
 }
 
 func apiAuthMiddleware(password string) gin.HandlerFunc {
@@ -266,10 +305,11 @@ func apiAuthMiddleware(password string) gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		if c.GetHeader("X-API-Key") != password {
-			c.AbortWithStatusJSON(401, gin.H{"error": "unauthorized"})
+		// Accept API key from header or query parameter (for window.open exports)
+		if c.GetHeader("X-API-Key") == password || c.Query("key") == password {
+			c.Next()
 			return
 		}
-		c.Next()
+		c.AbortWithStatusJSON(401, gin.H{"error": "unauthorized"})
 	}
 }

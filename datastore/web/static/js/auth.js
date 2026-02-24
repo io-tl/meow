@@ -74,6 +74,9 @@
             var input = document.createElement('input');
             input.type = 'password';
             input.placeholder = 'API password';
+            input.autocomplete = 'off';
+            input.setAttribute('data-lpignore', 'true');
+            input.setAttribute('data-1p-ignore', 'true');
             input.style.cssText = 'width:100%;padding:10px 14px;background:#1a1f2e;border:1px solid rgba(99,179,237,0.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:16px;';
 
             var error = document.createElement('div');

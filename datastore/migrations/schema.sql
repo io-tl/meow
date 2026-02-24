@@ -304,7 +304,8 @@ CREATE INDEX IF NOT EXISTS idx_services_product ON services(product, version) WH
 -- Banner hash (exact match)
 CREATE INDEX IF NOT EXISTS idx_services_banner_hash ON services(banner_hash) WHERE banner_hash IS NOT NULL;
 
--- Port-based queries
+-- Port-based queries (composite with detected_at for ORDER BY without TEMP B-TREE)
+CREATE INDEX IF NOT EXISTS idx_services_port_detected ON services(port, detected_at DESC);
 CREATE INDEX IF NOT EXISTS idx_services_port ON services(port);
 
 -- IP-based queries (for host details)

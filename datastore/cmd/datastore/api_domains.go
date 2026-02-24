@@ -47,6 +47,8 @@ func (api *API) searchDomains(c *gin.Context) {
 	querySQL := fmt.Sprintf(`
 		SELECT se.domain, COUNT(*) as services_count,
 			GROUP_CONCAT(DISTINCT se.protocol) as protocols,
+			GROUP_CONCAT(DISTINCT se.ip) as ips,
+			COUNT(DISTINCT se.ip) as ip_count,
 			MAX(se.title) as sample_title,
 			MAX(se.status_code) as sample_status_code,
 			MAX(se.server) as sample_server,
@@ -69,13 +71,13 @@ func (api *API) searchDomains(c *gin.Context) {
 	var domains []gin.H
 	for rows.Next() {
 		var domain string
-		var servicesCount int
-		var protocols sql.NullString
+		var servicesCount, ipCount int
+		var protocols, ipsConcat sql.NullString
 		var sampleTitle, sampleServer sql.NullString
 		var sampleStatusCode sql.NullInt64
 		var lastSeen sql.NullInt64
 
-		err := rows.Scan(&domain, &servicesCount, &protocols,
+		err := rows.Scan(&domain, &servicesCount, &protocols, &ipsConcat, &ipCount,
 			&sampleTitle, &sampleStatusCode, &sampleServer, &lastSeen)
 		if err != nil {
 			continue
@@ -90,6 +92,16 @@ func (api *API) searchDomains(c *gin.Context) {
 		setIfValid(d, "sample_server", sampleServer)
 		setIfValidInt(d, "sample_status_code", sampleStatusCode)
 		setIfValidInt(d, "last_seen", lastSeen)
+
+		// IPs: show up to 3, with total count
+		if ipsConcat.Valid {
+			allIPs := strings.Split(ipsConcat.String, ",")
+			if len(allIPs) > 3 {
+				allIPs = allIPs[:3]
+			}
+			d["ips"] = allIPs
+			d["ip_count"] = ipCount
+		}
 
 		domains = append(domains, d)
 	}

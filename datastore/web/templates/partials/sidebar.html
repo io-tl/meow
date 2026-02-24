@@ -129,12 +129,85 @@
         </div>
     </div>
 
-    <div class="sidebar-shortcut-hint">
-        <kbd>Ctrl</kbd> + <kbd>B</kbd>
+    <div class="sidebar-bottom-actions">
+        <div class="sidebar-action-buttons">
+            <button id="btn-logout" class="sidebar-action-btn sidebar-action-logout" title="Logout (clear API key)" style="display:none" onclick="localStorage.removeItem('meow_api_key'); location.reload();">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                    <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <button id="btn-rc" class="sidebar-action-btn sidebar-action-rc" title="Copy shell RC command">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 17l6-5-6-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 19h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <button class="sidebar-action-btn sidebar-action-toggle" title="Toggle sidebar (Ctrl+B)" onclick="window.sidebarManager && window.sidebarManager.toggle()">
+                <svg class="toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M15 19l-7-7 7-7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="sidebar-shortcut-hint">Ctrl + B</div>
     </div>
 
 <script>
 (function(){
+    if (localStorage.getItem('meow_api_key')) {
+        var btn = document.getElementById('btn-logout');
+        if (btn) btn.style.display = '';
+    }
+
+    var rcBtn = document.getElementById('btn-rc');
+    if (rcBtn) rcBtn.addEventListener('click', function() {
+        var k = localStorage.getItem('meow_api_key') || '';
+        var u = location.origin + '/api/rc' + (k ? '?key=' + encodeURIComponent(k) : '');
+        var cmd = '. <(curl -s \'' + u + '\')';
+        navigator.clipboard.writeText(cmd).then(function() {
+            rcBtn.classList.add('copied');
+            setTimeout(function(){ rcBtn.classList.remove('copied'); }, 1500);
+
+            var old = document.querySelector('.rc-toast');
+            if (old) old.remove();
+
+            var t = document.createElement('div');
+            t.className = 'rc-toast';
+
+            var icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            icon.setAttribute('width', '16');
+            icon.setAttribute('height', '16');
+            icon.setAttribute('viewBox', '0 0 24 24');
+            icon.setAttribute('fill', 'none');
+            icon.innerHTML = '<path d="M9 12l2 2 4-4" stroke="#34d399" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="#34d399" stroke-width="2"/>';
+
+            var body = document.createElement('div');
+            body.className = 'rc-toast-body';
+
+            var title = document.createElement('div');
+            title.className = 'rc-toast-title';
+            title.textContent = 'Copied to clipboard';
+
+            var code = document.createElement('code');
+            code.className = 'rc-toast-cmd';
+            code.textContent = cmd;
+
+            body.appendChild(title);
+            body.appendChild(code);
+            t.appendChild(icon);
+            t.appendChild(body);
+            document.body.appendChild(t);
+
+            requestAnimationFrame(function(){
+                t.classList.add('show');
+            });
+            setTimeout(function(){
+                t.classList.remove('show');
+                setTimeout(function(){ t.remove(); }, 400);
+            }, 5000);
+        });
+    });
+
     function checkScanners(){
         fetch('/api/scanners').then(function(r){return r.json()}).then(function(data){
             var el=document.getElementById('nav-scan');

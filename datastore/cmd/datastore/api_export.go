@@ -27,6 +27,9 @@ func parseLimit(s string, defaultLimit, maxLimit int) int {
 // buildExportFilters builds WHERE clause fragments from export query parameters.
 // hostWhere: conditions for the hosts table (alias h), with EXISTS subqueries for service-level filters.
 // svcWhere: direct conditions for the services table (alias s), used in service-centric exports.
+//
+// The q parameter supports MeowQL syntax (e.g. "service:ssh", "port:443 country:FR").
+// If MeowQL parsing fails, it falls back to free-text LIKE search.
 func (api *API) buildExportFilters(c *gin.Context) (hostWhere string, hostArgs []any, svcWhere string, svcArgs []any) {
 	q := c.DefaultQuery("q", "")
 	country := c.DefaultQuery("country", "")
@@ -39,26 +42,39 @@ func (api *API) buildExportFilters(c *gin.Context) (hostWhere string, hostArgs [
 	hostWhere = "1=1"
 	svcWhere = "1=1"
 
-	// Free-text search (matches searchHosts behavior)
 	if q != "" {
-		queryLower := strings.ToLower(strings.TrimSpace(q))
-		likeQuery := "%" + queryLower + "%"
+		// Try MeowQL first
+		hostResult := meowql.Compile(q)
+		svcResult := meowql.CompileServiceCentric(q)
 
-		if strings.Count(q, ".") >= 1 || isNumeric(q) {
-			hostWhere += " AND h.ip LIKE ?"
-			hostArgs = append(hostArgs, q+"%")
+		if hostResult.Err == nil && hostResult.Where != "" && hostResult.Where != "1=1" {
+			hostWhere += " AND " + hostResult.Where
+			hostArgs = append(hostArgs, hostResult.Args...)
+			if svcResult.Err == nil && svcResult.Where != "" && svcResult.Where != "1=1" {
+				svcWhere += " AND " + svcResult.Where
+				svcArgs = append(svcArgs, svcResult.Args...)
+			}
 		} else {
-			hostWhere += ` AND (
-				LOWER(h.hostnames) LIKE ? OR
-				LOWER(h.domains) LIKE ? OR
-				LOWER(h.as_org) LIKE ? OR
-				LOWER(h.country_name) LIKE ? OR
-				LOWER(h.city) LIKE ? OR
-				EXISTS (SELECT 1 FROM http_data ehd WHERE ehd.ip = h.ip AND LOWER(ehd.headers) LIKE ?) OR
-				EXISTS (SELECT 1 FROM services es WHERE es.ip = h.ip AND (LOWER(es.product) LIKE ? OR LOWER(es.banner) LIKE ?)) OR
-				EXISTS (SELECT 1 FROM service_enrichments ese WHERE ese.ip = h.ip AND (LOWER(ese.banner) LIKE ? OR LOWER(ese.version) LIKE ?))
-			)`
-			hostArgs = append(hostArgs, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery)
+			// Fall back to free-text search
+			queryLower := strings.ToLower(strings.TrimSpace(q))
+			likeQuery := "%" + queryLower + "%"
+
+			if strings.Count(q, ".") >= 1 || isNumeric(q) {
+				hostWhere += " AND h.ip LIKE ?"
+				hostArgs = append(hostArgs, q+"%")
+			} else {
+				hostWhere += ` AND (
+					LOWER(h.hostnames) LIKE ? OR
+					LOWER(h.domains) LIKE ? OR
+					LOWER(h.as_org) LIKE ? OR
+					LOWER(h.country_name) LIKE ? OR
+					LOWER(h.city) LIKE ? OR
+					EXISTS (SELECT 1 FROM http_data ehd WHERE ehd.ip = h.ip AND LOWER(ehd.headers) LIKE ?) OR
+					EXISTS (SELECT 1 FROM services es WHERE es.ip = h.ip AND (LOWER(es.product) LIKE ? OR LOWER(es.banner) LIKE ?)) OR
+					EXISTS (SELECT 1 FROM service_enrichments ese WHERE ese.ip = h.ip AND (LOWER(ese.banner) LIKE ? OR LOWER(ese.version) LIKE ?))
+				)`
+				hostArgs = append(hostArgs, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery, likeQuery)
+			}
 		}
 	}
 
@@ -103,6 +119,11 @@ func (api *API) buildExportFilters(c *gin.Context) (hostWhere string, hostArgs [
 					EXISTS (SELECT 1 FROM http_data ehd WHERE ehd.ip = es.ip AND ehd.port = es.port AND LOWER(ehd.technologies) LIKE ?)
 				)`
 				subArgs = append(subArgs, techPattern, techPattern, techPattern)
+				svcWhere += ` AND (
+					LOWER(s.product) LIKE ? OR LOWER(s.service) LIKE ? OR
+					EXISTS (SELECT 1 FROM http_data ehd WHERE ehd.ip = s.ip AND ehd.port = s.port AND LOWER(ehd.technologies) LIKE ?)
+				)`
+				svcArgs = append(svcArgs, techPattern, techPattern, techPattern)
 			}
 
 			hostWhere += " AND EXISTS (SELECT 1 FROM services es WHERE " + subWhere + ")"
@@ -133,6 +154,11 @@ func (api *API) buildExportFilters(c *gin.Context) (hostWhere string, hostArgs [
 				EXISTS (SELECT 1 FROM services es WHERE es.ip = h.ip AND (LOWER(es.product) LIKE ? OR LOWER(es.service) LIKE ?))
 			)`
 			hostArgs = append(hostArgs, techPattern, techPattern, techPattern)
+			svcWhere += ` AND (
+				LOWER(s.product) LIKE ? OR LOWER(s.service) LIKE ? OR
+				EXISTS (SELECT 1 FROM http_data ehd WHERE ehd.ip = s.ip AND ehd.port = s.port AND LOWER(ehd.technologies) LIKE ?)
+			)`
+			svcArgs = append(svcArgs, techPattern, techPattern, techPattern)
 		}
 	}
 
@@ -229,13 +255,20 @@ func (api *API) writeCSV(c *gin.Context, dataType string, data []gin.H) {
 
 	switch dataType {
 	case "hosts":
-		sb.WriteString("ip,country_code,city,asn,as_org,cloud_provider,cloud_type,open_ports_count\n")
+		sb.WriteString("ip,country_code,city,asn,as_org,cloud_provider,cloud_type,ports\n")
 		for _, h := range data {
+			// Build ports string from services
+			var ports []string
+			if svcs, ok := h["services"].([]gin.H); ok {
+				for _, svc := range svcs {
+					ports = append(ports, fmt.Sprintf("%v", svc["port"]))
+				}
+			}
 			fmt.Fprintf(&sb, "%s,%s,%s,%s,%s,%s,%s,%s\n",
 				csvEscape(h["ip"]), csvEscape(h["country_code"]), csvEscape(h["city"]),
 				csvEscape(h["asn"]), csvEscape(h["as_org"]),
 				csvEscape(h["cloud_provider"]), csvEscape(h["cloud_type"]),
-				csvEscape(h["open_ports_count"]))
+				csvEscape(strings.Join(ports, " ")))
 		}
 	case "services":
 		sb.WriteString("ip,port,service,product,version\n")
@@ -269,30 +302,31 @@ func csvEscape(v any) string {
 }
 
 func (api *API) exportHosts(c *gin.Context, limit int) ([]gin.H, error) {
-	hostWhere, hostArgs, _, _ := api.buildExportFilters(c)
+	hostWhere, hostArgs, svcWhere, svcArgs := api.buildExportFilters(c)
 
 	query := fmt.Sprintf(`
-		SELECT h.ip, h.country_code, h.city, h.asn, h.as_org, h.cloud_provider, h.cloud_type, h.open_ports_count
+		SELECT h.ip, h.country_code, h.city, h.asn, h.as_org, h.cloud_provider, h.cloud_type
 		FROM hosts h
 		WHERE %s
 		ORDER BY h.last_scan DESC
 		LIMIT ?`, hostWhere)
 
-	hostArgs = append(hostArgs, limit)
-
-	rows, err := api.db.Query(query, hostArgs...)
+	rows, err := api.db.Query(query, append(hostArgs, limit)...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	var hosts []gin.H
+	var ips []string
+	hostIdx := make(map[string]int) // ip -> index in hosts slice
+
 	for rows.Next() {
 		var ip sql.NullString
 		var countryCode, city, asOrg, cloudProvider, cloudType sql.NullString
-		var asn, openPortsCount sql.NullInt64
+		var asn sql.NullInt64
 
-		if err := rows.Scan(&ip, &countryCode, &city, &asn, &asOrg, &cloudProvider, &cloudType, &openPortsCount); err != nil {
+		if err := rows.Scan(&ip, &countryCode, &city, &asn, &asOrg, &cloudProvider, &cloudType); err != nil {
 			continue
 		}
 
@@ -304,12 +338,59 @@ func (api *API) exportHosts(c *gin.Context, limit int) ([]gin.H, error) {
 		setIfValid(host, "as_org", asOrg)
 		setIfValid(host, "cloud_provider", cloudProvider)
 		setIfValid(host, "cloud_type", cloudType)
-		setIfValidInt(host, "open_ports_count", openPortsCount)
+		host["services"] = []gin.H{}
 
+		if ip.Valid {
+			hostIdx[ip.String] = len(hosts)
+			ips = append(ips, ip.String)
+		}
 		hosts = append(hosts, host)
 	}
 	if err := rows.Err(); err != nil {
 		return hosts, err
+	}
+
+	if len(ips) == 0 {
+		return hosts, nil
+	}
+
+	// Fetch matching services for these hosts
+	placeholders := make([]string, len(ips))
+	var svcQueryArgs []any
+	for i, ip := range ips {
+		placeholders[i] = "?"
+		svcQueryArgs = append(svcQueryArgs, ip)
+	}
+	svcQueryArgs = append(svcQueryArgs, svcArgs...)
+
+	svcQuery := fmt.Sprintf(`
+		SELECT s.ip, s.port, s.service, s.product, s.version
+		FROM services s
+		WHERE s.ip IN (%s) AND %s
+		ORDER BY s.port ASC`, strings.Join(placeholders, ","), svcWhere)
+
+	svcRows, err := api.db.Query(svcQuery, svcQueryArgs...)
+	if err != nil {
+		return hosts, nil
+	}
+	defer svcRows.Close()
+
+	for svcRows.Next() {
+		var ip string
+		var port int
+		var service, product, version sql.NullString
+
+		if err := svcRows.Scan(&ip, &port, &service, &product, &version); err != nil {
+			continue
+		}
+
+		if idx, ok := hostIdx[ip]; ok {
+			svc := gin.H{"port": port}
+			setIfValid(svc, "service", service)
+			setIfValid(svc, "product", product)
+			setIfValid(svc, "version", version)
+			hosts[idx]["services"] = append(hosts[idx]["services"].([]gin.H), svc)
+		}
 	}
 
 	return hosts, nil

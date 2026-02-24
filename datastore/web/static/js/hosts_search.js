@@ -2085,6 +2085,11 @@ class MeowHostSearch {
             params.set('q', this.currentQuery);
         }
 
+        const apiKey = localStorage.getItem('meow_api_key');
+        if (apiKey) {
+            params.set('key', apiKey);
+        }
+
         window.open(`/api/export?${params}`, '_blank');
     }
 }
