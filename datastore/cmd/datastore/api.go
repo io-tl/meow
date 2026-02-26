@@ -23,8 +23,8 @@ func startAPI(cfg *Config, db *DB, nc *nats.Conn, ns *natsserver.Server, scanTra
 	// CORS middleware
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-API-Key")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-API-Key, Mcp-Session-Id")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -203,15 +203,22 @@ func startAPI(cfg *Config, db *DB, nc *nats.Conn, ns *natsserver.Server, scanTra
 	// Shell RC (no auth — bootstrap script only, no data)
 	r.GET("/api/rc", api.getShellRC)
 
-	// API routes group
+	// API routes group (protected by API key when -api-pass is set)
 	apiGroup := r.Group("/api")
 	apiGroup.Use(apiAuthMiddleware(cfg.APIPassword))
+
+	// MCP (Model Context Protocol) — Streamable HTTP, same auth as /api/*
+	mcpHTTP := newMCPHandler(db, nc, scanTracker)
+	mcpGroup := r.Group("/mcp")
+	mcpGroup.Use(apiAuthMiddleware(cfg.APIPassword))
+	mcpGroup.Any("", gin.WrapH(mcpHTTP))
 
 	// Cyberpunk interface endpoints
 	apiGroup.GET("/hosts", api.searchHosts)
 	apiGroup.GET("/hosts/:ip", api.getHostDetails)
 	apiGroup.GET("/services", api.searchServices)
 	apiGroup.GET("/certificates", api.searchCertificates)
+	apiGroup.GET("/certificates/:fingerprint", api.getCertificateDetail)
 	apiGroup.GET("/certificates/:fingerprint/hosts", api.getCertificateHosts)
 	apiGroup.GET("/stats/dashboard", api.getDashboardStats)
 	apiGroup.GET("/stats/countries", api.getCountryStats)

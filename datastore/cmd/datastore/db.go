@@ -146,9 +146,20 @@ func migrateEnrichmentFields(db *DB) error {
 	return nil
 }
 
+// allowedMigrationTables lists tables that tableHasColumn is allowed to inspect.
+// This prevents SQL injection via the table parameter in PRAGMA table_info().
+var allowedMigrationTables = map[string]bool{
+	"service_enrichments": true,
+}
+
 // tableHasColumn checks if a table has a specific column using PRAGMA table_info.
+// The table name is validated against an allowlist to prevent SQL injection.
 // Fully drains and closes the rows before returning to avoid holding the connection.
 func tableHasColumn(db *DB, table, column string) (bool, error) {
+	if !allowedMigrationTables[table] {
+		return false, fmt.Errorf("table %q not in migration allowlist", table)
+	}
+
 	rows, err := db.Query("PRAGMA table_info(" + table + ")")
 	if err != nil {
 		return false, err

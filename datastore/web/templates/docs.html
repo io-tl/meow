@@ -23,6 +23,10 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg>
                 Configuration
             </button>
+            <button class="docs-tab" data-tab="mcp">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="13" r="1.5" fill="currentColor"/><circle cx="15" cy="13" r="1.5" fill="currentColor"/><path d="M9 17h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                MCP
+            </button>
             <button class="docs-tab" data-tab="debugger">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke="currentColor" stroke-width="2"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z" stroke="currentColor" stroke-width="2"/></svg>
                 API Debugger
@@ -1186,6 +1190,231 @@ sudo ./synscan -t 10.0.0.0/8 -p 80,443 --resume a1b2c3d4e5f6...</code></div>
 export DATASTORE_NATS_TOKEN="SECRET"
 export DATASTORE_API_PASSWORD="APIKEY"
 ./datastore -verbose</code></div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB: MCP (Model Context Protocol) -->
+        <!-- ============================================================ -->
+        <div class="docs-tab-content" data-tab="mcp">
+            <div class="docs-content">
+
+                <div class="meowql-section">
+                    <h2 class="meowql-section-title">Model Context Protocol (MCP)</h2>
+                    <p class="docs-section-desc">The datastore exposes an <a href="https://modelcontextprotocol.io" target="_blank" class="docs-link">MCP</a> server over HTTP at <span class="meowql-code">/mcp</span>, allowing LLMs (Claude, GPT, etc.) to query the scan database directly through 12 structured tools. The MCP endpoint is always available when the API is running.</p>
+                </div>
+
+                <!-- Getting Started -->
+                <div class="meowql-section">
+                    <h3 class="meowql-section-title">Getting Started</h3>
+                    <p class="docs-section-desc">Start the datastore normally — the MCP endpoint is served at <span class="meowql-code">http://&lt;host&gt;:&lt;port&gt;/mcp</span> alongside the REST API:</p>
+                    <div class="module-example-block"><code>./datastore -verbose</code></div>
+                    <p class="docs-section-desc">The MCP server uses the <a href="https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http" target="_blank" class="docs-link">Streamable HTTP</a> transport. All MCP clients that support HTTP can connect directly.</p>
+                </div>
+
+                <!-- IDE Configuration -->
+                <div class="meowql-section">
+                    <h3 class="meowql-section-title">IDE Configuration</h3>
+                    <p class="docs-section-desc">To integrate the datastore as an MCP server in Opencode, Claude Code, Cursor, VS Code or any compatible MCP client, create a <span class="meowql-code">.mcp.json</span> file at the project root:</p>
+                    <div class="module-example-block"><code>{
+  "mcpServers": {
+    "meow-datastore": {
+      "type": "url",
+      "url": "http://127.0.0.1:18080/mcp"
+    }
+  }
+}</code></div>
+                </div>
+
+                <!-- Available Tools -->
+                <div class="meowql-section">
+                    <h3 class="meowql-section-title">Available Tools</h3>
+                    <p class="docs-section-desc">12 tools are exposed via MCP. Each tool is called by the LLM with JSON parameters and returns structured results. Most tools accept an optional <span class="meowql-code">fields</span> parameter (comma-separated) to control which columns appear in results, reducing token usage.</p>
+                </div>
+
+                <!-- meow_stats -->
+                <div class="meowql-section">
+                    <div class="meowql-field-category">meow_stats</div>
+                    <p class="docs-section-desc">High-level statistical overview of the dataset: total host/service/certificate counts, enrichment breakdown, top services, countries, cloud providers, products, and web technologies.</p>
+                    <table class="meowql-table">
+                        <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">fields</span></td><td>string</td><td>no</td><td>Stat sections to include (comma-separated). Default: <span class="meowql-code">total_hosts,total_services,total_certificates,enrichment,top_services,top_countries</span>. Additional: <span class="meowql-code">cloud_providers</span>, <span class="meowql-code">top_products</span>, <span class="meowql-code">top_technologies</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- meow_search -->
+                <div class="meowql-section">
+                    <div class="meowql-field-category">meow_search</div>
+                    <p class="docs-section-desc">Search the database using MeowQL. Supports two modes: <span class="meowql-code">hosts</span> (default) returns unique hosts, <span class="meowql-code">services</span> returns individual IP:port entries.</p>
+                    <table class="meowql-table">
+                        <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">query</span></td><td>string</td><td>yes</td><td>MeowQL query (e.g. <span class="meowql-code">port:443 and country:FR</span>)</td></tr>
+                            <tr><td><span class="meowql-code">mode</span></td><td>string</td><td>no</td><td><span class="meowql-code">hosts</span> (default) or <span class="meowql-code">services</span></td></tr>
+                            <tr><td><span class="meowql-code">limit</span></td><td>number</td><td>no</td><td>Results per page (default: 50, max: 500)</td></tr>
+                            <tr><td><span class="meowql-code">page</span></td><td>number</td><td>no</td><td>Page number (default: 1)</td></tr>
+                            <tr><td><span class="meowql-code">fields</span></td><td>string</td><td>no</td><td>Fields to include (services mode only, comma-separated). Default: <span class="meowql-code">ip,port,service,product,version,country,cloud,org,enrichment_keys</span>. Use <span class="meowql-code">enrichment.*</span> fields to get enrichment values</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- meow_count -->
+                <div class="meowql-section">
+                    <div class="meowql-field-category">meow_count</div>
+                    <p class="docs-section-desc">Lightweight count-only query. Returns the number of matching hosts or services without any row data. Much more token-efficient than <span class="meowql-code">meow_search</span> when you only need a count.</p>
+                    <table class="meowql-table">
+                        <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">query</span></td><td>string</td><td>yes</td><td>MeowQL query (e.g. <span class="meowql-code">port:443 and country:FR</span>)</td></tr>
+                            <tr><td><span class="meowql-code">mode</span></td><td>string</td><td>no</td><td><span class="meowql-code">hosts</span> (default) or <span class="meowql-code">services</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- meow_host -->
+                <div class="meowql-section">
+                    <div class="meowql-field-category">meow_host</div>
+                    <p class="docs-section-desc">Complete host profile by IP address: geolocation, network identity (ASN, org), cloud metadata, all services with fingerprint and enrichment data, TLS certificates, and associated domains.</p>
+                    <table class="meowql-table">
+                        <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">ip</span></td><td>string</td><td>yes</td><td>IPv4 or IPv6 address (e.g. <span class="meowql-code">10.0.0.1</span>)</td></tr>
+                            <tr><td><span class="meowql-code">sections</span></td><td>string</td><td>no</td><td>Sections to include (comma-separated): <span class="meowql-code">services</span>, <span class="meowql-code">certificates</span>, <span class="meowql-code">domains</span>. Default: all three</td></tr>
+                            <tr><td><span class="meowql-code">fields</span></td><td>string</td><td>no</td><td>Fields per service/certificate row (comma-separated). Service defaults: <span class="meowql-code">port,service,product,version,enrichment.*</span>. Certificate defaults: <span class="meowql-code">port,fingerprint,subject_cn,issuer_cn,self_signed,expired</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- meow_pivot -->
+                <div class="meowql-section">
+                    <div class="meowql-field-category">meow_pivot</div>
+                    <p class="docs-section-desc">Infrastructure correlation: find all hosts sharing a common indicator (banner, JARM, certificate, product, ASN).</p>
+                    <table class="meowql-table">
+                        <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">by</span></td><td>string</td><td>yes</td><td>Pivot type: <span class="meowql-code">banner_hash</span>, <span class="meowql-code">jarm</span>, <span class="meowql-code">cert</span>, <span class="meowql-code">product</span>, <span class="meowql-code">asn</span></td></tr>
+                            <tr><td><span class="meowql-code">value</span></td><td>string</td><td>yes</td><td>Indicator value (SHA256, JARM, product name, AS number...)</td></tr>
+                            <tr><td><span class="meowql-code">limit</span></td><td>number</td><td>no</td><td>Max results (default: 100, max: 1000)</td></tr>
+                            <tr><td><span class="meowql-code">fields</span></td><td>string</td><td>no</td><td>Fields per row (comma-separated). Default: <span class="meowql-code">ip,port,service,product,country_code</span>. Additional: <span class="meowql-code">version</span>, <span class="meowql-code">cloud_provider</span>, <span class="meowql-code">as_org</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- meow_certs -->
+                <div class="meowql-section">
+                    <div class="meowql-field-category">meow_certs</div>
+                    <p class="docs-section-desc">TLS certificate search and audit. Full-text search across CN, issuer, SAN, org, fingerprint. Pre-built filters for security auditing.</p>
+                    <table class="meowql-table">
+                        <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">query</span></td><td>string</td><td>no</td><td>Text search (e.g. <span class="meowql-code">example.com</span>, <span class="meowql-code">Let's Encrypt</span>)</td></tr>
+                            <tr><td><span class="meowql-code">filter</span></td><td>string</td><td>no</td><td><span class="meowql-code">all</span> (default), <span class="meowql-code">expired</span>, <span class="meowql-code">self_signed</span>, <span class="meowql-code">expiring_soon</span>, <span class="meowql-code">weak_key</span></td></tr>
+                            <tr><td><span class="meowql-code">limit</span></td><td>number</td><td>no</td><td>Max results (default: 50, max: 500)</td></tr>
+                            <tr><td><span class="meowql-code">fields</span></td><td>string</td><td>no</td><td>Fields per certificate (comma-separated). Default: <span class="meowql-code">fingerprint,subject_cn,issuer_cn,status,self_signed,host_count,not_after</span>. Additional: <span class="meowql-code">subject_org</span>, <span class="meowql-code">issuer_org</span>, <span class="meowql-code">names</span>, <span class="meowql-code">algorithm</span>, <span class="meowql-code">bits</span>, <span class="meowql-code">signature_algorithm</span>, <span class="meowql-code">serial</span>, <span class="meowql-code">is_ca</span>, <span class="meowql-code">not_before</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- meow_domains -->
+                <div class="meowql-section">
+                    <div class="meowql-field-category">meow_domains</div>
+                    <p class="docs-section-desc">Domain intelligence from discovered domains (HTTP Host headers, TLS certificates, reverse DNS). Two modes: list with aggregated stats, or detail mode with all services for a specific domain.</p>
+                    <table class="meowql-table">
+                        <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">domain</span></td><td>string</td><td>no</td><td>Specific domain for detail mode (e.g. <span class="meowql-code">example.com</span>)</td></tr>
+                            <tr><td><span class="meowql-code">query</span></td><td>string</td><td>no</td><td>Substring filter in list mode (e.g. <span class="meowql-code">corp</span>)</td></tr>
+                            <tr><td><span class="meowql-code">protocol</span></td><td>string</td><td>no</td><td>Protocol filter in list mode (<span class="meowql-code">http</span>, <span class="meowql-code">https</span>, <span class="meowql-code">ssh</span>...)</td></tr>
+                            <tr><td><span class="meowql-code">limit</span></td><td>number</td><td>no</td><td>Max results (default: 50, max: 500)</td></tr>
+                            <tr><td><span class="meowql-code">fields</span></td><td>string</td><td>no</td><td>Fields per row (comma-separated). List default: <span class="meowql-code">domain,services_count,protocols</span>. Detail default: <span class="meowql-code">ip,port,protocol,status_code,title,country</span>. Additional: <span class="meowql-code">version</span>, <span class="meowql-code">banner</span>, <span class="meowql-code">server</span>, <span class="meowql-code">redirect_url</span>, <span class="meowql-code">org</span>, <span class="meowql-code">cloud</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- meow_export -->
+                <div class="meowql-section">
+                    <div class="meowql-field-category">meow_export</div>
+                    <p class="docs-section-desc">Export scan results in structured formats for downstream tools. Supports MeowQL filtering.</p>
+                    <table class="meowql-table">
+                        <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">query</span></td><td>string</td><td>no</td><td>MeowQL filter (e.g. <span class="meowql-code">service:http and country:FR</span>)</td></tr>
+                            <tr><td><span class="meowql-code">type</span></td><td>string</td><td>no</td><td><span class="meowql-code">ip_list</span> (default), <span class="meowql-code">services</span>, <span class="meowql-code">hosts</span></td></tr>
+                            <tr><td><span class="meowql-code">limit</span></td><td>number</td><td>no</td><td>Max entries (default: 1000, max: 10000)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- meow_dns -->
+                <div class="meowql-section">
+                    <div class="meowql-field-category">meow_dns</div>
+                    <p class="docs-section-desc">DNS resolution (A, AAAA, CNAME, MX, NS, TXT) or reverse lookup (PTR). Automatically cross-references resolved IPs with the scan database.</p>
+                    <table class="meowql-table">
+                        <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">query</span></td><td>string</td><td>yes</td><td>Domain (e.g. <span class="meowql-code">example.com</span>) or IP for reverse lookup (e.g. <span class="meowql-code">8.8.8.8</span>)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- meow_status -->
+                <div class="meowql-section">
+                    <div class="meowql-field-category">meow_status</div>
+                    <p class="docs-section-desc">Operational status: table row counts, enrichment pipeline progress, per-service breakdown.</p>
+                    <table class="meowql-table">
+                        <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td colspan="4" style="text-align:center; opacity:0.5;">No parameters</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- meow_scan -->
+                <div class="meowql-section">
+                    <div class="meowql-field-category">meow_scan</div>
+                    <p class="docs-section-desc">Submit a SYN scan request to connected synscan instances via NATS. Requires at least one active scanner (use <span class="meowql-code">meow_scanners</span> to check). Results appear in the datastore as the scan progresses.</p>
+                    <table class="meowql-table">
+                        <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="meowql-code">target</span></td><td>string</td><td>yes</td><td>Target specification: CIDR (<span class="meowql-code">192.168.1.0/24</span>), range (<span class="meowql-code">10.0.0.1-10.0.0.254</span>), or nmap-style. Multiple targets comma-separated</td></tr>
+                            <tr><td><span class="meowql-code">ports</span></td><td>string</td><td>no</td><td>Port specification: single (<span class="meowql-code">80</span>), range (<span class="meowql-code">1-1024</span>), or comma-separated (<span class="meowql-code">22,80,443</span>). Default: top 1000 ports</td></tr>
+                            <tr><td><span class="meowql-code">rate</span></td><td>number</td><td>no</td><td>Packets per second rate limit (default: 10000)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- meow_scanners -->
+                <div class="meowql-section">
+                    <div class="meowql-field-category">meow_scanners</div>
+                    <p class="docs-section-desc">List all active synscan instances connected to the NATS bus. Shows each scanner's node ID, hostname, status (idle/scanning), current scan progress, and transport type. Use this to check scanner availability before submitting a scan.</p>
+                    <table class="meowql-table">
+                        <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td colspan="4" style="text-align:center; opacity:0.5;">No parameters</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Recommended Workflow -->
+                <div class="meowql-section">
+                    <h3 class="meowql-section-title">Recommended Workflow</h3>
+                    <p class="docs-section-desc">Typical tool usage order for an LLM:</p>
+                    <div class="module-example-block"><code> 1. meow_stats       → understand the dataset scope
+ 2. meow_count       → quick counts without fetching rows
+ 3. meow_search      → find targets with MeowQL queries
+ 4. meow_host        → full details on a specific IP
+ 5. meow_pivot       → correlate infrastructure (banner, JARM, cert, product, ASN)
+ 6. meow_certs       → audit TLS certificates
+ 7. meow_domains     → domain intelligence (virtual hosting, CDN backends)
+ 8. meow_export      → extract IP lists or JSON for nmap, nuclei, httpx
+ 9. meow_dns         → resolve domains and cross-reference with scans
+10. meow_status      → check enrichment pipeline progress
+11. meow_scanners    → check available scanner instances
+12. meow_scan        → submit a new SYN scan via NATS</code></div>
                 </div>
 
             </div>

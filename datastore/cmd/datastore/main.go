@@ -45,14 +45,6 @@ func main() {
 		log.Warn().Err(err).Msg("PRAGMA optimize failed (non-fatal)")
 	}
 
-	// MCP-only mode: just DB, no NATS/consumer
-	if cfg.EnableMCP && !cfg.EnableAPI {
-		if err := startMCP(db); err != nil {
-			log.Fatal().Err(err).Msg("MCP server failed")
-		}
-		return
-	}
-
 	nc, ns, err := initNATS(cfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize NATS")
@@ -78,16 +70,6 @@ func main() {
 			log.Info().Msg("API password protection enabled")
 		}
 		go startAPI(cfg, db, nc, ns, scanTracker, consumer.eventFeed)
-	}
-
-	// MCP + API + consumer: MCP on stdio, API on HTTP, consumer on NATS
-	if cfg.EnableMCP {
-		log.Info().Msg("Starting MCP server on stdio...")
-		if err := startMCP(db); err != nil {
-			log.Fatal().Err(err).Msg("MCP server failed")
-		}
-		consumer.Stop()
-		return
 	}
 
 	awaitShutdown()

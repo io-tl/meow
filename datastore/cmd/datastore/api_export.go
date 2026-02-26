@@ -693,8 +693,6 @@ func (api *API) getGeoMap(c *gin.Context) {
 	var countries []gin.H
 	var totalHosts, totalPorts, totalASNs, totalCloud int
 
-	asnSet := make(map[int]bool)
-
 	for rows.Next() {
 		var code, name string
 		var hostCount, ports, asns, cloudCount int
@@ -712,8 +710,6 @@ func (api *API) getGeoMap(c *gin.Context) {
 		totalHosts += hostCount
 		totalPorts += ports
 		totalCloud += cloudCount
-		// Approximate unique ASNs across countries (sum of per-country distinct)
-		_ = asnSet
 	}
 	if err := rows.Err(); err != nil {
 		log.Warn().Err(err).Msg("Error iterating geomap rows")

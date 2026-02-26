@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "meow-datastore": {
+      "type": "http",
+      "url": "http://localhost:18080/mcp" 
+    }
+  }
+}

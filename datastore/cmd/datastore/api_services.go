@@ -10,6 +10,82 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// getCertificateDetail returns full details for a single certificate including PEM
+func (api *API) getCertificateDetail(c *gin.Context) {
+	fingerprint := c.Param("fingerprint")
+
+	var (
+		fp, fpSHA1, fpMD5                         sql.NullString
+		subjectCN, subjectOrg, subjectCountry      sql.NullString
+		issuerCN, issuerOrg, names                  sql.NullString
+		serialNumber, pubKeyAlgo, sigAlgo           sql.NullString
+		parsedCert                                  sql.NullString
+		notBefore, notAfter                         sql.NullInt64
+		firstSeen, lastSeen                         sql.NullInt64
+		pubKeyBits                                  sql.NullInt64
+		isSelfSigned, isCA                          int
+	)
+
+	err := api.db.QueryRow(`
+		SELECT fingerprint_sha256, fingerprint_sha1, fingerprint_md5,
+		       subject_cn, subject_org, subject_country,
+		       issuer_cn, issuer_org, names,
+		       not_before, not_after, serial_number,
+		       public_key_bits, public_key_algorithm, signature_algorithm,
+		       is_self_signed, is_ca, first_seen, last_seen,
+		       parsed_cert
+		FROM certificates WHERE fingerprint_sha256 = ?`, fingerprint).Scan(
+		&fp, &fpSHA1, &fpMD5,
+		&subjectCN, &subjectOrg, &subjectCountry,
+		&issuerCN, &issuerOrg, &names,
+		&notBefore, &notAfter, &serialNumber,
+		&pubKeyBits, &pubKeyAlgo, &sigAlgo,
+		&isSelfSigned, &isCA, &firstSeen, &lastSeen,
+		&parsedCert,
+	)
+	if err == sql.ErrNoRows {
+		c.JSON(404, gin.H{"error": "certificate not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	cert := gin.H{
+		"is_self_signed": isSelfSigned == 1,
+		"is_ca":          isCA == 1,
+	}
+	setIfValid(cert, "fingerprint_sha256", fp)
+	setIfValid(cert, "fingerprint_sha1", fpSHA1)
+	setIfValid(cert, "fingerprint_md5", fpMD5)
+	setIfValid(cert, "subject_cn", subjectCN)
+	setIfValid(cert, "subject_org", subjectOrg)
+	setIfValid(cert, "subject_country", subjectCountry)
+	setIfValid(cert, "issuer_cn", issuerCN)
+	setIfValid(cert, "issuer_org", issuerOrg)
+	setIfValid(cert, "names", names)
+	setIfValid(cert, "serial_number", serialNumber)
+	setIfValid(cert, "public_key_algorithm", pubKeyAlgo)
+	setIfValid(cert, "signature_algorithm", sigAlgo)
+	setIfValidInt(cert, "public_key_bits", pubKeyBits)
+	setIfValidInt(cert, "not_before", notBefore)
+	setIfValidInt(cert, "not_after", notAfter)
+	setIfValidInt(cert, "first_seen", firstSeen)
+	setIfValidInt(cert, "last_seen", lastSeen)
+
+	if parsedCert.Valid {
+		var certData map[string]any
+		if err := json.Unmarshal([]byte(parsedCert.String), &certData); err == nil {
+			if pem, ok := certData["pem"].(string); ok {
+				cert["pem"] = pem
+			}
+		}
+	}
+
+	c.JSON(200, cert)
+}
+
 // searchServices searches services with filters
 func (api *API) searchServices(c *gin.Context) {
 	query := c.DefaultQuery("q", "")
@@ -149,10 +225,13 @@ func (api *API) searchCertificates(c *gin.Context) {
 		       c.not_before, c.not_after, c.serial_number,
 		       c.public_key_bits, c.public_key_algorithm, c.signature_algorithm,
 		       c.is_self_signed, c.is_ca, c.first_seen, c.last_seen,
-		       c.parsed_cert,
-		       (SELECT COUNT(DISTINCT ip) FROM service_certificates
-		        WHERE cert_fingerprint = c.fingerprint_sha256) as host_count
+		       COALESCE(sc_counts.host_count, 0) as host_count
 		FROM certificates c
+		LEFT JOIN (
+		    SELECT cert_fingerprint, COUNT(DISTINCT ip) as host_count
+		    FROM service_certificates
+		    GROUP BY cert_fingerprint
+		) sc_counts ON sc_counts.cert_fingerprint = c.fingerprint_sha256
 		%s
 		ORDER BY host_count DESC, c.not_after DESC
 		LIMIT ?`, whereClause)
@@ -173,7 +252,6 @@ func (api *API) searchCertificates(c *gin.Context) {
 			subjectCN, subjectOrg, subjectCountry        sql.NullString
 			issuerCN, issuerOrg, names                    sql.NullString
 			serialNumber, pubKeyAlgo, sigAlgo             sql.NullString
-			parsedCert                                    sql.NullString
 			notBefore, notAfter                           sql.NullInt64
 			firstSeen, lastSeen                           sql.NullInt64
 			pubKeyBits                                    sql.NullInt64
@@ -187,7 +265,7 @@ func (api *API) searchCertificates(c *gin.Context) {
 			&notBefore, &notAfter, &serialNumber,
 			&pubKeyBits, &pubKeyAlgo, &sigAlgo,
 			&isSelfSigned, &isCA, &firstSeen, &lastSeen,
-			&parsedCert, &hostCount,
+			&hostCount,
 		)
 		if err != nil {
 			continue
@@ -215,16 +293,6 @@ func (api *API) searchCertificates(c *gin.Context) {
 		setIfValidInt(cert, "not_after", notAfter)
 		setIfValidInt(cert, "first_seen", firstSeen)
 		setIfValidInt(cert, "last_seen", lastSeen)
-
-		// Add PEM from parsed_cert if available
-		if parsedCert.Valid {
-			var certData map[string]any
-			if err := json.Unmarshal([]byte(parsedCert.String), &certData); err == nil {
-				if pem, ok := certData["pem"].(string); ok {
-					cert["pem"] = pem
-				}
-			}
-		}
 
 		certificates = append(certificates, cert)
 	}

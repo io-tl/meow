@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"strconv"
 
@@ -8,29 +9,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// queryValueCounts executes a query that returns (value string, count int) rows
-// and returns a slice of gin.H with the given key name for the value.
-func (api *API) queryValueCounts(query string, valueKey string) []gin.H {
-	rows, err := api.db.Query(query)
-	if err != nil {
-		log.Warn().Err(err).Str("query_key", valueKey).Msg("Failed to query value counts")
-		return nil
-	}
-	defer rows.Close()
-
-	var results []gin.H
-	for rows.Next() {
-		var value string
-		var count int
-		if err := rows.Scan(&value, &count); err != nil {
-			continue
-		}
-		results = append(results, gin.H{valueKey: value, "count": count})
-	}
-	if err := rows.Err(); err != nil {
-		log.Warn().Err(err).Str("query_key", valueKey).Msg("Error iterating value count rows")
-	}
-	return results
+// queryValueCounts is a convenience wrapper around db.queryNameCountRows for REST handlers.
+func (api *API) queryValueCounts(query string, valueKey string) []map[string]any {
+	return api.db.queryNameCountRows(context.Background(), query, valueKey)
 }
 
 // getDashboardStats gets dashboard statistics

@@ -10,8 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"meow/datastore/pkg/meowql"
+
+	"github.com/google/uuid"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // ---------------------------------------------------------------------------
@@ -24,12 +26,14 @@ func (h *mcpHandler) handleSearch(ctx context.Context, req mcp.CallToolRequest) 
 		return mcp.NewToolResultError("query parameter required"), nil
 	}
 	mode := req.GetString("mode", "hosts")
-	limit := intOrDefault(req.GetInt("limit", 0), 50)
+	limit := clampLimit(req.GetInt("limit", 0), 50, 500)
 	page := intOrDefault(req.GetInt("page", 0), 1)
 	offset := (page - 1) * limit
 
+	fields := req.GetString("fields", "")
+
 	if mode == "services" {
-		return h.searchServices(ctx, query, limit, offset)
+		return h.searchServices(ctx, query, limit, offset, fields)
 	}
 	return h.searchHosts(ctx, query, limit, offset, page)
 }
@@ -49,7 +53,7 @@ func (h *mcpHandler) searchHosts(ctx context.Context, query string, limit, offse
 		return nil, fmt.Errorf("count query failed: %w", err)
 	}
 
-	args := append(result.Args, limit, offset)
+	args := copyArgs(result.Args, limit, offset)
 	rows, err := h.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT h.ip, h.country_code, h.asn, h.as_org, h.cloud_provider,
 		       h.open_ports_count, h.services_count
@@ -70,12 +74,15 @@ func (h *mcpHandler) searchHosts(ctx context.Context, query string, limit, offse
 		}
 		host := map[string]any{"ip": ip}
 		setNullStr(host, "country", countryCode)
-		setNullInt(host, "asn", asn)
+		setIfValidInt(host, "asn", asn)
 		setNullStr(host, "org", asOrg)
 		setNullStr(host, "cloud", cloudProvider)
-		setNullInt(host, "ports", openPorts)
-		setNullInt(host, "services", svcCount)
+		setIfValidInt(host, "ports", openPorts)
+		setIfValidInt(host, "services", svcCount)
 		hosts = append(hosts, host)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("search rows iteration: %w", err)
 	}
 
 	return mcpJSON(map[string]any{
@@ -86,7 +93,7 @@ func (h *mcpHandler) searchHosts(ctx context.Context, query string, limit, offse
 	})
 }
 
-func (h *mcpHandler) searchServices(ctx context.Context, query string, limit, offset int) (*mcp.CallToolResult, error) {
+func (h *mcpHandler) searchServices(ctx context.Context, query string, limit, offset int, fields string) (*mcp.CallToolResult, error) {
 	result := meowql.CompileServiceCentric(query)
 	if result.Err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("MeowQL error: %v", result.Err)), nil
@@ -102,10 +109,11 @@ func (h *mcpHandler) searchServices(ctx context.Context, query string, limit, of
 		return nil, fmt.Errorf("count query failed: %w", err)
 	}
 
-	args := append(result.Args, limit, offset)
+	args := copyArgs(result.Args, limit, offset)
 	rows, err := h.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT s.ip, s.port, s.service, s.product, s.version, s.banner,
-		       s.enrichment_status, h.country_code, h.cloud_provider, h.as_org,
+		       s.enrichment_status, s.enrichment_data,
+		       h.country_code, h.cloud_provider, h.as_org,
 		       hd.status_code, hd.title, hd.server
 		FROM services s
 		INNER JOIN hosts h ON s.ip = h.ip
@@ -117,17 +125,23 @@ func (h *mcpHandler) searchServices(ctx context.Context, query string, limit, of
 	}
 	defer rows.Close()
 
+	svcDefaults := []string{"ip", "port", "service", "product", "version", "country", "cloud", "org", "enrichment_keys"}
+	fieldSet := resolveFields(fields, svcDefaults)
+	wantEnrichment := hasFieldPrefix(fieldSet, "enrichment.")
+	wantKeys := fieldSet["enrichment_keys"]
+
 	var services []map[string]any
 	for rows.Next() {
 		var ip string
 		var port int
 		var svcName, product, version, banner, enrichStatus sql.NullString
+		var enrichData sql.NullString
 		var countryCode, cloudProvider, asOrg sql.NullString
 		var httpStatus sql.NullInt64
 		var httpTitle, httpServer sql.NullString
 
 		if err := rows.Scan(&ip, &port, &svcName, &product, &version, &banner,
-			&enrichStatus, &countryCode, &cloudProvider, &asOrg,
+			&enrichStatus, &enrichData, &countryCode, &cloudProvider, &asOrg,
 			&httpStatus, &httpTitle, &httpServer); err != nil {
 			continue
 		}
@@ -136,15 +150,24 @@ func (h *mcpHandler) searchServices(ctx context.Context, query string, limit, of
 		setNullStr(svc, "service", svcName)
 		setNullStr(svc, "product", product)
 		setNullStr(svc, "version", version)
-		setNullStr(svc, "banner", banner)
+		setSanitizedBanner(svc, "banner", banner)
 		setNullStr(svc, "enrichment", enrichStatus)
 		setNullStr(svc, "country", countryCode)
 		setNullStr(svc, "cloud", cloudProvider)
 		setNullStr(svc, "org", asOrg)
-		setNullInt(svc, "http_status", httpStatus)
+		setIfValidInt(svc, "http_status", httpStatus)
 		setNullStr(svc, "http_title", httpTitle)
 		setNullStr(svc, "http_server", httpServer)
-		services = append(services, svc)
+		if wantEnrichment {
+			parseEnrichmentData(svc, enrichData)
+		}
+		if wantKeys {
+			setEnrichmentKeys(svc, enrichData)
+		}
+		services = append(services, filterRow(svc, fieldSet))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("services rows iteration: %w", err)
 	}
 
 	return mcpJSON(map[string]any{
@@ -155,6 +178,48 @@ func (h *mcpHandler) searchServices(ctx context.Context, query string, limit, of
 }
 
 // ---------------------------------------------------------------------------
+// meow_count — Lightweight count query
+// ---------------------------------------------------------------------------
+
+func (h *mcpHandler) handleCount(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	query := req.GetString("query", "")
+	if query == "" {
+		return mcp.NewToolResultError("query parameter required"), nil
+	}
+	mode := req.GetString("mode", "hosts")
+
+	var total int
+	if mode == "services" {
+		result := meowql.CompileServiceCentric(query)
+		if result.Err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("MeowQL error: %v", result.Err)), nil
+		}
+		if err := h.db.QueryRowContext(ctx, fmt.Sprintf(`
+			SELECT COUNT(*) FROM services s
+			INNER JOIN hosts h ON s.ip = h.ip
+			WHERE %s AND s.enrichment_status != 'pending'`, result.Where),
+			result.Args...,
+		).Scan(&total); err != nil {
+			return nil, fmt.Errorf("count query failed: %w", err)
+		}
+	} else {
+		result := meowql.Compile(query)
+		if result.Err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("MeowQL error: %v\nAvailable fields: %s",
+				result.Err, strings.Join(meowql.FieldNames(), ", "))), nil
+		}
+		if err := h.db.QueryRowContext(ctx,
+			fmt.Sprintf("SELECT COUNT(*) FROM hosts h WHERE %s", result.Where),
+			result.Args...,
+		).Scan(&total); err != nil {
+			return nil, fmt.Errorf("count query failed: %w", err)
+		}
+	}
+
+	return mcpJSON(map[string]any{"total": total})
+}
+
+// ---------------------------------------------------------------------------
 // meow_host — Detailed host information
 // ---------------------------------------------------------------------------
 
@@ -162,6 +227,9 @@ func (h *mcpHandler) handleHost(ctx context.Context, req mcp.CallToolRequest) (*
 	ip, err := req.RequireString("ip")
 	if err != nil {
 		return mcp.NewToolResultError("ip parameter required"), nil
+	}
+	if net.ParseIP(ip) == nil {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid IP address: %s", ip)), nil
 	}
 
 	// Host info
@@ -181,28 +249,33 @@ func (h *mcpHandler) handleHost(ctx context.Context, req mcp.CallToolRequest) (*
 	setNullStr(host, "country_code", countryCode)
 	setNullStr(host, "country_name", countryName)
 	setNullStr(host, "city", city)
-	setNullInt(host, "asn", asn)
+	setIfValidInt(host, "asn", asn)
 	setNullStr(host, "as_org", asOrg)
 	setNullStr(host, "cloud_provider", cloudProvider)
 	setNullStr(host, "cloud_region", cloudRegion)
-	setNullInt(host, "first_seen", firstSeen)
-	setNullInt(host, "last_scan", lastScan)
-	setNullInt(host, "open_ports_count", openPorts)
-	setNullInt(host, "services_count", svcCount)
+	setIfValidInt(host, "first_seen", firstSeen)
+	setIfValidInt(host, "last_scan", lastScan)
+	setIfValidInt(host, "open_ports_count", openPorts)
+	setIfValidInt(host, "services_count", svcCount)
 
-	// Services
-	host["services"] = h.queryServices(ctx, ip)
+	// Sections filtering
+	sections := parseFieldsParam(req.GetString("sections", ""))
+	fields := req.GetString("fields", "")
 
-	// Certificates
-	host["certificates"] = h.queryCertificates(ctx, ip)
-
-	// Domains
-	host["domains"] = h.queryDomains(ctx, ip)
+	if sections == nil || sections["services"] {
+		host["services"] = h.queryServices(ctx, ip, fields)
+	}
+	if sections == nil || sections["certificates"] {
+		host["certificates"] = h.queryCertificates(ctx, ip, fields)
+	}
+	if sections == nil || sections["domains"] {
+		host["domains"] = h.queryDomains(ctx, ip)
+	}
 
 	return mcpJSON(host)
 }
 
-func (h *mcpHandler) queryServices(ctx context.Context, ip string) []map[string]any {
+func (h *mcpHandler) queryServices(ctx context.Context, ip string, fields string) []map[string]any {
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT s.port, s.service, s.product, s.version, s.banner,
 		       s.enrichment_status, s.enrichment_data,
@@ -214,6 +287,14 @@ func (h *mcpHandler) queryServices(ctx context.Context, ip string) []map[string]
 		return nil
 	}
 	defer rows.Close()
+
+	svcDefaults := []string{
+		"port", "service", "product", "version",
+		"enrichment.anonymous_login", "enrichment.auth_required", "enrichment.signing_required",
+		"enrichment.default_credentials", "enrichment.tls", "enrichment.protocol", "enrichment.version",
+	}
+	fieldSet := resolveFields(fields, svcDefaults)
+	wantEnrichment := hasFieldPrefix(fieldSet, "enrichment.")
 
 	var services []map[string]any
 	for rows.Next() {
@@ -233,19 +314,18 @@ func (h *mcpHandler) queryServices(ctx context.Context, ip string) []map[string]
 		setNullStr(svc, "service", svcName)
 		setNullStr(svc, "product", product)
 		setNullStr(svc, "version", version)
-		setNullStr(svc, "banner", banner)
+		setSanitizedBanner(svc, "banner", banner)
 		setNullStr(svc, "enrichment", enrichStatus)
-		setNullInt(svc, "http_status", httpStatus)
+		setIfValidInt(svc, "http_status", httpStatus)
 		setNullStr(svc, "http_title", httpTitle)
 		setNullStr(svc, "http_server", httpServer)
 		setNullStr(svc, "cms", httpCMS)
 		setNullStr(svc, "framework", httpFramework)
 
 		// Parse enrichment_data JSON for key fields
-		if enrichData.Valid && enrichData.String != "" && enrichData.String != "{}" {
+		if wantEnrichment && enrichData.Valid && enrichData.String != "" && enrichData.String != "{}" {
 			var ed map[string]any
 			if json.Unmarshal([]byte(enrichData.String), &ed) == nil {
-				// Extract interesting enrichment fields
 				for _, key := range []string{
 					"anonymous_login", "auth_required", "signing_required",
 					"default_credentials", "tls", "protocol", "version",
@@ -257,12 +337,13 @@ func (h *mcpHandler) queryServices(ctx context.Context, ip string) []map[string]
 			}
 		}
 
-		services = append(services, svc)
+		services = append(services, filterRow(svc, fieldSet))
 	}
+	// rows.Err() intentionally not returned — sub-query helper, partial results acceptable
 	return services
 }
 
-func (h *mcpHandler) queryCertificates(ctx context.Context, ip string) []map[string]any {
+func (h *mcpHandler) queryCertificates(ctx context.Context, ip string, fields string) []map[string]any {
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT c.fingerprint_sha256, c.subject_cn, c.issuer_cn, c.names,
 		       c.not_before, c.not_after, c.is_self_signed,
@@ -276,6 +357,9 @@ func (h *mcpHandler) queryCertificates(ctx context.Context, ip string) []map[str
 		return nil
 	}
 	defer rows.Close()
+
+	certDefaults := []string{"port", "fingerprint", "subject_cn", "issuer_cn", "self_signed", "expired"}
+	fieldSet := resolveFields(fields, certDefaults)
 
 	now := time.Now().Unix()
 	var certs []map[string]any
@@ -300,7 +384,7 @@ func (h *mcpHandler) queryCertificates(ctx context.Context, ip string) []map[str
 		setNullStr(cert, "issuer_cn", issuerCN)
 		setNullStr(cert, "names", names)
 		setNullStr(cert, "algorithm", algo)
-		setNullInt(cert, "bits", bits)
+		setIfValidInt(cert, "bits", bits)
 		setNullStr(cert, "jarm", jarm)
 		if selfSigned.Valid && selfSigned.Int64 == 1 {
 			cert["self_signed"] = true
@@ -311,7 +395,7 @@ func (h *mcpHandler) queryCertificates(ctx context.Context, ip string) []map[str
 				cert["expired"] = true
 			}
 		}
-		certs = append(certs, cert)
+		certs = append(certs, filterRow(cert, fieldSet))
 	}
 	return certs
 }
@@ -335,7 +419,7 @@ func (h *mcpHandler) queryDomains(ctx context.Context, ip string) []map[string]a
 		d := map[string]any{}
 		setNullStr(d, "domain", domain)
 		setNullStr(d, "source", source)
-		setNullInt(d, "port", port)
+		setIfValidInt(d, "port", port)
 		domains = append(domains, d)
 	}
 	return domains
@@ -345,179 +429,72 @@ func (h *mcpHandler) queryDomains(ctx context.Context, ip string) []map[string]a
 // meow_stats — Overview statistics
 // ---------------------------------------------------------------------------
 
-func (h *mcpHandler) handleStats(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h *mcpHandler) handleStats(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	stats := map[string]any{}
 
-	// Total counts
-	var totalHosts, totalServices, totalCerts int64
-	h.db.QueryRowContext(ctx, `SELECT
-		(SELECT COUNT(*) FROM hosts),
-		(SELECT COUNT(*) FROM services),
-		(SELECT COUNT(*) FROM certificates)`).Scan(&totalHosts, &totalServices, &totalCerts)
-	stats["total_hosts"] = totalHosts
-	stats["total_services"] = totalServices
-	stats["total_certificates"] = totalCerts
+	// Section filtering: only run queries for requested sections
+	statsDefaults := []string{"total_hosts", "total_services", "total_certificates", "enrichment", "top_services", "top_countries"}
+	fieldSet := resolveFields(req.GetString("fields", ""), statsDefaults)
+
+	// Total counts (always cheap, run if any total_* requested)
+	if fieldSet["total_hosts"] || fieldSet["total_services"] || fieldSet["total_certificates"] {
+		totalHosts, totalServices, totalCerts, _ := h.db.getTableCounts()
+		if fieldSet["total_hosts"] {
+			stats["total_hosts"] = totalHosts
+		}
+		if fieldSet["total_services"] {
+			stats["total_services"] = totalServices
+		}
+		if fieldSet["total_certificates"] {
+			stats["total_certificates"] = totalCerts
+		}
+	}
 
 	// Enrichment status
-	var enriched, pending, failed, skipped int
-	h.db.QueryRowContext(ctx, `SELECT
-		SUM(CASE WHEN enrichment_status = 'enriched' THEN 1 ELSE 0 END),
-		SUM(CASE WHEN enrichment_status = 'pending' THEN 1 ELSE 0 END),
-		SUM(CASE WHEN enrichment_status = 'failed' THEN 1 ELSE 0 END),
-		SUM(CASE WHEN enrichment_status NOT IN ('enriched','pending','failed') OR enrichment_status IS NULL THEN 1 ELSE 0 END)
-	FROM services`).Scan(&enriched, &pending, &failed, &skipped)
-	stats["enrichment"] = map[string]int{
-		"enriched": enriched, "pending": pending, "failed": failed, "skipped": skipped,
+	if fieldSet["enrichment"] {
+		enriched, pending, failed, skipped, _ := h.db.getEnrichmentStatusCounts()
+		stats["enrichment"] = map[string]int{
+			"enriched": enriched, "pending": pending, "failed": failed, "skipped": skipped,
+		}
 	}
 
 	// Top services
-	stats["top_services"] = h.queryValueCounts(ctx, `
-		SELECT service, COUNT(*) FROM services
-		WHERE service IS NOT NULL GROUP BY service ORDER BY COUNT(*) DESC LIMIT 15`)
+	if fieldSet["top_services"] {
+		stats["top_services"] = h.queryValueCounts(ctx, `
+			SELECT service, COUNT(*) FROM services
+			WHERE service IS NOT NULL GROUP BY service ORDER BY COUNT(*) DESC LIMIT 15`)
+	}
 
 	// Top countries
-	stats["top_countries"] = h.queryValueCounts(ctx, `
-		SELECT country_code, COUNT(*) FROM hosts
-		WHERE country_code IS NOT NULL GROUP BY country_code ORDER BY COUNT(*) DESC LIMIT 10`)
+	if fieldSet["top_countries"] {
+		stats["top_countries"] = h.queryValueCounts(ctx, `
+			SELECT country_code, COUNT(*) FROM hosts
+			WHERE country_code IS NOT NULL GROUP BY country_code ORDER BY COUNT(*) DESC LIMIT 10`)
+	}
 
-	// Cloud providers
-	stats["cloud_providers"] = h.queryValueCounts(ctx, `
-		SELECT cloud_provider, COUNT(*) FROM hosts
-		WHERE cloud_provider IS NOT NULL GROUP BY cloud_provider ORDER BY COUNT(*) DESC`)
+	// Cloud providers (not in defaults — request with fields=cloud_providers)
+	if fieldSet["cloud_providers"] {
+		stats["cloud_providers"] = h.queryValueCounts(ctx, `
+			SELECT cloud_provider, COUNT(*) FROM hosts
+			WHERE cloud_provider IS NOT NULL GROUP BY cloud_provider ORDER BY COUNT(*) DESC`)
+	}
 
-	// Top products
-	stats["top_products"] = h.queryValueCounts(ctx, `
-		SELECT product, COUNT(*) FROM services
-		WHERE product IS NOT NULL AND product != '' GROUP BY product ORDER BY COUNT(*) DESC LIMIT 15`)
+	// Top products (not in defaults — request with fields=top_products)
+	if fieldSet["top_products"] {
+		stats["top_products"] = h.queryValueCounts(ctx, `
+			SELECT product, COUNT(*) FROM services
+			WHERE product IS NOT NULL AND product != '' GROUP BY product ORDER BY COUNT(*) DESC LIMIT 15`)
+	}
 
-	// Top technologies
-	stats["top_technologies"] = h.queryValueCounts(ctx, `
-		SELECT json_extract(value, '$.name'), COUNT(*) FROM http_data, json_each(technologies)
-		WHERE technologies IS NOT NULL AND technologies != ''
-		GROUP BY json_extract(value, '$.name') ORDER BY COUNT(*) DESC LIMIT 10`)
+	// Top technologies (not in defaults — request with fields=top_technologies)
+	if fieldSet["top_technologies"] {
+		stats["top_technologies"] = h.queryValueCounts(ctx, `
+			SELECT json_extract(value, '$.name'), COUNT(*) FROM http_data, json_each(technologies)
+			WHERE technologies IS NOT NULL AND technologies != ''
+			GROUP BY json_extract(value, '$.name') ORDER BY COUNT(*) DESC LIMIT 10`)
+	}
 
 	return mcpJSON(stats)
-}
-
-// ---------------------------------------------------------------------------
-// meow_vulns — Vulnerability pattern detection
-// ---------------------------------------------------------------------------
-
-type vulnCheck struct {
-	name     string
-	category string
-	severity string
-	query    string
-}
-
-var vulnChecks = []vulnCheck{
-	// Auth issues
-	{"FTP Anonymous Login", "auth", "high", "service:ftp and enrichment.anonymous_login:true"},
-	{"VNC No Auth", "auth", "high", "service:vnc and enrichment.auth_required:false"},
-	{"Default Credentials", "auth", "critical", "enrichment.default_credentials:true"},
-	{"MongoDB No Auth", "auth", "critical", "service:mongodb and enrichment.auth_required:false"},
-	{"Redis No Auth", "auth", "critical", "service:redis and enrichment.auth_required:false"},
-
-	// TLS issues
-	{"Self-Signed Certificates", "tls", "medium", "tls.self_signed:1"},
-	{"Weak Key (RSA < 2048)", "tls", "high", "tls.cert.bits<2048"},
-
-	// Service exposure
-	{"Telnet Open", "exposure", "high", "service:telnet"},
-	{"Exposed Elasticsearch", "exposure", "high", "service:elasticsearch"},
-	{"Exposed Memcached", "exposure", "medium", "service:memcached"},
-	{"Exposed Cassandra", "exposure", "medium", "service:cassandra"},
-	{"Exposed SNMP", "exposure", "medium", "service:snmp"},
-
-	// Misconfig
-	{"SMB Signing Disabled", "misconfig", "medium", "service:smb and enrichment.signing_required:false"},
-	{"HTTP Without TLS", "misconfig", "low", "http.ssl:false and port:80"},
-}
-
-func (h *mcpHandler) handleVulns(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	category := req.GetString("category", "all")
-	scope := req.GetString("scope", "")
-
-	var findings []map[string]any
-	for _, vc := range vulnChecks {
-		if category != "all" && vc.category != category {
-			continue
-		}
-
-		q := vc.query
-		if scope != "" {
-			q = "(" + q + ") and " + scope
-		}
-
-		result := meowql.Compile(q)
-		if result.Err != nil {
-			continue
-		}
-
-		var count int
-		if err := h.db.QueryRowContext(ctx,
-			fmt.Sprintf("SELECT COUNT(*) FROM hosts h WHERE %s", result.Where),
-			result.Args...,
-		).Scan(&count); err != nil || count == 0 {
-			continue
-		}
-
-		// Get sample IPs (up to 5)
-		sampleArgs := append(result.Args, 5)
-		sampleRows, err := h.db.QueryContext(ctx,
-			fmt.Sprintf("SELECT h.ip FROM hosts h WHERE %s LIMIT ?", result.Where),
-			sampleArgs...)
-		if err != nil {
-			continue
-		}
-
-		var samples []string
-		for sampleRows.Next() {
-			var ip string
-			if sampleRows.Scan(&ip) == nil {
-				samples = append(samples, ip)
-			}
-		}
-		sampleRows.Close()
-
-		findings = append(findings, map[string]any{
-			"name":     vc.name,
-			"category": vc.category,
-			"severity": vc.severity,
-			"count":    count,
-			"samples":  samples,
-		})
-	}
-
-	// Expired certificates (special: needs timestamp comparison)
-	now := time.Now().Unix()
-	expiredQuery := fmt.Sprintf("tls.cert.expired<%d", now)
-	if scope != "" {
-		expiredQuery = "(" + expiredQuery + ") and " + scope
-	}
-	result := meowql.Compile(expiredQuery)
-	if result.Err == nil {
-		var count int
-		if h.db.QueryRowContext(ctx,
-			fmt.Sprintf("SELECT COUNT(*) FROM hosts h WHERE %s", result.Where),
-			result.Args...,
-		).Scan(&count) == nil && count > 0 {
-			if category == "all" || category == "tls" {
-				findings = append(findings, map[string]any{
-					"name":     "Expired Certificates",
-					"category": "tls",
-					"severity": "high",
-					"count":    count,
-				})
-			}
-		}
-	}
-
-	return mcpJSON(map[string]any{
-		"findings":    findings,
-		"total_checks": len(vulnChecks) + 1,
-		"scope":       scope,
-	})
 }
 
 // ---------------------------------------------------------------------------
@@ -533,7 +510,8 @@ func (h *mcpHandler) handlePivot(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return mcp.NewToolResultError("'value' parameter required"), nil
 	}
-	limit := intOrDefault(req.GetInt("limit", 0), 100)
+	limit := clampLimit(req.GetInt("limit", 0), 100, 1000)
+	fields := req.GetString("fields", "")
 
 	var query string
 	var args []any
@@ -592,6 +570,9 @@ func (h *mcpHandler) handlePivot(ctx context.Context, req mcp.CallToolRequest) (
 	}
 	defer rows.Close()
 
+	pivotDefaults := []string{"ip", "port", "service", "product", "country_code"}
+	fieldSet := resolveFields(fields, pivotDefaults)
+
 	cols, _ := rows.Columns()
 	var results []map[string]any
 	for rows.Next() {
@@ -609,7 +590,10 @@ func (h *mcpHandler) handlePivot(ctx context.Context, req mcp.CallToolRequest) (
 				row[col] = values[i]
 			}
 		}
-		results = append(results, row)
+		results = append(results, filterRow(row, fieldSet))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("pivot rows iteration: %w", err)
 	}
 
 	return mcpJSON(map[string]any{
@@ -627,18 +611,19 @@ func (h *mcpHandler) handlePivot(ctx context.Context, req mcp.CallToolRequest) (
 func (h *mcpHandler) handleCerts(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	query := req.GetString("query", "")
 	filter := req.GetString("filter", "all")
-	limit := intOrDefault(req.GetInt("limit", 0), 50)
+	limit := clampLimit(req.GetInt("limit", 0), 50, 500)
+	fields := req.GetString("fields", "")
 
 	whereClause := "WHERE 1=1"
 	var args []any
 
 	if query != "" {
-		queryLower := "%" + strings.ToLower(query) + "%"
+		queryLower := "%" + escapeLike(strings.ToLower(query)) + "%"
 		whereClause += ` AND (
-			LOWER(c.subject_cn) LIKE ? OR LOWER(c.issuer_cn) LIKE ? OR
-			LOWER(c.names) LIKE ? OR c.fingerprint_sha256 LIKE ? OR
-			LOWER(c.subject_org) LIKE ? OR LOWER(c.issuer_org) LIKE ? OR
-			c.serial_number LIKE ?)`
+			LOWER(c.subject_cn) LIKE ? ESCAPE '\' OR LOWER(c.issuer_cn) LIKE ? ESCAPE '\' OR
+			LOWER(c.names) LIKE ? ESCAPE '\' OR c.fingerprint_sha256 LIKE ? ESCAPE '\' OR
+			LOWER(c.subject_org) LIKE ? ESCAPE '\' OR LOWER(c.issuer_org) LIKE ? ESCAPE '\' OR
+			c.serial_number LIKE ? ESCAPE '\')`
 		args = append(args, queryLower, queryLower, queryLower, queryLower, queryLower, queryLower, queryLower)
 	}
 
@@ -674,6 +659,9 @@ func (h *mcpHandler) handleCerts(ctx context.Context, req mcp.CallToolRequest) (
 	}
 	defer rows.Close()
 
+	certDefaults := []string{"fingerprint", "subject_cn", "issuer_cn", "status", "self_signed", "host_count", "not_after"}
+	fieldSet := resolveFields(fields, certDefaults)
+
 	var certs []map[string]any
 	for rows.Next() {
 		var fingerprint string
@@ -700,7 +688,7 @@ func (h *mcpHandler) handleCerts(ctx context.Context, req mcp.CallToolRequest) (
 		setNullStr(cert, "issuer_org", issuerOrg)
 		setNullStr(cert, "names", names)
 		setNullStr(cert, "algorithm", algo)
-		setNullInt(cert, "bits", bits)
+		setIfValidInt(cert, "bits", bits)
 		setNullStr(cert, "signature_algorithm", sigAlgo)
 		setNullStr(cert, "serial", serial)
 		if selfSigned.Valid && selfSigned.Int64 == 1 {
@@ -723,7 +711,10 @@ func (h *mcpHandler) handleCerts(ctx context.Context, req mcp.CallToolRequest) (
 			cert["not_before"] = notBefore.Int64
 		}
 
-		certs = append(certs, cert)
+		certs = append(certs, filterRow(cert, fieldSet))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("certs rows iteration: %w", err)
 	}
 
 	return mcpJSON(map[string]any{
@@ -739,11 +730,12 @@ func (h *mcpHandler) handleCerts(ctx context.Context, req mcp.CallToolRequest) (
 
 func (h *mcpHandler) handleDomains(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	domain := req.GetString("domain", "")
-	limit := intOrDefault(req.GetInt("limit", 0), 50)
+	limit := clampLimit(req.GetInt("limit", 0), 50, 500)
+	fields := req.GetString("fields", "")
 
 	// If a specific domain is given, return its full service breakdown
 	if domain != "" {
-		return h.domainServices(ctx, domain, limit)
+		return h.domainServices(ctx, domain, limit, fields)
 	}
 
 	// Otherwise, list domains with stats
@@ -754,8 +746,8 @@ func (h *mcpHandler) handleDomains(ctx context.Context, req mcp.CallToolRequest)
 	var args []any
 
 	if query != "" {
-		whereClause += " AND LOWER(se.domain) LIKE ?"
-		args = append(args, "%"+strings.ToLower(query)+"%")
+		whereClause += " AND LOWER(se.domain) LIKE ? ESCAPE '\\'"
+		args = append(args, "%"+escapeLike(strings.ToLower(query))+"%")
 	}
 	if protocol != "" {
 		whereClause += " AND se.protocol = ?"
@@ -786,6 +778,9 @@ func (h *mcpHandler) handleDomains(ctx context.Context, req mcp.CallToolRequest)
 	}
 	defer rows.Close()
 
+	domDefaults := []string{"domain", "services_count", "protocols"}
+	fieldSet := resolveFields(fields, domDefaults)
+
 	var domains []map[string]any
 	for rows.Next() {
 		var d string
@@ -806,9 +801,12 @@ func (h *mcpHandler) handleDomains(ctx context.Context, req mcp.CallToolRequest)
 		setNullStr(entry, "protocols", protocols)
 		setNullStr(entry, "sample_title", sampleTitle)
 		setNullStr(entry, "sample_server", sampleServer)
-		setNullInt(entry, "sample_status_code", sampleStatus)
-		setNullInt(entry, "last_seen", lastSeen)
-		domains = append(domains, entry)
+		setIfValidInt(entry, "sample_status_code", sampleStatus)
+		setIfValidInt(entry, "last_seen", lastSeen)
+		domains = append(domains, filterRow(entry, fieldSet))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("domains rows iteration: %w", err)
 	}
 
 	return mcpJSON(map[string]any{
@@ -818,7 +816,7 @@ func (h *mcpHandler) handleDomains(ctx context.Context, req mcp.CallToolRequest)
 	})
 }
 
-func (h *mcpHandler) domainServices(ctx context.Context, domain string, limit int) (*mcp.CallToolResult, error) {
+func (h *mcpHandler) domainServices(ctx context.Context, domain string, limit int, fields string) (*mcp.CallToolResult, error) {
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT se.ip, se.port, se.protocol, se.version, se.banner,
 			se.status_code, se.title, se.server, se.redirect_url, se.content_length,
@@ -832,6 +830,9 @@ func (h *mcpHandler) domainServices(ctx context.Context, domain string, limit in
 		return nil, fmt.Errorf("domain services query failed: %w", err)
 	}
 	defer rows.Close()
+
+	detailDefaults := []string{"ip", "port", "protocol", "status_code", "title", "country"}
+	fieldSet := resolveFields(fields, detailDefaults)
 
 	var services []map[string]any
 	for rows.Next() {
@@ -850,16 +851,19 @@ func (h *mcpHandler) domainServices(ctx context.Context, domain string, limit in
 		svc := map[string]any{"ip": ip, "port": port}
 		setNullStr(svc, "protocol", protocol)
 		setNullStr(svc, "version", version)
-		setNullStr(svc, "banner", banner)
-		setNullInt(svc, "status_code", statusCode)
+		setSanitizedBanner(svc, "banner", banner)
+		setIfValidInt(svc, "status_code", statusCode)
 		setNullStr(svc, "title", title)
 		setNullStr(svc, "server", server)
 		setNullStr(svc, "redirect_url", redirectURL)
-		setNullInt(svc, "content_length", contentLength)
+		setIfValidInt(svc, "content_length", contentLength)
 		setNullStr(svc, "country", countryCode)
 		setNullStr(svc, "org", asOrg)
 		setNullStr(svc, "cloud", cloudProvider)
-		services = append(services, svc)
+		services = append(services, filterRow(svc, fieldSet))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("domain services rows iteration: %w", err)
 	}
 
 	return mcpJSON(map[string]any{
@@ -876,7 +880,7 @@ func (h *mcpHandler) domainServices(ctx context.Context, domain string, limit in
 func (h *mcpHandler) handleExport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	query := req.GetString("query", "")
 	exportType := req.GetString("type", "ip_list")
-	limit := intOrDefault(req.GetInt("limit", 0), 1000)
+	limit := clampLimit(req.GetInt("limit", 0), 1000, 10000)
 
 	// Compile MeowQL filter
 	var where string
@@ -977,11 +981,11 @@ func (h *mcpHandler) handleExport(ctx context.Context, req mcp.CallToolRequest) 
 			entry := map[string]any{"ip": ip}
 			setNullStr(entry, "country", countryCode)
 			setNullStr(entry, "city", city)
-			setNullInt(entry, "asn", asn)
+			setIfValidInt(entry, "asn", asn)
 			setNullStr(entry, "org", asOrg)
 			setNullStr(entry, "cloud", cloudProvider)
 			setNullStr(entry, "cloud_type", cloudType)
-			setNullInt(entry, "open_ports", openPorts)
+			setIfValidInt(entry, "open_ports", openPorts)
 			hosts = append(hosts, entry)
 		}
 		return mcpJSON(hosts)
@@ -1002,49 +1006,19 @@ func (h *mcpHandler) handleDNS(ctx context.Context, req mcp.CallToolRequest) (*m
 	}
 	query = strings.TrimSpace(query)
 
-	result := map[string]any{"query": query}
+	result := resolveDNS(query)
 
-	// Reverse lookup if it's an IP
+	// Enrich with database cross-reference
 	if ip := net.ParseIP(query); ip != nil {
-		names, err := net.LookupAddr(query)
-		if err == nil && len(names) > 0 {
-			ptrs := make([]string, 0, len(names))
-			for _, n := range names {
-				ptrs = append(ptrs, strings.TrimSuffix(n, "."))
-			}
-			result["ptr"] = ptrs
-		}
-
-		// Also check if this IP is in our database
+		// Reverse lookup: check if this IP is in our database
 		var hostCount int
 		h.db.QueryRowContext(ctx,
 			"SELECT COUNT(*) FROM hosts WHERE ip = ?", query).Scan(&hostCount)
 		if hostCount > 0 {
 			result["in_database"] = true
 		}
-
-		return mcpJSON(result)
-	}
-
-	// Forward lookup
-	ips, err := net.LookupHost(query)
-	if err == nil {
-		var ipv4, ipv6 []string
-		for _, ip := range ips {
-			if strings.Contains(ip, ":") {
-				ipv6 = append(ipv6, ip)
-			} else {
-				ipv4 = append(ipv4, ip)
-			}
-		}
-		if ipv4 != nil {
-			result["a"] = ipv4
-		}
-		if ipv6 != nil {
-			result["aaaa"] = ipv6
-		}
-
-		// Check which resolved IPs are in our database
+	} else if ipv4, ok := result["a"].([]string); ok {
+		// Forward lookup: check which resolved IPs are in our database
 		var knownIPs []string
 		for _, ip := range ipv4 {
 			var c int
@@ -1055,37 +1029,6 @@ func (h *mcpHandler) handleDNS(ctx context.Context, req mcp.CallToolRequest) (*m
 		if len(knownIPs) > 0 {
 			result["in_database"] = knownIPs
 		}
-	}
-
-	cname, err := net.LookupCNAME(query)
-	if err == nil && cname != "" && strings.TrimSuffix(cname, ".") != query {
-		result["cname"] = strings.TrimSuffix(cname, ".")
-	}
-
-	mxs, err := net.LookupMX(query)
-	if err == nil && len(mxs) > 0 {
-		mxList := make([]map[string]any, 0, len(mxs))
-		for _, mx := range mxs {
-			mxList = append(mxList, map[string]any{
-				"host": strings.TrimSuffix(mx.Host, "."),
-				"pref": mx.Pref,
-			})
-		}
-		result["mx"] = mxList
-	}
-
-	nss, err := net.LookupNS(query)
-	if err == nil && len(nss) > 0 {
-		nsList := make([]string, 0, len(nss))
-		for _, ns := range nss {
-			nsList = append(nsList, strings.TrimSuffix(ns.Host, "."))
-		}
-		result["ns"] = nsList
-	}
-
-	txts, err := net.LookupTXT(query)
-	if err == nil && len(txts) > 0 {
-		result["txt"] = txts
 	}
 
 	return mcpJSON(result)
@@ -1169,26 +1112,85 @@ func (h *mcpHandler) handleStatus(ctx context.Context, _ mcp.CallToolRequest) (*
 }
 
 // ---------------------------------------------------------------------------
+// meow_scan — Submit a scan request via NATS
+// ---------------------------------------------------------------------------
+
+func (h *mcpHandler) handleScan(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	target, err := req.RequireString("target")
+	if err != nil {
+		return mcp.NewToolResultError("target parameter required"), nil
+	}
+
+	if h.scanTracker == nil || !h.scanTracker.HasActiveScanners() {
+		return mcp.NewToolResultError("no active scanners available — ensure at least one synscan instance is running in daemon mode"), nil
+	}
+
+	scanReq := ScanRequest{
+		RequestID: uuid.New().String(),
+		Target:    target,
+		Ports:     req.GetString("ports", ""),
+		RateLimit: req.GetInt("rate", 0),
+		Timestamp: time.Now().Unix(),
+	}
+
+	data, err := json.Marshal(scanReq)
+	if err != nil {
+		return nil, fmt.Errorf("json marshal failed: %w", err)
+	}
+
+	if err := h.nc.Publish(TopicScanRequest, data); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to publish scan request: %v", err)), nil
+	}
+
+	return mcpJSON(map[string]any{
+		"request_id": scanReq.RequestID,
+		"message":    "scan request submitted",
+		"target":     target,
+		"ports":      scanReq.Ports,
+	})
+}
+
+// ---------------------------------------------------------------------------
+// meow_scanners — List active scanner instances
+// ---------------------------------------------------------------------------
+
+func (h *mcpHandler) handleScanners(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if h.scanTracker == nil {
+		return mcpJSON(map[string]any{"count": 0, "scanners": []any{}})
+	}
+
+	scanners := h.scanTracker.GetActiveScanners()
+	result := make([]map[string]any, 0, len(scanners))
+	for _, s := range scanners {
+		node := map[string]any{
+			"node_id":  s.NodeID,
+			"hostname": s.Hostname,
+			"status":   s.Status,
+		}
+		if s.ScanID != "" {
+			node["scan_id"] = s.ScanID
+		}
+		if s.Transport != "" {
+			node["transport"] = s.Transport
+		}
+		if s.PacketsTotal > 0 {
+			node["packets_sent"] = s.PacketsSent
+			node["packets_total"] = s.PacketsTotal
+		}
+		result = append(result, node)
+	}
+	return mcpJSON(map[string]any{
+		"count":    len(result),
+		"scanners": result,
+	})
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 func (h *mcpHandler) queryValueCounts(ctx context.Context, query string) []map[string]any {
-	rows, err := h.db.QueryContext(ctx, query)
-	if err != nil {
-		return nil
-	}
-	defer rows.Close()
-
-	var results []map[string]any
-	for rows.Next() {
-		var value string
-		var count int
-		if rows.Scan(&value, &count) != nil {
-			continue
-		}
-		results = append(results, map[string]any{"name": value, "count": count})
-	}
-	return results
+	return h.db.queryNameCountRows(ctx, query, "name")
 }
 
 func mcpJSON(data any) (*mcp.CallToolResult, error) {
@@ -1199,15 +1201,129 @@ func mcpJSON(data any) (*mcp.CallToolResult, error) {
 	return mcp.NewToolResultText(string(b)), nil
 }
 
+// setNullStr sets key in the map if the NullString is valid and non-empty.
+// Unlike setIfValid, this also filters out empty strings.
 func setNullStr(m map[string]any, key string, ns sql.NullString) {
 	if ns.Valid && ns.String != "" {
 		m[key] = ns.String
 	}
 }
 
-func setNullInt(m map[string]any, key string, ni sql.NullInt64) {
-	if ni.Valid {
-		m[key] = ni.Int64
+// setSanitizedBanner sets the banner field after stripping non-printable characters
+// and truncating to a reasonable length. Binary protocol banners (SMB, RPC, etc.)
+// become unreadable \u0000 sequences in JSON — this keeps the output clean.
+func setSanitizedBanner(m map[string]any, key string, ns sql.NullString) {
+	if !ns.Valid || ns.String == "" {
+		return
+	}
+	s := ns.String
+	// Strip non-printable characters (keep tab, newline, carriage return)
+	clean := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 0x20 && c < 0x7f || c == '\t' || c == '\n' || c == '\r' {
+			clean = append(clean, c)
+		}
+	}
+	result := strings.TrimSpace(string(clean))
+	if result == "" {
+		return
+	}
+	const maxBanner = 256
+	if len(result) > maxBanner {
+		result = result[:maxBanner] + "..."
+	}
+	m[key] = result
+}
+
+// parseFieldsParam parses a comma-separated fields string into a set.
+// Returns nil if the input is empty (meaning "use defaults").
+func parseFieldsParam(fields string) map[string]bool {
+	if fields == "" {
+		return nil
+	}
+	set := make(map[string]bool)
+	for _, f := range strings.Split(fields, ",") {
+		f = strings.TrimSpace(f)
+		if f != "" {
+			set[f] = true
+		}
+	}
+	if len(set) == 0 {
+		return nil
+	}
+	return set
+}
+
+// resolveFields returns the user-provided field set if non-empty, otherwise the defaults.
+func resolveFields(userFields string, defaults []string) map[string]bool {
+	if userFields != "" {
+		return parseFieldsParam(userFields)
+	}
+	set := make(map[string]bool, len(defaults))
+	for _, f := range defaults {
+		set[f] = true
+	}
+	return set
+}
+
+// filterRow returns a new map containing only keys present in the allowed set.
+// If allowed is nil, returns the original map unchanged.
+func filterRow(m map[string]any, allowed map[string]bool) map[string]any {
+	if allowed == nil {
+		return m
+	}
+	filtered := make(map[string]any, len(allowed))
+	for k, v := range m {
+		if allowed[k] {
+			filtered[k] = v
+		}
+	}
+	return filtered
+}
+
+// hasFieldPrefix checks if any key in the set starts with the given prefix.
+func hasFieldPrefix(fields map[string]bool, prefix string) bool {
+	for k := range fields {
+		if strings.HasPrefix(k, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// setEnrichmentKeys extracts only the key names from the enrichment_data JSON
+// and sets them as an "enrichment_keys" array. This lets the model discover
+// available fields without paying the token cost of all values.
+func setEnrichmentKeys(m map[string]any, ns sql.NullString) {
+	if !ns.Valid || ns.String == "" || ns.String == "{}" {
+		return
+	}
+	var ed map[string]any
+	if json.Unmarshal([]byte(ns.String), &ed) != nil {
+		return
+	}
+	keys := make([]string, 0, len(ed))
+	for k := range ed {
+		keys = append(keys, k)
+	}
+	if len(keys) > 0 {
+		m["enrichment_keys"] = keys
+	}
+}
+
+// parseEnrichmentData extracts enrichment_data JSON fields into the service map
+// as top-level "enrichment.<key>" entries, so Claude can see exports, shares, etc.
+func parseEnrichmentData(m map[string]any, ns sql.NullString) {
+	if !ns.Valid || ns.String == "" || ns.String == "{}" {
+		return
+	}
+	var ed map[string]any
+	if json.Unmarshal([]byte(ns.String), &ed) != nil {
+		return
+	}
+	for k, v := range ed {
+		m["enrichment."+k] = v
 	}
 }
 
@@ -1216,4 +1332,32 @@ func intOrDefault(v, def int) int {
 		return def
 	}
 	return v
+}
+
+// clampLimit enforces a maximum on user-provided limits to prevent resource exhaustion.
+func clampLimit(v, def, max int) int {
+	if v <= 0 {
+		return def
+	}
+	if v > max {
+		return max
+	}
+	return v
+}
+
+// escapeLike escapes SQL LIKE wildcards (%, _) in user input to prevent
+// unintended pattern matching.
+func escapeLike(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "%", "\\%")
+	s = strings.ReplaceAll(s, "_", "\\_")
+	return s
+}
+
+// copyArgs returns a new slice with extra values appended, avoiding mutation
+// of the original slice's underlying array.
+func copyArgs(src []any, extra ...any) []any {
+	dst := make([]any, len(src), len(src)+len(extra))
+	copy(dst, src)
+	return append(dst, extra...)
 }

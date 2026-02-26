@@ -4,12 +4,45 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"meow/datastore"
 	_ "modernc.org/sqlite"
 )
+
+// mockPublisher is a test double for the natsPublisher interface.
+type mockPublisher struct {
+	mu       sync.Mutex
+	messages []publishedMsg
+	err      error // if set, Publish returns this error
+}
+
+type publishedMsg struct {
+	Subject string
+	Data    []byte
+}
+
+func (m *mockPublisher) Publish(subject string, data []byte) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.messages = append(m.messages, publishedMsg{Subject: subject, Data: data})
+	return nil
+}
+
+func (m *mockPublisher) lastMessage() *publishedMsg {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.messages) == 0 {
+		return nil
+	}
+	return &m.messages[len(m.messages)-1]
+}
 
 // setupTestMCP creates an mcpHandler with an in-memory SQLite DB seeded with test data.
 func setupTestMCP(t *testing.T) *mcpHandler {
@@ -28,7 +61,11 @@ func setupTestMCP(t *testing.T) *mcpHandler {
 	seedTestData(t, db)
 
 	t.Cleanup(func() { db.Close() })
-	return &mcpHandler{db: &DB{db}}
+	return &mcpHandler{
+		db:          &DB{db},
+		nc:          &mockPublisher{},
+		scanTracker: NewScannerTracker(),
+	}
 }
 
 func seedTestData(t *testing.T, db *sql.DB) {
@@ -274,6 +311,77 @@ func TestSearchPagination(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// meow_count
+// ---------------------------------------------------------------------------
+
+func TestCountHosts(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleCount(context.Background(), callTool(map[string]any{
+		"query": "country:FR",
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	total := int(data["total"].(float64))
+	if total != 2 {
+		t.Errorf("expected 2 FR hosts, got %d", total)
+	}
+}
+
+func TestCountServices(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleCount(context.Background(), callTool(map[string]any{
+		"query": "service:ssh",
+		"mode":  "services",
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	total := int(data["total"].(float64))
+	if total != 2 {
+		t.Errorf("expected 2 SSH services, got %d", total)
+	}
+}
+
+func TestCountCompound(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleCount(context.Background(), callTool(map[string]any{
+		"query": "port:443 and country:FR",
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	total := int(data["total"].(float64))
+	if total != 1 {
+		t.Errorf("expected 1 host with port 443 in FR, got %d", total)
+	}
+}
+
+func TestCountEmptyQuery(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleCount(context.Background(), callTool(map[string]any{}))
+	if err != nil {
+		t.Fatalf("unexpected go error: %v", err)
+	}
+	if !result.IsError {
+		t.Error("expected tool error for missing query")
+	}
+}
+
+func TestCountInvalidQuery(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleCount(context.Background(), callTool(map[string]any{
+		"query": "port:",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected go error: %v", err)
+	}
+	if !result.IsError {
+		t.Error("expected tool error for invalid query")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // meow_host
 // ---------------------------------------------------------------------------
 
@@ -372,77 +480,6 @@ func TestStats(t *testing.T) {
 	topSvc := data["top_services"].([]any)
 	if len(topSvc) == 0 {
 		t.Error("expected non-empty top_services")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// meow_vulns
-// ---------------------------------------------------------------------------
-
-func TestVulnsAll(t *testing.T) {
-	h := setupTestMCP(t)
-	result, err := h.handleVulns(context.Background(), callTool(map[string]any{}))
-	assertNoError(t, result, err)
-
-	data := parseResult(t, result)
-	findings := data["findings"].([]any)
-	if len(findings) == 0 {
-		t.Error("expected at least one vulnerability finding")
-	}
-
-	// Check that FTP anonymous is found
-	found := false
-	for _, f := range findings {
-		finding := f.(map[string]any)
-		if finding["name"] == "FTP Anonymous Login" {
-			found = true
-			count := int(finding["count"].(float64))
-			if count != 1 {
-				t.Errorf("expected 1 FTP anon host, got %d", count)
-			}
-			samples := finding["samples"].([]any)
-			if len(samples) == 0 {
-				t.Error("expected sample IPs for FTP anon")
-			}
-		}
-	}
-	if !found {
-		t.Error("FTP Anonymous Login not detected")
-	}
-}
-
-func TestVulnsWithCategory(t *testing.T) {
-	h := setupTestMCP(t)
-	result, err := h.handleVulns(context.Background(), callTool(map[string]any{
-		"category": "auth",
-	}))
-	assertNoError(t, result, err)
-
-	data := parseResult(t, result)
-	findings := data["findings"].([]any)
-	for _, f := range findings {
-		finding := f.(map[string]any)
-		if finding["category"] != "auth" {
-			t.Errorf("expected only auth findings, got category=%v", finding["category"])
-		}
-	}
-}
-
-func TestVulnsWithScope(t *testing.T) {
-	h := setupTestMCP(t)
-	// Scope to a host that doesn't have FTP
-	result, err := h.handleVulns(context.Background(), callTool(map[string]any{
-		"scope": "ip:10.0.0.2",
-	}))
-	assertNoError(t, result, err)
-
-	data := parseResult(t, result)
-	findings := data["findings"].([]any)
-	for _, f := range findings {
-		finding := f.(map[string]any)
-		if finding["name"] == "FTP Anonymous Login" {
-			t.Error("FTP anon should not be found for 10.0.0.2")
-		}
 	}
 }
 
@@ -598,6 +635,7 @@ func TestCertsFilterWeakKey(t *testing.T) {
 	h := setupTestMCP(t)
 	result, err := h.handleCerts(context.Background(), callTool(map[string]any{
 		"filter": "weak_key",
+		"fields": "fingerprint,subject_cn,bits",
 	}))
 	assertNoError(t, result, err)
 
@@ -860,6 +898,188 @@ func TestStatus(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// meow_scan
+// ---------------------------------------------------------------------------
+
+func TestScanMissingTarget(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleScan(context.Background(), callTool(map[string]any{}))
+	if err != nil {
+		t.Fatalf("unexpected go error: %v", err)
+	}
+	if !result.IsError {
+		t.Error("expected tool error for missing target")
+	}
+}
+
+func TestScanNoScanners(t *testing.T) {
+	h := setupTestMCP(t)
+	// scanTracker has no active scanners by default
+	result, err := h.handleScan(context.Background(), callTool(map[string]any{
+		"target": "10.0.0.0/24",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected go error: %v", err)
+	}
+	if !result.IsError {
+		t.Error("expected tool error for no active scanners")
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "no active scanners") {
+		t.Errorf("expected 'no active scanners' in error, got: %s", text)
+	}
+}
+
+func TestScanSuccess(t *testing.T) {
+	h := setupTestMCP(t)
+	pub := &mockPublisher{}
+	h.nc = pub
+
+	// Register a fake scanner so HasActiveScanners() returns true
+	h.scanTracker.UpdateHeartbeat(&ScannerHeartbeat{
+		NodeID:   "test-node",
+		Hostname: "test-host",
+		Status:   "idle",
+	})
+
+	result, err := h.handleScan(context.Background(), callTool(map[string]any{
+		"target": "10.0.0.0/24",
+		"ports":  "1-1024",
+		"rate":   float64(5000),
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	if data["request_id"] == nil || data["request_id"] == "" {
+		t.Error("expected non-empty request_id")
+	}
+	if data["message"] != "scan request submitted" {
+		t.Errorf("expected message='scan request submitted', got %v", data["message"])
+	}
+	if data["target"] != "10.0.0.0/24" {
+		t.Errorf("expected target=10.0.0.0/24, got %v", data["target"])
+	}
+
+	// Verify NATS message was published
+	msg := pub.lastMessage()
+	if msg == nil {
+		t.Fatal("expected a NATS message to be published")
+	}
+	if msg.Subject != TopicScanRequest {
+		t.Errorf("expected subject=%s, got %s", TopicScanRequest, msg.Subject)
+	}
+
+	// Verify the published payload
+	var scanReq ScanRequest
+	if err := json.Unmarshal(msg.Data, &scanReq); err != nil {
+		t.Fatalf("unmarshal scan request: %v", err)
+	}
+	if scanReq.Target != "10.0.0.0/24" {
+		t.Errorf("expected target=10.0.0.0/24, got %s", scanReq.Target)
+	}
+	if scanReq.Ports != "1-1024" {
+		t.Errorf("expected ports=1-1024, got %s", scanReq.Ports)
+	}
+	if scanReq.RateLimit != 5000 {
+		t.Errorf("expected rate_limit=5000, got %d", scanReq.RateLimit)
+	}
+}
+
+func TestScanPublishError(t *testing.T) {
+	h := setupTestMCP(t)
+	h.nc = &mockPublisher{err: fmt.Errorf("connection closed")}
+
+	h.scanTracker.UpdateHeartbeat(&ScannerHeartbeat{
+		NodeID:   "test-node",
+		Hostname: "test-host",
+		Status:   "idle",
+	})
+
+	result, err := h.handleScan(context.Background(), callTool(map[string]any{
+		"target": "10.0.0.0/24",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected go error: %v", err)
+	}
+	if !result.IsError {
+		t.Error("expected tool error for publish failure")
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "failed to publish") {
+		t.Errorf("expected 'failed to publish' in error, got: %s", text)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// meow_scanners
+// ---------------------------------------------------------------------------
+
+func TestScannersEmpty(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleScanners(context.Background(), callTool(map[string]any{}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	if int(data["count"].(float64)) != 0 {
+		t.Errorf("expected 0 scanners, got %v", data["count"])
+	}
+}
+
+func TestScannersActive(t *testing.T) {
+	h := setupTestMCP(t)
+	h.scanTracker.UpdateHeartbeat(&ScannerHeartbeat{
+		NodeID:       "node-1",
+		Hostname:     "scanner-host",
+		Status:       "scanning",
+		ScanID:       "scan-abc",
+		Transport:    "afpacket",
+		PacketsSent:  1000,
+		PacketsTotal: 5000,
+	})
+
+	result, err := h.handleScanners(context.Background(), callTool(map[string]any{}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	if int(data["count"].(float64)) != 1 {
+		t.Errorf("expected 1 scanner, got %v", data["count"])
+	}
+	scanners := data["scanners"].([]any)
+	s := scanners[0].(map[string]any)
+	if s["node_id"] != "node-1" {
+		t.Errorf("expected node_id=node-1, got %v", s["node_id"])
+	}
+	if s["status"] != "scanning" {
+		t.Errorf("expected status=scanning, got %v", s["status"])
+	}
+	if s["scan_id"] != "scan-abc" {
+		t.Errorf("expected scan_id=scan-abc, got %v", s["scan_id"])
+	}
+	if s["transport"] != "afpacket" {
+		t.Errorf("expected transport=afpacket, got %v", s["transport"])
+	}
+	if int(s["packets_sent"].(float64)) != 1000 {
+		t.Errorf("expected packets_sent=1000, got %v", s["packets_sent"])
+	}
+	if int(s["packets_total"].(float64)) != 5000 {
+		t.Errorf("expected packets_total=5000, got %v", s["packets_total"])
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && searchString(s, substr)
+}
+
+func searchString(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 
@@ -889,4 +1109,197 @@ func splitLines(s string) []string {
 		result = append(result, s[start:])
 	}
 	return result
+}
+
+// ---------------------------------------------------------------------------
+// Field filtering helpers
+// ---------------------------------------------------------------------------
+
+func TestParseFieldsParam(t *testing.T) {
+	if parseFieldsParam("") != nil {
+		t.Error("empty string should return nil")
+	}
+	if parseFieldsParam("  ,  , ") != nil {
+		t.Error("whitespace-only should return nil")
+	}
+	got := parseFieldsParam("ip, port ,service")
+	if len(got) != 3 || !got["ip"] || !got["port"] || !got["service"] {
+		t.Errorf("unexpected result: %v", got)
+	}
+}
+
+func TestResolveFields(t *testing.T) {
+	defaults := []string{"a", "b", "c"}
+	// No user fields → defaults
+	set := resolveFields("", defaults)
+	if len(set) != 3 || !set["a"] || !set["b"] || !set["c"] {
+		t.Errorf("expected defaults, got %v", set)
+	}
+	// User override
+	set = resolveFields("x,y", defaults)
+	if len(set) != 2 || !set["x"] || !set["y"] {
+		t.Errorf("expected user fields, got %v", set)
+	}
+}
+
+func TestFilterRow(t *testing.T) {
+	row := map[string]any{"ip": "1.2.3.4", "port": 80, "banner": "long"}
+	// Nil allowed → pass-through
+	if got := filterRow(row, nil); len(got) != 3 {
+		t.Errorf("nil allowed should pass-through, got %v", got)
+	}
+	// Filter
+	allowed := map[string]bool{"ip": true, "port": true}
+	got := filterRow(row, allowed)
+	if len(got) != 2 || got["banner"] != nil {
+		t.Errorf("expected 2 fields without banner, got %v", got)
+	}
+}
+
+func TestHasFieldPrefix(t *testing.T) {
+	fields := map[string]bool{"ip": true, "enrichment.anon": true}
+	if !hasFieldPrefix(fields, "enrichment.") {
+		t.Error("should find enrichment. prefix")
+	}
+	if hasFieldPrefix(fields, "http.") {
+		t.Error("should not find http. prefix")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Field filtering integration
+// ---------------------------------------------------------------------------
+
+func TestSearchServicesFieldsDefault(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleSearch(context.Background(), callTool(map[string]any{
+		"query": "port:22",
+		"mode":  "services",
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	services := data["services"].([]any)
+	if len(services) == 0 {
+		t.Fatal("expected services")
+	}
+	svc := services[0].(map[string]any)
+	// Default should include ip, port, service but NOT banner
+	if svc["ip"] == nil {
+		t.Error("expected ip in default fields")
+	}
+	if svc["banner"] != nil {
+		t.Error("banner should not be in default fields")
+	}
+}
+
+func TestSearchServicesFieldsCustom(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleSearch(context.Background(), callTool(map[string]any{
+		"query":  "port:22",
+		"mode":   "services",
+		"fields": "ip,port,banner",
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	services := data["services"].([]any)
+	if len(services) == 0 {
+		t.Fatal("expected services")
+	}
+	svc := services[0].(map[string]any)
+	// Custom should include banner but NOT service
+	if svc["banner"] == nil {
+		t.Error("expected banner in custom fields")
+	}
+	if svc["service"] != nil {
+		t.Error("service should not be in custom fields")
+	}
+}
+
+func TestSearchServicesEnrichmentKeys(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleSearch(context.Background(), callTool(map[string]any{
+		"query": "port:22",
+		"mode":  "services",
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	services := data["services"].([]any)
+	if len(services) == 0 {
+		t.Fatal("expected services")
+	}
+	// At least one SSH service should have enrichment_keys
+	found := false
+	for _, s := range services {
+		svc := s.(map[string]any)
+		if svc["enrichment_keys"] != nil {
+			found = true
+			keys := svc["enrichment_keys"].([]any)
+			if len(keys) == 0 {
+				t.Error("enrichment_keys should not be empty when present")
+			}
+		}
+	}
+	if !found {
+		t.Error("expected at least one service with enrichment_keys")
+	}
+}
+
+func TestHostSectionsFilter(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleHost(context.Background(), callTool(map[string]any{
+		"ip":       "10.0.0.1",
+		"sections": "services",
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	if data["services"] == nil {
+		t.Error("expected services section")
+	}
+	if data["certificates"] != nil {
+		t.Error("certificates should be omitted when sections=services")
+	}
+	if data["domains"] != nil {
+		t.Error("domains should be omitted when sections=services")
+	}
+}
+
+func TestStatsFieldsDefault(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleStats(context.Background(), callTool(nil))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	// Defaults should include top_services but NOT cloud_providers
+	if data["top_services"] == nil {
+		t.Error("expected top_services in default stats")
+	}
+	if data["cloud_providers"] != nil {
+		t.Error("cloud_providers should not be in default stats")
+	}
+	if data["top_products"] != nil {
+		t.Error("top_products should not be in default stats")
+	}
+}
+
+func TestStatsFieldsCustom(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+		"fields": "total_hosts,cloud_providers",
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	if data["total_hosts"] == nil {
+		t.Error("expected total_hosts")
+	}
+	if data["cloud_providers"] == nil {
+		t.Error("expected cloud_providers when explicitly requested")
+	}
+	if data["top_services"] != nil {
+		t.Error("top_services should not appear when not requested")
+	}
 }

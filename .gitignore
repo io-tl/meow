@@ -7,3 +7,4 @@ grabber/grab
 datastore/datastore
 datastore/scanner.db*
 .venv
+.mcp.json

@@ -411,6 +411,18 @@ class CertificatesPage {
     const cert = this.allCertificates.find(c => c.fingerprint_sha256 === fingerprint);
     if (!cert) return;
 
+    // Load PEM on demand if not already cached
+    if (!cert._pemLoaded) {
+      try {
+        const resp = await fetch(`/api/certificates/${fingerprint}`);
+        if (resp.ok) {
+          const detail = await resp.json();
+          if (detail.pem) cert.pem = detail.pem;
+          cert._pemLoaded = true;
+        }
+      } catch { /* PEM will just not be shown */ }
+    }
+
     const modal = document.getElementById('cert-modal');
     const modalTitle = document.getElementById('cert-modal-title');
     const modalBadges = document.getElementById('cert-modal-badges');
