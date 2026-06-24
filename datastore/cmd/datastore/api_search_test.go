@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -40,7 +41,7 @@ func setupTestAPI(t *testing.T) (*gin.Engine, *API) {
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	api := &API{db: &DB{db}}
+	api := &API{db: &DB{DB: db}}
 
 	r.GET("/api/search", api.searchQuery)
 	r.GET("/api/search/services", api.searchQueryServices)
@@ -219,6 +220,61 @@ func TestAPIHostsFilterSQLInjection(t *testing.T) {
 				t.Errorf("got 500 (possible injection): error=%q", errMsg)
 			}
 		})
+	}
+}
+
+func TestAPIHostsVerifiedPortFilterUsesSameServiceRow(t *testing.T) {
+	r, api := setupTestAPI(t)
+
+	// Host 1.2.3.4 already has a verified 443 service from setup; add a ghost 80 port.
+	if _, err := api.db.Exec(`INSERT INTO services (ip, port, detected_at) VALUES ('1.2.3.4', 80, 1100)`); err != nil {
+		t.Fatalf("insert ghost service: %v", err)
+	}
+
+	// A second host has port 80 identified and should remain visible.
+	if _, err := api.db.Exec(`INSERT INTO hosts (ip, country_code, asn, first_seen, last_scan, open_ports_count, services_count) VALUES ('5.6.7.8', 'US', 64512, 1000, 3000, 1, 1)`); err != nil {
+		t.Fatalf("insert second host: %v", err)
+	}
+	if _, err := api.db.Exec(`INSERT INTO services (ip, port, service, product, detected_at, enrichment_status) VALUES ('5.6.7.8', 80, 'http', 'Apache', 1200, 'enriched')`); err != nil {
+		t.Fatalf("insert verified 80 service: %v", err)
+	}
+
+	w := doSearchParams(r, "/api/hosts", map[string]string{
+		"port":     "80",
+		"verified": "true",
+	})
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Hosts []map[string]any `json:"hosts"`
+		Total int              `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+
+	if resp.Total != 1 {
+		t.Fatalf("expected 1 host, got %d", resp.Total)
+	}
+	if len(resp.Hosts) != 1 {
+		t.Fatalf("expected 1 host in payload, got %d", len(resp.Hosts))
+	}
+
+	gotIP, _ := resp.Hosts[0]["ip"].(string)
+	if gotIP != "5.6.7.8" {
+		t.Fatalf("expected only host 5.6.7.8, got %q", gotIP)
+	}
+
+	services, _ := resp.Hosts[0]["services"].([]any)
+	if len(services) != 1 {
+		t.Fatalf("expected one listed service for matching host, got %d", len(services))
+	}
+	svc, _ := services[0].(map[string]any)
+	portVal, _ := svc["port"].(float64)
+	if strconv.Itoa(int(portVal)) != "80" {
+		t.Fatalf("expected listed service port 80, got %#v", svc["port"])
 	}
 }
 

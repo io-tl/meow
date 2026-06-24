@@ -7,6 +7,9 @@ class DomainsPage {
         this.protocolFilter = '';
         this.statusCodeFilter = '';
         this.expandedDomains = {};  // domain -> { page, total, totalPages }
+        this.domainsCache = new Map();
+        this.servicesCache = new Map();
+        this.bodyCache = new Map();
         this.debounceTimer = null;
 
         this.init();
@@ -87,10 +90,15 @@ class DomainsPage {
         if (this.searchQuery) params.set('q', this.searchQuery);
         if (this.protocolFilter) params.set('protocol', this.protocolFilter);
         if (this.statusCodeFilter) params.set('status_code', this.statusCodeFilter);
+        const cacheKey = params.toString();
 
         try {
-            const resp = await fetch(`/api/domains?${params}`);
-            const data = await resp.json();
+            let data = this.domainsCache.get(cacheKey);
+            if (!data) {
+                const resp = await fetch(`/api/domains?${params}`);
+                data = await resp.json();
+                this.domainsCache.set(cacheKey, data);
+            }
             this.renderDomains(data.domains || []);
             this.updatePagination(data.total || 0, data.page || 1, data.total_pages || 1);
             document.getElementById('top-results-count').textContent = this.formatNumber(data.total || 0);
@@ -193,16 +201,31 @@ class DomainsPage {
         const panel = card.querySelector('.domain-services-panel');
         if (!panel) return;
 
-        panel.innerHTML = '<div class="domain-card-loading">Loading services...</div>';
-
         const state = this.expandedDomains[domain] || {};
         const hideEmpty = state.hideEmpty || false;
+        const cacheKey = this.buildServicesCacheKey(domain, page, hideEmpty);
+        const cached = this.servicesCache.get(cacheKey);
+
+        if (cached) {
+            this.expandedDomains[domain] = {
+                ...state,
+                page: cached.page || 1,
+                total: cached.total || 0,
+                totalPages: cached.total_pages || 1
+            };
+            panel.innerHTML = this.renderServicesPanel(domain, cached);
+            return;
+        }
+
+        panel.innerHTML = '<div class="domain-card-loading">Loading services...</div>';
+
         let url = `/api/domains/${encodeURIComponent(domain)}/services?page=${page}&limit=25`;
         if (hideEmpty) url += '&hide_empty=1';
 
         try {
             const resp = await fetch(url);
             const data = await resp.json();
+            this.servicesCache.set(cacheKey, data);
 
             this.expandedDomains[domain] = {
                 ...state,
@@ -215,6 +238,10 @@ class DomainsPage {
         } catch (e) {
             panel.innerHTML = '<div class="domain-card-loading">Failed to load services</div>';
         }
+    }
+
+    buildServicesCacheKey(domain, page, hideEmpty) {
+        return `${domain}::${page}::${hideEmpty ? 'body' : 'all'}`;
     }
 
     renderServicesPanel(domain, data) {
@@ -423,13 +450,7 @@ class DomainsPage {
             <div class="domain-preview-loading">Loading preview...</div>`;
 
         try {
-            const resp = await fetch(`/api/body?ip=${encodeURIComponent(ip)}&port=${port}&domain=${encodeURIComponent(domain)}`);
-            if (!resp.ok) {
-                previewPanel.querySelector('.domain-preview-loading').outerHTML =
-                    '<div class="domain-preview-placeholder"><span>No preview available</span></div>';
-                return;
-            }
-            const html = await resp.text();
+            const html = await this.fetchPreviewBody(ip, port, domain);
             previewPanel.querySelector('.domain-preview-loading').outerHTML =
                 `<iframe sandbox="" srcdoc="${this.escAttr(html)}" class="domain-preview-iframe"></iframe>`;
         } catch (e) {
@@ -486,13 +507,7 @@ class DomainsPage {
             <div class="domain-preview-loading">Loading source...</div>`;
 
         try {
-            const resp = await fetch(`/api/body?ip=${encodeURIComponent(ip)}&port=${port}&domain=${encodeURIComponent(domain)}`);
-            if (!resp.ok) {
-                previewPanel.querySelector('.domain-preview-loading').outerHTML =
-                    '<div class="domain-preview-placeholder"><span>No source available</span></div>';
-                return;
-            }
-            const html = await resp.text();
+            const html = await this.fetchPreviewBody(ip, port, domain);
             const pre = document.createElement('pre');
             pre.className = 'domain-source-view';
             pre.textContent = html;
@@ -515,16 +530,31 @@ class DomainsPage {
         modal.style.display = 'flex';
 
         try {
-            const resp = await fetch(`/api/body?ip=${encodeURIComponent(ip)}&port=${port}&domain=${encodeURIComponent(domain)}`);
-            if (!resp.ok) {
-                iframe.srcdoc = '<html><body style="display:flex;align-items:center;justify-content:center;height:100%;margin:0;font-family:sans-serif;color:#666;"><p>No preview available</p></body></html>';
-                return;
-            }
-            const html = await resp.text();
+            const html = await this.fetchPreviewBody(ip, port, domain);
             iframe.srcdoc = html;
         } catch (e) {
             iframe.srcdoc = '<html><body style="display:flex;align-items:center;justify-content:center;height:100%;margin:0;font-family:sans-serif;color:#666;"><p>Failed to load preview</p></body></html>';
         }
+    }
+
+    async fetchPreviewBody(ip, port, domain) {
+        const cacheKey = `${ip}:${port}:${domain || ''}`;
+        let pending = this.bodyCache.get(cacheKey);
+        if (!pending) {
+            pending = fetch(`/api/body?ip=${encodeURIComponent(ip)}&port=${port}&domain=${encodeURIComponent(domain)}`)
+                .then(async (resp) => {
+                    if (!resp.ok) {
+                        throw new Error(`Body fetch failed with status ${resp.status}`);
+                    }
+                    return resp.text();
+                })
+                .catch((err) => {
+                    this.bodyCache.delete(cacheKey);
+                    throw err;
+                });
+            this.bodyCache.set(cacheKey, pending);
+        }
+        return pending;
     }
 
     closePreviewModal() {

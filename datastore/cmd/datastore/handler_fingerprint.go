@@ -49,7 +49,7 @@ func (c *Consumer) handleFingerprinted(msg *nats.Msg) {
 	// Early duplicate detection: check if we already have this exact fingerprint
 	var existingService, existingProduct, existingVersion, existingBanner sql.NullString
 	var existingDetectedAt sql.NullInt64
-	err := c.db.QueryRow(`
+	err := c.db.QueryRowLogged(`
 		SELECT service, product, version, banner, detected_at
 		FROM services
 		WHERE ip = ? AND port = ?`,
@@ -489,7 +489,7 @@ func (c *Consumer) filterHighFrequencyDomains(ip string, domains map[string]bool
 func (c *Consumer) createHTTPEnrichmentsForExistingPort(ip string, port int, domains map[string]bool) {
 	// Check if this port exists for this host
 	var exists int
-	err := c.db.QueryRow(`SELECT 1 FROM services WHERE ip = ? AND port = ?`, ip, port).Scan(&exists)
+	err := c.db.QueryRowLogged(`SELECT 1 FROM services WHERE ip = ? AND port = ?`, ip, port).Scan(&exists)
 	if err != nil {
 		// Port doesn't exist yet, skip
 		return
@@ -574,7 +574,7 @@ func (c *Consumer) createHTTPEnrichmentsFromExistingDomains(ip string, port int)
 func (c *Consumer) createPendingHTTPEnrichments(ip string, port int, domains map[string]bool) {
 	// Get the fingerprinted service type from the services table
 	var serviceType string
-	err := c.db.QueryRow(`SELECT COALESCE(service, '') FROM services WHERE ip = ? AND port = ?`, ip, port).Scan(&serviceType)
+	err := c.db.QueryRowLogged(`SELECT COALESCE(service, '') FROM services WHERE ip = ? AND port = ?`, ip, port).Scan(&serviceType)
 	if err != nil {
 		log.Debug().Str("ip", ip).Int("port", port).Msg("Service not found, skipping HTTP enrichment")
 		return

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/nats-io/nats.go"
 	natsserver "github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 	"github.com/rs/zerolog/log"
 	"meow/datastore"
 )
@@ -24,7 +24,8 @@ func startAPI(cfg *Config, db *DB, nc *nats.Conn, ns *natsserver.Server, scanTra
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-API-Key, Mcp-Session-Id")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization, X-API-Key, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID")
+		c.Writer.Header().Set("Access-Control-Expose-Headers", "Mcp-Session-Id, Mcp-Protocol-Version")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -41,6 +42,7 @@ func startAPI(cfg *Config, db *DB, nc *nats.Conn, ns *natsserver.Server, scanTra
 	})
 
 	api := &API{db: db, nc: nc, ns: ns, scanTracker: scanTracker, eventFeed: eventFeed, verbose: cfg.Verbose}
+	api.responseCache = newAPIResponseCache()
 
 	// Serve static files from embedded filesystem
 	staticFS, _ := fs.Sub(datastore.StaticFS, "web/static")
@@ -266,12 +268,13 @@ func startAPI(cfg *Config, db *DB, nc *nats.Conn, ns *natsserver.Server, scanTra
 }
 
 type API struct {
-	db          *DB
-	nc          *nats.Conn
-	ns          *natsserver.Server
-	scanTracker *ScannerTracker
-	eventFeed   *EventFeed
-	verbose     bool
+	db            *DB
+	nc            *nats.Conn
+	ns            *natsserver.Server
+	scanTracker   *ScannerTracker
+	eventFeed     *EventFeed
+	verbose       bool
+	responseCache *apiResponseCache
 }
 
 func zerologGinMiddleware() gin.HandlerFunc {

@@ -51,7 +51,7 @@ func (c *Consumer) handleEnriched(msg *nats.Msg) {
 	var existingStatus sql.NullString
 	var existingEnrichedAt sql.NullInt64
 	domainValue := event.Domain
-	err := c.db.QueryRow(`
+	err := c.db.QueryRowLogged(`
 		SELECT status, enriched_at
 		FROM service_enrichments
 		WHERE ip = ? AND port = ? AND domain = ?`,

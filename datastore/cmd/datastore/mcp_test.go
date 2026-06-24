@@ -62,7 +62,7 @@ func setupTestMCP(t *testing.T) *mcpHandler {
 
 	t.Cleanup(func() { db.Close() })
 	return &mcpHandler{
-		db:          &DB{db},
+		db:          &DB{DB: db},
 		nc:          &mockPublisher{},
 		scanTracker: NewScannerTracker(),
 	}

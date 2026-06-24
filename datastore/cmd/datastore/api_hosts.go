@@ -53,8 +53,8 @@ func (api *API) searchHosts(c *gin.Context) {
 	}
 
 	if country != "" {
-		whereClause += " AND UPPER(h.country_code) = UPPER(?)"
-		args = append(args, country)
+		whereClause += " AND h.country_code = ?"
+		args = append(args, normalizeCountryCode(country))
 	}
 
 	if cloud != "" {
@@ -71,18 +71,19 @@ func (api *API) searchHosts(c *gin.Context) {
 		}
 	}
 
-	// Filter hosts that have at least one identified service (not ghost/unverified only)
-	if verified == "true" {
-		whereClause += ` AND EXISTS (SELECT 1 FROM services s WHERE s.ip = h.ip
-			AND (s.service IS NOT NULL OR s.fingerprint_data IS NOT NULL OR s.banner IS NOT NULL OR s.product IS NOT NULL))`
-	}
+	identifiedClause := "(s.service IS NOT NULL OR s.fingerprint_data IS NOT NULL OR s.banner IS NOT NULL OR s.product IS NOT NULL)"
 
-	// When port is combined with service/technology, scope them to the same service row
-	if port != "" && (service != "" || technology != "") {
+	// verified=true must constrain the same service row as port/service/technology filters.
+	if verified == "true" && (port != "" || service != "" || technology != "") {
 		portInt, err := strconv.Atoi(port)
-		if err == nil {
-			subWhere := "s.ip = h.ip AND s.port = ?"
-			subArgs := []any{portInt}
+		if port == "" || err == nil {
+			subWhere := "s.ip = h.ip"
+			subArgs := []any{}
+
+			if port != "" {
+				subWhere += " AND s.port = ?"
+				subArgs = append(subArgs, portInt)
+			}
 
 			if service != "" {
 				subWhere += " AND LOWER(s.service) = LOWER(?)"
@@ -98,10 +99,16 @@ func (api *API) searchHosts(c *gin.Context) {
 				subArgs = append(subArgs, techPattern, techPattern, techPattern)
 			}
 
+			subWhere += " AND " + identifiedClause
 			whereClause += " AND EXISTS (SELECT 1 FROM services s WHERE " + subWhere + ")"
 			args = append(args, subArgs...)
 		}
 	} else {
+		// Filter hosts that have at least one identified service (not ghost/unverified only)
+		if verified == "true" {
+			whereClause += " AND EXISTS (SELECT 1 FROM services s WHERE s.ip = h.ip AND " + identifiedClause + ")"
+		}
+
 		if port != "" {
 			portInt, err := strconv.Atoi(port)
 			if err == nil {
@@ -128,7 +135,7 @@ func (api *API) searchHosts(c *gin.Context) {
 	// Count query first (lightweight, no sorting)
 	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM hosts h %s", whereClause)
 	var total int
-	if err := api.db.QueryRow(countSQL, args...).Scan(&total); err != nil {
+	if err := api.db.QueryRowLogged(countSQL, args...).Scan(&total); err != nil {
 		log.Error().Err(err).Msg("searchHosts count failed")
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -296,7 +303,7 @@ func (api *API) queryHostInfo(ip string) (gin.H, error) {
 	var countryCode, countryName, city, cloudProvider, cloudRegion, cloudType, asOrg sql.NullString
 	var asn, firstSeen, lastScan, openPortsCount, servicesCount sql.NullInt64
 
-	err := api.db.QueryRow(query, ip).Scan(&ip, &countryCode, &countryName, &city,
+	err := api.db.QueryRowLogged(query, ip).Scan(&ip, &countryCode, &countryName, &city,
 		&asn, &asOrg, &cloudProvider, &cloudRegion, &cloudType, &firstSeen, &lastScan, &openPortsCount, &servicesCount)
 	if err != nil {
 		return nil, err

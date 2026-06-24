@@ -287,6 +287,8 @@ CREATE INDEX IF NOT EXISTS idx_hosts_ip_int ON hosts(ip_int) WHERE ip_int IS NOT
 
 -- Composite index for common search patterns (country + time ordering)
 CREATE INDEX IF NOT EXISTS idx_hosts_country_time ON hosts(country_code, last_scan DESC) WHERE country_code IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_hosts_country_name_cloud ON hosts(country_code, country_name, cloud_provider) WHERE country_code IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_hosts_asn_org ON hosts(asn, as_org) WHERE asn IS NOT NULL;
 
 -- ============================================================================
 -- SERVICES INDEXES
@@ -297,6 +299,7 @@ CREATE INDEX IF NOT EXISTS idx_services_detected_at ON services(detected_at DESC
 
 -- Service type + time (composite index for common queries)
 CREATE INDEX IF NOT EXISTS idx_services_service_time ON services(service, detected_at DESC) WHERE service IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_services_service_ip ON services(service, ip) WHERE service IS NOT NULL;
 
 -- Product lookup (partial index saves space)
 CREATE INDEX IF NOT EXISTS idx_services_product ON services(product, version) WHERE product IS NOT NULL;
@@ -329,6 +332,60 @@ CREATE INDEX IF NOT EXISTS idx_services_enriched_at ON services(enriched_at) WHE
 
 -- Enrichment status stats
 CREATE INDEX IF NOT EXISTS idx_services_enrichment_stats ON services(enrichment_status, service) WHERE enrichment_status IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_services_enrichment_port ON services(enrichment_status, port) WHERE enrichment_status IS NOT NULL;
+
+-- Expression indexes for common MeowQL enrichment boolean filters.
+-- These help queries like enrichment.nfs_found:true while preserving ORDER BY detected_at DESC.
+CREATE INDEX IF NOT EXISTS idx_services_enrichment_nfs_found_detected
+  ON services(json_extract(enrichment_data, '$.nfs_found'), detected_at DESC)
+  WHERE enrichment_status = 'enriched'
+    AND enrichment_data IS NOT NULL
+    AND enrichment_data != '';
+
+CREATE INDEX IF NOT EXISTS idx_services_enrichment_anonymous_login_detected
+  ON services(json_extract(enrichment_data, '$.anonymous_login'), detected_at DESC)
+  WHERE enrichment_status = 'enriched'
+    AND enrichment_data IS NOT NULL
+    AND enrichment_data != '';
+
+CREATE INDEX IF NOT EXISTS idx_services_enrichment_auth_required_detected
+  ON services(json_extract(enrichment_data, '$.auth_required'), detected_at DESC)
+  WHERE enrichment_status = 'enriched'
+    AND enrichment_data IS NOT NULL
+    AND enrichment_data != '';
+
+CREATE INDEX IF NOT EXISTS idx_services_enrichment_signing_required_detected
+  ON services(json_extract(enrichment_data, '$.signing_required'), detected_at DESC)
+  WHERE enrichment_status = 'enriched'
+    AND enrichment_data IS NOT NULL
+    AND enrichment_data != '';
+
+CREATE INDEX IF NOT EXISTS idx_services_enrichment_default_credentials_detected
+  ON services(json_extract(enrichment_data, '$.default_credentials'), detected_at DESC)
+  WHERE enrichment_status = 'enriched'
+    AND enrichment_data IS NOT NULL
+    AND enrichment_data != '';
+
+CREATE INDEX IF NOT EXISTS idx_services_enrichment_supports_tls_detected
+  ON services(json_extract(enrichment_data, '$.supports_tls'), detected_at DESC)
+  WHERE enrichment_status = 'enriched'
+    AND enrichment_data IS NOT NULL
+    AND enrichment_data != '';
+
+CREATE INDEX IF NOT EXISTS idx_services_enrichment_shares_detected
+  ON services(json_extract(enrichment_data, '$.shares'), detected_at DESC)
+  WHERE enrichment_status = 'enriched'
+    AND enrichment_data IS NOT NULL
+    AND enrichment_data != ''
+    AND json_extract(enrichment_data, '$.shares') IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_services_enrichment_shares_exists_detected
+  ON services(json_type(enrichment_data, '$.shares'), detected_at DESC)
+  WHERE enrichment_status = 'enriched'
+    AND enrichment_data IS NOT NULL
+    AND enrichment_data != ''
+    AND json_type(enrichment_data, '$.shares') IS NOT NULL
+    AND json_type(enrichment_data, '$.shares') != 'null';
 
 -- ============================================================================
 -- HTTP_DATA INDEXES
@@ -384,6 +441,14 @@ CREATE INDEX IF NOT EXISTS idx_service_enrichments_status_code ON service_enrich
 -- Domain grouping (for /domains page)
 CREATE INDEX IF NOT EXISTS idx_service_enrichments_domain_status
   ON service_enrichments(domain, status) WHERE domain != '';
+
+-- Better when filtering by status first, then grouping/paginating by domain
+CREATE INDEX IF NOT EXISTS idx_service_enrichments_status_domain
+  ON service_enrichments(status, domain) WHERE domain != '';
+
+-- Supports domain detail page ordering without temp sorting
+CREATE INDEX IF NOT EXISTS idx_service_enrichments_domain_status_ip_port
+  ON service_enrichments(domain, status, ip, port) WHERE domain != '';
 
 -- Worker queue ordering with FIFO
 CREATE INDEX IF NOT EXISTS idx_service_enrichments_worker_queue

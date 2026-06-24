@@ -46,7 +46,7 @@ func (h *mcpHandler) searchHosts(ctx context.Context, query string, limit, offse
 	}
 
 	var total int
-	if err := h.db.QueryRowContext(ctx,
+	if err := h.db.QueryRowContextLogged(ctx,
 		fmt.Sprintf("SELECT COUNT(*) FROM hosts h WHERE %s", result.Where),
 		result.Args...,
 	).Scan(&total); err != nil {
@@ -94,16 +94,19 @@ func (h *mcpHandler) searchHosts(ctx context.Context, query string, limit, offse
 }
 
 func (h *mcpHandler) searchServices(ctx context.Context, query string, limit, offset int, fields string) (*mcp.CallToolResult, error) {
+	expr, _ := meowql.Parse(query)
+	matchedFields := meowql.ExtractFields(expr)
 	result := meowql.CompileServiceCentric(query)
 	if result.Err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("MeowQL error: %v", result.Err)), nil
 	}
+	statusFilter := serviceSearchStatusFilter(matchedFields)
 
 	var total int
-	if err := h.db.QueryRowContext(ctx, fmt.Sprintf(`
+	if err := h.db.QueryRowContextLogged(ctx, fmt.Sprintf(`
 		SELECT COUNT(*) FROM services s
 		INNER JOIN hosts h ON s.ip = h.ip
-		WHERE %s AND s.enrichment_status != 'pending'`, result.Where),
+		WHERE %s AND %s`, result.Where, statusFilter),
 		result.Args...,
 	).Scan(&total); err != nil {
 		return nil, fmt.Errorf("count query failed: %w", err)
@@ -118,8 +121,8 @@ func (h *mcpHandler) searchServices(ctx context.Context, query string, limit, of
 		FROM services s
 		INNER JOIN hosts h ON s.ip = h.ip
 		LEFT JOIN http_data hd ON hd.ip = s.ip AND hd.port = s.port
-		WHERE %s AND s.enrichment_status != 'pending'
-		ORDER BY s.detected_at DESC LIMIT ? OFFSET ?`, result.Where), args...)
+		WHERE %s AND %s
+		ORDER BY s.detected_at DESC LIMIT ? OFFSET ?`, result.Where, statusFilter), args...)
 	if err != nil {
 		return nil, fmt.Errorf("search query failed: %w", err)
 	}
@@ -190,14 +193,17 @@ func (h *mcpHandler) handleCount(ctx context.Context, req mcp.CallToolRequest) (
 
 	var total int
 	if mode == "services" {
+		expr, _ := meowql.Parse(query)
+		matchedFields := meowql.ExtractFields(expr)
 		result := meowql.CompileServiceCentric(query)
 		if result.Err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("MeowQL error: %v", result.Err)), nil
 		}
-		if err := h.db.QueryRowContext(ctx, fmt.Sprintf(`
+		statusFilter := serviceSearchStatusFilter(matchedFields)
+		if err := h.db.QueryRowContextLogged(ctx, fmt.Sprintf(`
 			SELECT COUNT(*) FROM services s
 			INNER JOIN hosts h ON s.ip = h.ip
-			WHERE %s AND s.enrichment_status != 'pending'`, result.Where),
+			WHERE %s AND %s`, result.Where, statusFilter),
 			result.Args...,
 		).Scan(&total); err != nil {
 			return nil, fmt.Errorf("count query failed: %w", err)
@@ -208,7 +214,7 @@ func (h *mcpHandler) handleCount(ctx context.Context, req mcp.CallToolRequest) (
 			return mcp.NewToolResultError(fmt.Sprintf("MeowQL error: %v\nAvailable fields: %s",
 				result.Err, strings.Join(meowql.FieldNames(), ", "))), nil
 		}
-		if err := h.db.QueryRowContext(ctx,
+		if err := h.db.QueryRowContextLogged(ctx,
 			fmt.Sprintf("SELECT COUNT(*) FROM hosts h WHERE %s", result.Where),
 			result.Args...,
 		).Scan(&total); err != nil {
@@ -235,7 +241,7 @@ func (h *mcpHandler) handleHost(ctx context.Context, req mcp.CallToolRequest) (*
 	// Host info
 	var countryCode, countryName, city, cloudProvider, cloudRegion, asOrg sql.NullString
 	var asn, firstSeen, lastScan, openPorts, svcCount sql.NullInt64
-	err = h.db.QueryRowContext(ctx, `
+	err = h.db.QueryRowContextLogged(ctx, `
 		SELECT country_code, country_name, city, asn, as_org, cloud_provider, cloud_region,
 		       first_seen, last_scan, open_ports_count, services_count
 		FROM hosts WHERE ip = ?`, ip).Scan(
@@ -756,7 +762,7 @@ func (h *mcpHandler) handleDomains(ctx context.Context, req mcp.CallToolRequest)
 
 	// Stats
 	var totalDomains int
-	h.db.QueryRowContext(ctx, fmt.Sprintf(
+	h.db.QueryRowContextLogged(ctx, fmt.Sprintf(
 		"SELECT COUNT(DISTINCT se.domain) FROM service_enrichments se %s", whereClause),
 		args...).Scan(&totalDomains)
 
@@ -1012,7 +1018,7 @@ func (h *mcpHandler) handleDNS(ctx context.Context, req mcp.CallToolRequest) (*m
 	if ip := net.ParseIP(query); ip != nil {
 		// Reverse lookup: check if this IP is in our database
 		var hostCount int
-		h.db.QueryRowContext(ctx,
+		h.db.QueryRowContextLogged(ctx,
 			"SELECT COUNT(*) FROM hosts WHERE ip = ?", query).Scan(&hostCount)
 		if hostCount > 0 {
 			result["in_database"] = true
@@ -1022,7 +1028,7 @@ func (h *mcpHandler) handleDNS(ctx context.Context, req mcp.CallToolRequest) (*m
 		var knownIPs []string
 		for _, ip := range ipv4 {
 			var c int
-			if h.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM hosts WHERE ip = ?", ip).Scan(&c) == nil && c > 0 {
+			if h.db.QueryRowContextLogged(ctx, "SELECT COUNT(*) FROM hosts WHERE ip = ?", ip).Scan(&c) == nil && c > 0 {
 				knownIPs = append(knownIPs, ip)
 			}
 		}
@@ -1043,7 +1049,7 @@ func (h *mcpHandler) handleStatus(ctx context.Context, _ mcp.CallToolRequest) (*
 
 	// Table counts
 	var hosts, services, certs int64
-	h.db.QueryRowContext(ctx, `SELECT
+	h.db.QueryRowContextLogged(ctx, `SELECT
 		(SELECT COUNT(*) FROM hosts),
 		(SELECT COUNT(*) FROM services),
 		(SELECT COUNT(*) FROM certificates)`).Scan(&hosts, &services, &certs)
@@ -1053,12 +1059,13 @@ func (h *mcpHandler) handleStatus(ctx context.Context, _ mcp.CallToolRequest) (*
 
 	// Enrichment breakdown
 	var enriched, pending, failed, skipped int
-	h.db.QueryRowContext(ctx, `SELECT
-		SUM(CASE WHEN enrichment_status = 'enriched' THEN 1 ELSE 0 END),
-		SUM(CASE WHEN enrichment_status = 'pending' THEN 1 ELSE 0 END),
-		SUM(CASE WHEN enrichment_status = 'failed' THEN 1 ELSE 0 END),
-		SUM(CASE WHEN enrichment_status NOT IN ('enriched','pending','failed') OR enrichment_status IS NULL THEN 1 ELSE 0 END)
-	FROM services`).Scan(&enriched, &pending, &failed, &skipped)
+	h.db.QueryRowContextLogged(ctx, `SELECT
+		(SELECT COUNT(*) FROM services WHERE enrichment_status = 'enriched'),
+		(SELECT COUNT(*) FROM services WHERE enrichment_status = 'pending'),
+		(SELECT COUNT(*) FROM services WHERE enrichment_status = 'failed'),
+		(SELECT COUNT(*) FROM services WHERE enrichment_status = 'skipped')
+	FROM services
+	LIMIT 1`).Scan(&enriched, &pending, &failed, &skipped)
 	stats["enrichment"] = map[string]any{
 		"enriched": enriched,
 		"pending":  pending,
@@ -1071,14 +1078,14 @@ func (h *mcpHandler) handleStatus(ctx context.Context, _ mcp.CallToolRequest) (*
 
 	// Domain count
 	var domainCount int
-	h.db.QueryRowContext(ctx,
+	h.db.QueryRowContextLogged(ctx,
 		"SELECT COUNT(DISTINCT domain) FROM service_enrichments WHERE domain != '' AND status = 'enriched'",
 	).Scan(&domainCount)
 	stats["domains"] = domainCount
 
 	// HTTP services count
 	var httpCount int
-	h.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM http_data").Scan(&httpCount)
+	h.db.QueryRowContextLogged(ctx, "SELECT COUNT(*) FROM http_data").Scan(&httpCount)
 	stats["http_services"] = httpCount
 
 	// Top services by enrichment status

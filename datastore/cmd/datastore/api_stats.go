@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -113,13 +114,19 @@ func (api *API) getCountryStats(c *gin.Context) {
 // getServiceStats gets service statistics
 func (api *API) getServiceStats(c *gin.Context) {
 	rows, err := api.db.Query(`
-		SELECT service, COUNT(*) as count,
-		       COUNT(DISTINCT ip) as unique_hosts
-		FROM services
-		WHERE service IS NOT NULL
-		GROUP BY service
-		ORDER BY count DESC
-		LIMIT 50`)
+		WITH top_services AS (
+			SELECT service, COUNT(*) as count
+			FROM services
+			WHERE service IS NOT NULL
+			GROUP BY service
+			ORDER BY count DESC
+			LIMIT 50
+		)
+		SELECT ts.service, ts.count, COUNT(DISTINCT s.ip) as unique_hosts
+		FROM top_services ts
+		INNER JOIN services s ON s.service = ts.service
+		GROUP BY ts.service, ts.count
+		ORDER BY ts.count DESC`)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -259,6 +266,11 @@ func (api *API) getProductStats(c *gin.Context) {
 // getFacets returns available filter facets for dynamic filtering.
 // Combines host-table and services-table facets into fewer queries to reduce DB round-trips.
 func (api *API) getFacets(c *gin.Context) {
+	const cacheKey = "facets:v1"
+	if api.writeCachedJSON(c, cacheKey) {
+		return
+	}
+
 	facets := gin.H{}
 
 	// === Query 1: All host-table facets in one pass using UNION ALL ===
@@ -371,5 +383,5 @@ func (api *API) getFacets(c *gin.Context) {
 		facets["services"] = services
 	}
 
-	c.JSON(200, facets)
+	api.cacheAndWriteJSON(c, cacheKey, 30*time.Second, facets)
 }

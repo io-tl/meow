@@ -56,7 +56,7 @@ func (db *DB) queryNameCountRows(ctx context.Context, query string, valueKey str
 
 // getTableCounts returns total counts for hosts, services, and certificates in a single query.
 func (db *DB) getTableCounts() (hosts, services, certs int64, err error) {
-	err = db.QueryRow(`
+	err = db.QueryRowLogged(`
 		SELECT
 			(SELECT COUNT(*) FROM hosts),
 			(SELECT COUNT(*) FROM services),
@@ -71,13 +71,14 @@ func (db *DB) getTableCounts() (hosts, services, certs int64, err error) {
 // getEnrichmentStatusCounts returns enrichment status counts from the services table.
 // Uses SUM(CASE) to return all counts in a single row instead of GROUP BY.
 func (db *DB) getEnrichmentStatusCounts() (enriched, pending, failed, skipped int, err error) {
-	err = db.QueryRow(`
+	err = db.QueryRowLogged(`
 		SELECT
-			SUM(CASE WHEN enrichment_status = 'enriched' THEN 1 ELSE 0 END),
-			SUM(CASE WHEN enrichment_status = 'pending' THEN 1 ELSE 0 END),
-			SUM(CASE WHEN enrichment_status = 'failed' THEN 1 ELSE 0 END),
-			SUM(CASE WHEN enrichment_status NOT IN ('enriched','pending','failed') OR enrichment_status IS NULL THEN 1 ELSE 0 END)
+			(SELECT COUNT(*) FROM services WHERE enrichment_status = 'enriched'),
+			(SELECT COUNT(*) FROM services WHERE enrichment_status = 'pending'),
+			(SELECT COUNT(*) FROM services WHERE enrichment_status = 'failed'),
+			(SELECT COUNT(*) FROM services WHERE enrichment_status = 'skipped')
 		FROM services
+		LIMIT 1
 	`).Scan(&enriched, &pending, &failed, &skipped)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to get enrichment status counts")
@@ -182,4 +183,3 @@ func parsePagination(c *gin.Context, defaultLimit int) (limit, offset, page int)
 	offset = (page - 1) * limit
 	return
 }
-

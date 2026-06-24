@@ -15,18 +15,18 @@ func (api *API) getCertificateDetail(c *gin.Context) {
 	fingerprint := c.Param("fingerprint")
 
 	var (
-		fp, fpSHA1, fpMD5                         sql.NullString
-		subjectCN, subjectOrg, subjectCountry      sql.NullString
-		issuerCN, issuerOrg, names                  sql.NullString
-		serialNumber, pubKeyAlgo, sigAlgo           sql.NullString
-		parsedCert                                  sql.NullString
-		notBefore, notAfter                         sql.NullInt64
-		firstSeen, lastSeen                         sql.NullInt64
-		pubKeyBits                                  sql.NullInt64
-		isSelfSigned, isCA                          int
+		fp, fpSHA1, fpMD5                     sql.NullString
+		subjectCN, subjectOrg, subjectCountry sql.NullString
+		issuerCN, issuerOrg, names            sql.NullString
+		serialNumber, pubKeyAlgo, sigAlgo     sql.NullString
+		parsedCert                            sql.NullString
+		notBefore, notAfter                   sql.NullInt64
+		firstSeen, lastSeen                   sql.NullInt64
+		pubKeyBits                            sql.NullInt64
+		isSelfSigned, isCA                    int
 	)
 
-	err := api.db.QueryRow(`
+	err := api.db.QueryRowLogged(`
 		SELECT fingerprint_sha256, fingerprint_sha1, fingerprint_md5,
 		       subject_cn, subject_org, subject_country,
 		       issuer_cn, issuer_org, names,
@@ -250,12 +250,12 @@ func (api *API) searchCertificates(c *gin.Context) {
 		var (
 			fingerprint, fingerprintSHA1, fingerprintMD5 sql.NullString
 			subjectCN, subjectOrg, subjectCountry        sql.NullString
-			issuerCN, issuerOrg, names                    sql.NullString
-			serialNumber, pubKeyAlgo, sigAlgo             sql.NullString
-			notBefore, notAfter                           sql.NullInt64
-			firstSeen, lastSeen                           sql.NullInt64
-			pubKeyBits                                    sql.NullInt64
-			isSelfSigned, isCA, hostCount                 int
+			issuerCN, issuerOrg, names                   sql.NullString
+			serialNumber, pubKeyAlgo, sigAlgo            sql.NullString
+			notBefore, notAfter                          sql.NullInt64
+			firstSeen, lastSeen                          sql.NullInt64
+			pubKeyBits                                   sql.NullInt64
+			isSelfSigned, isCA, hostCount                int
 		)
 
 		err := rows.Scan(
@@ -310,7 +310,7 @@ func (api *API) getCertificateHosts(c *gin.Context) {
 	// First, get the certificate details including PEM
 	var parsedCert, names string
 	certQuery := `SELECT parsed_cert, names FROM certificates WHERE fingerprint_sha256 = ?`
-	err := api.db.QueryRow(certQuery, fingerprint).Scan(&parsedCert, &names)
+	err := api.db.QueryRowLogged(certQuery, fingerprint).Scan(&parsedCert, &names)
 	if err != nil && err != sql.ErrNoRows {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return

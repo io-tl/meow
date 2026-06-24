@@ -79,8 +79,8 @@ func (api *API) buildExportFilters(c *gin.Context) (hostWhere string, hostArgs [
 	}
 
 	if country != "" {
-		hostWhere += " AND UPPER(h.country_code) = UPPER(?)"
-		hostArgs = append(hostArgs, country)
+		hostWhere += " AND h.country_code = ?"
+		hostArgs = append(hostArgs, normalizeCountryCode(country))
 	}
 
 	if cloud != "" {
@@ -482,12 +482,12 @@ func (api *API) getDebugStats(c *gin.Context) {
 	// NATS stats
 	if api.nc != nil {
 		natsStats := gin.H{
-			"connected":     api.nc.IsConnected(),
-			"url":           api.nc.ConnectedUrl(),
-			"servers":       api.nc.Servers(),
-			"discovered":    api.nc.DiscoveredServers(),
-			"max_payload":   api.nc.MaxPayload(),
-			"status":        api.nc.Status().String(),
+			"connected":   api.nc.IsConnected(),
+			"url":         api.nc.ConnectedUrl(),
+			"servers":     api.nc.Servers(),
+			"discovered":  api.nc.DiscoveredServers(),
+			"max_payload": api.nc.MaxPayload(),
+			"status":      api.nc.Status().String(),
 		}
 
 		// Get connection stats
@@ -508,16 +508,16 @@ func (api *API) getDebugStats(c *gin.Context) {
 				clients := []gin.H{}
 				for _, conn := range connz.Conns {
 					client := gin.H{
-						"cid":          conn.Cid,
-						"name":         conn.Name,
-						"ip":           conn.IP,
-						"port":         conn.Port,
-						"uptime":       conn.Uptime,
-						"in_msgs":      conn.InMsgs,
-						"out_msgs":     conn.OutMsgs,
-						"in_bytes":     conn.InBytes,
-						"out_bytes":    conn.OutBytes,
-						"pending":      conn.Pending,
+						"cid":           conn.Cid,
+						"name":          conn.Name,
+						"ip":            conn.IP,
+						"port":          conn.Port,
+						"uptime":        conn.Uptime,
+						"in_msgs":       conn.InMsgs,
+						"out_msgs":      conn.OutMsgs,
+						"in_bytes":      conn.InBytes,
+						"out_bytes":     conn.OutBytes,
+						"pending":       conn.Pending,
 						"subscriptions": conn.NumSubs,
 					}
 
@@ -615,8 +615,8 @@ func (api *API) buildGeoMapFilters(c *gin.Context) (string, []any) {
 
 	// Traditional filters
 	if country != "" {
-		where += " AND UPPER(h.country_code) = UPPER(?)"
-		args = append(args, country)
+		where += " AND h.country_code = ?"
+		args = append(args, normalizeCountryCode(country))
 	}
 
 	if port != "" {
@@ -717,7 +717,7 @@ func (api *API) getGeoMap(c *gin.Context) {
 
 	// Get true global unique ASN count
 	countASNSQL := fmt.Sprintf(`SELECT COUNT(DISTINCT h.asn) FROM hosts h WHERE %s AND h.asn IS NOT NULL`, where)
-	if err := api.db.QueryRow(countASNSQL, args...).Scan(&totalASNs); err != nil {
+	if err := api.db.QueryRowLogged(countASNSQL, args...).Scan(&totalASNs); err != nil {
 		// Fallback: sum per-country unique_asns
 		for _, c := range countries {
 			totalASNs += c["unique_asns"].(int)
@@ -832,7 +832,7 @@ func (api *API) getGeoMapCountryDetails(c *gin.Context) {
 	where, args := api.buildGeoMapFilters(c)
 
 	// Force country filter
-	where += " AND UPPER(h.country_code) = UPPER(?)"
+	where += " AND h.country_code = ?"
 	args = append(args, code)
 
 	// 1. Summary stats
@@ -848,7 +848,7 @@ func (api *API) getGeoMapCountryDetails(c *gin.Context) {
 	summaryArgs := append([]any{code}, args...)
 	var name string
 	var hostCount, totalPorts, uniqueASNs, cloudCount int
-	if err := api.db.QueryRow(summarySQL, summaryArgs...).Scan(&name, &hostCount, &totalPorts, &uniqueASNs, &cloudCount); err != nil {
+	if err := api.db.QueryRowLogged(summarySQL, summaryArgs...).Scan(&name, &hostCount, &totalPorts, &uniqueASNs, &cloudCount); err != nil {
 		log.Error().Err(err).Str("country", code).Msg("country details summary failed")
 		c.JSON(500, gin.H{"error": "query failed"})
 		return
@@ -997,4 +997,3 @@ func (api *API) queryASNPairs(query string, args []any) []gin.H {
 	}
 	return results
 }
-

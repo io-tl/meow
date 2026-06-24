@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"meow/datastore"
@@ -12,6 +17,16 @@ import (
 // DB represents the database connection
 type DB struct {
 	*sql.DB
+	verbose bool
+}
+
+type LoggedRow struct {
+	row   *sql.Row
+	db    *DB
+	label string
+	query string
+	args  []any
+	start time.Time
 }
 
 // initDB initializes the SQLite database
@@ -23,7 +38,7 @@ func initDB(cfg *Config) (*DB, error) {
 
 	// Set connection pool limits for SQLite
 	// SQLite works best with limited concurrent writes
-	db.SetMaxOpenConns(1)  // Only one write at a time
+	db.SetMaxOpenConns(1) // Only one write at a time
 	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(0)
 
@@ -51,7 +66,156 @@ func initDB(cfg *Config) (*DB, error) {
 		log.Warn().Err(err).Msg("PRAGMA mmap_size failed (non-fatal)")
 	}
 
-	return &DB{db}, nil
+	return &DB{DB: db, verbose: cfg.Verbose}, nil
+}
+
+func (db *DB) Query(query string, args ...any) (*sql.Rows, error) {
+	return db.QueryContext(context.Background(), query, args...)
+}
+
+func (db *DB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	label := db.sqlCallerLabel()
+	db.traceExplain(ctx, label, query, args)
+
+	start := time.Now()
+	rows, err := db.DB.QueryContext(ctx, query, args...)
+	db.logSQLResult("query", label, query, args, start, err)
+	return rows, err
+}
+
+func (db *DB) QueryRow(query string, args ...any) *sql.Row {
+	return db.QueryRowContext(context.Background(), query, args...)
+}
+
+func (db *DB) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	label := db.sqlCallerLabel()
+	db.traceExplain(ctx, label, query, args)
+
+	return db.DB.QueryRowContext(ctx, query, args...)
+}
+
+func (db *DB) QueryRowLogged(query string, args ...any) *LoggedRow {
+	return db.QueryRowContextLogged(context.Background(), query, args...)
+}
+
+func (db *DB) QueryRowContextLogged(ctx context.Context, query string, args ...any) *LoggedRow {
+	label := db.sqlCallerLabel()
+	db.traceExplain(ctx, label, query, args)
+	return &LoggedRow{
+		row:   db.DB.QueryRowContext(ctx, query, args...),
+		db:    db,
+		label: label,
+		query: query,
+		args:  args,
+		start: time.Now(),
+	}
+}
+
+func (db *DB) Exec(query string, args ...any) (sql.Result, error) {
+	return db.ExecContext(context.Background(), query, args...)
+}
+
+func (db *DB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	label := db.sqlCallerLabel()
+	db.traceExplain(ctx, label, query, args)
+
+	start := time.Now()
+	result, err := db.DB.ExecContext(ctx, query, args...)
+	db.logSQLResult("exec", label, query, args, start, err)
+	return result, err
+}
+
+func (db *DB) traceExplain(ctx context.Context, label, query string, args []any) {
+	if !db.verbose {
+		return
+	}
+
+	rows, err := db.DB.QueryContext(ctx, "EXPLAIN QUERY PLAN "+query, args...)
+	if err != nil {
+		log.Debug().
+			Err(err).
+			Str("label", label).
+			Str("sql", query).
+			Interface("args", args).
+			Msg("EXPLAIN QUERY PLAN failed")
+		return
+	}
+	defer rows.Close()
+
+	var lines []string
+	for rows.Next() {
+		var id, parent, notused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
+			continue
+		}
+		prefix := ""
+		if parent != 0 {
+			prefix = "   "
+		}
+		lines = append(lines, fmt.Sprintf("%s|--%-3d %s", prefix, id, detail))
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Debug().
+			Err(err).
+			Str("label", label).
+			Str("sql", query).
+			Interface("args", args).
+			Msg("EXPLAIN QUERY PLAN rows failed")
+		return
+	}
+
+	log.Debug().
+		Str("label", label).
+		Str("sql", query).
+		Interface("args", args).
+		Str("plan", strings.Join(lines, "\n")).
+		Msg("EXPLAIN QUERY PLAN")
+}
+
+func (db *DB) logSQLResult(kind, label, query string, args []any, start time.Time, err error) {
+	evt := log.Debug().
+		Str("kind", kind).
+		Str("label", label).
+		Str("sql", query).
+		Interface("args", args).
+		Dur("took", time.Since(start))
+
+	if err != nil {
+		evt.Err(err).Msg("SQL failed")
+		return
+	}
+
+	evt.Msg("SQL done")
+}
+
+func (db *DB) sqlCallerLabel() string {
+	for skip := 2; skip < 12; skip++ {
+		pc, file, line, ok := runtime.Caller(skip)
+		if !ok {
+			break
+		}
+		if strings.Contains(file, "/datastore/cmd/datastore/db.go") {
+			continue
+		}
+		fn := runtime.FuncForPC(pc)
+		name := ""
+		if fn != nil {
+			name = fn.Name()
+			if idx := strings.LastIndex(name, "."); idx != -1 {
+				name = name[idx+1:]
+			}
+		}
+		return fmt.Sprintf("%s:%d %s", filepath.Base(file), line, name)
+	}
+	return "unknown"
+}
+
+func (r *LoggedRow) Scan(dest ...any) error {
+	err := r.row.Scan(dest...)
+	r.db.logSQLResult("query_row", r.label, r.query, r.args, r.start, err)
+	return err
 }
 
 // runMigrations runs database migrations from embedded schema.sql
