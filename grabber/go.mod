@@ -6,6 +6,7 @@ require (
 	github.com/bits-and-blooms/bloom/v3 v3.7.1
 	github.com/jfjallid/go-smb v0.6.7
 	github.com/miekg/dns v1.1.57
+	github.com/nakagami/grdp v0.6.7
 	github.com/nats-io/nats-server/v2 v2.10.7
 	github.com/nats-io/nats.go v1.48.0
 	github.com/projectdiscovery/wappalyzergo v0.2.57
@@ -26,6 +27,7 @@ require (
 	github.com/jfjallid/ndr v0.0.1 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
+	github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect

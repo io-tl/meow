@@ -3,11 +3,13 @@ package modules
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -31,6 +33,19 @@ type VNCResult struct {
 	Screenshot       string   `json:"screenshot,omitempty"` // Base64 PNG
 	ScreenshotFormat string   `json:"screenshot_format,omitempty"`
 	Error            string   `json:"error,omitempty"`
+}
+
+type vncPixelFormat struct {
+	BitsPerPixel uint8
+	Depth        uint8
+	BigEndian    bool
+	TrueColor    bool
+	RedMax       uint16
+	GreenMax     uint16
+	BlueMax      uint16
+	RedShift     uint8
+	GreenShift   uint8
+	BlueShift    uint8
 }
 
 func init() {
@@ -59,12 +74,14 @@ func (m *VNCModule) Scan(ip string, port int) (interface{}, error) {
 	result.Version = strings.TrimSpace(version)
 
 	// Send client version
-	conn.Write([]byte(version))
+	if _, err := conn.Write([]byte(version)); err != nil {
+		result.Error = err.Error()
+		return result, err
+	}
 
 	// Read security types
 	secByte := make([]byte, 1)
-	_, err = reader.Read(secByte)
-	if err != nil {
+	if _, err := io.ReadFull(reader, secByte); err != nil {
 		result.Error = err.Error()
 		return result, err
 	}
@@ -74,8 +91,7 @@ func (m *VNCModule) Scan(ip string, port int) (interface{}, error) {
 
 	if numSec > 0 && numSec < 20 {
 		secTypes := make([]byte, numSec)
-		n, err := reader.Read(secTypes)
-		if err != nil || n != numSec {
+		if _, err := io.ReadFull(reader, secTypes); err != nil {
 			result.Error = "failed to read security types"
 			return result, nil
 		}
@@ -135,33 +151,38 @@ func getSecurityTypeName(secType byte) string {
 // captureVNCScreenshot attempts to capture a screenshot from an unauthenticated VNC server
 func captureVNCScreenshot(conn net.Conn, reader *bufio.Reader, result *VNCResult) {
 	// Select security type 1 (None)
-	conn.Write([]byte{1})
+	if _, err := conn.Write([]byte{1}); err != nil {
+		return
+	}
 
 	// Read security result (RFB 3.8+)
 	secResult := make([]byte, 4)
-	n, err := reader.Read(secResult)
-	if err != nil || (n == 4 && binary.BigEndian.Uint32(secResult) != 0) {
+	if _, err := io.ReadFull(reader, secResult); err != nil || binary.BigEndian.Uint32(secResult) != 0 {
 		return
 	}
 
 	// Send ClientInit (shared flag = 1)
-	conn.Write([]byte{1})
+	if _, err := conn.Write([]byte{1}); err != nil {
+		return
+	}
 
 	// Read ServerInit
 	serverInit := make([]byte, 24)
-	n, err = reader.Read(serverInit)
-	if err != nil || n < 24 {
+	if _, err := io.ReadFull(reader, serverInit); err != nil {
 		return
 	}
 
 	result.Width = binary.BigEndian.Uint16(serverInit[0:2])
 	result.Height = binary.BigEndian.Uint16(serverInit[2:4])
+	pixelFormat := parseVNCPixelFormat(serverInit[4:20])
 
 	// Read desktop name
 	nameLength := binary.BigEndian.Uint32(serverInit[20:24])
 	if nameLength > 0 && nameLength < 256 {
 		nameBytes := make([]byte, nameLength)
-		reader.Read(nameBytes)
+		if _, err := io.ReadFull(reader, nameBytes); err != nil {
+			return
+		}
 		result.DesktopName = string(nameBytes)
 	}
 
@@ -177,19 +198,20 @@ func captureVNCScreenshot(conn net.Conn, reader *bufio.Reader, result *VNCResult
 
 	// FramebufferUpdateRequest: incremental=0, x=0, y=0, w=width, h=height
 	fbUpdateReq := make([]byte, 10)
-	fbUpdateReq[0] = 3 // Message type: FramebufferUpdateRequest
-	fbUpdateReq[1] = 0 // Incremental: false
-	binary.BigEndian.PutUint16(fbUpdateReq[2:4], 0)      // X position
-	binary.BigEndian.PutUint16(fbUpdateReq[4:6], 0)      // Y position
-	binary.BigEndian.PutUint16(fbUpdateReq[6:8], width)  // Width
+	fbUpdateReq[0] = 3                                    // Message type: FramebufferUpdateRequest
+	fbUpdateReq[1] = 0                                    // Incremental: false
+	binary.BigEndian.PutUint16(fbUpdateReq[2:4], 0)       // X position
+	binary.BigEndian.PutUint16(fbUpdateReq[4:6], 0)       // Y position
+	binary.BigEndian.PutUint16(fbUpdateReq[6:8], width)   // Width
 	binary.BigEndian.PutUint16(fbUpdateReq[8:10], height) // Height
 
-	conn.Write(fbUpdateReq)
+	if _, err := conn.Write(fbUpdateReq); err != nil {
+		return
+	}
 
 	// Read FramebufferUpdate header
 	fbHeader := make([]byte, 4)
-	n, err = reader.Read(fbHeader)
-	if err != nil || n < 4 || fbHeader[0] != 0 {
+	if _, err := io.ReadFull(reader, fbHeader); err != nil || fbHeader[0] != 0 {
 		return
 	}
 
@@ -203,11 +225,12 @@ func captureVNCScreenshot(conn net.Conn, reader *bufio.Reader, result *VNCResult
 
 	for i := uint16(0); i < numRects && i < 10; i++ {
 		rectHeader := make([]byte, 12)
-		n, err = reader.Read(rectHeader)
-		if err != nil || n < 12 {
+		if _, err := io.ReadFull(reader, rectHeader); err != nil {
 			break
 		}
 
+		rectX := binary.BigEndian.Uint16(rectHeader[0:2])
+		rectY := binary.BigEndian.Uint16(rectHeader[2:4])
 		encoding := binary.BigEndian.Uint32(rectHeader[8:12])
 
 		// Only handle Raw encoding (0) for simplicity
@@ -225,66 +248,97 @@ func captureVNCScreenshot(conn net.Conn, reader *bufio.Reader, result *VNCResult
 		}
 
 		pixelData := make([]byte, pixelDataSize)
-		_, err = reader.Read(pixelData)
-		if err != nil {
+		if _, err := io.ReadFull(reader, pixelData); err != nil {
 			break
 		}
 
-		// Simple conversion to image (this is simplified)
-		if i == 0 {
-			for y := 0; y < int(rectHeight) && y < int(height); y++ {
-				for x := 0; x < int(rectWidth) && x < int(width); x++ {
-					idx := (y*int(rectWidth) + x) * 4
-					if idx+2 < len(pixelData) {
-						img.Set(x, y, color.RGBA{
-							R: pixelData[idx+2],
-							G: pixelData[idx+1],
-							B: pixelData[idx],
-							A: 255,
-						})
-					}
+		bytesPerPixel := int(pixelFormat.BitsPerPixel) / 8
+		if bytesPerPixel == 0 {
+			break
+		}
+
+		for y := 0; y < int(rectHeight) && int(rectY)+y < int(height); y++ {
+			for x := 0; x < int(rectWidth) && int(rectX)+x < int(width); x++ {
+				idx := (y*int(rectWidth) + x) * bytesPerPixel
+				if idx+bytesPerPixel > len(pixelData) {
+					break
 				}
+				img.Set(int(rectX)+x, int(rectY)+y, decodeVNCPixel(pixelData[idx:idx+bytesPerPixel], pixelFormat))
 			}
 		}
 	}
 
 	// Encode to PNG
 	var buf bytes.Buffer
-	err = png.Encode(&buf, img)
+	err := png.Encode(&buf, img)
 	if err == nil && buf.Len() > 0 {
 		result.Screenshot = fmt.Sprintf("data:image/png;base64,%s",
-			bytesToBase64(buf.Bytes()))
+			base64.StdEncoding.EncodeToString(buf.Bytes()))
 		result.ScreenshotFormat = "png"
 	}
 }
 
-// bytesToBase64 converts bytes to base64 string
-func bytesToBase64(data []byte) string {
-	const base64Table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-	var result strings.Builder
+func parseVNCPixelFormat(data []byte) vncPixelFormat {
+	if len(data) < 16 {
+		return vncPixelFormat{BitsPerPixel: 32, Depth: 24, TrueColor: true, RedMax: 255, GreenMax: 255, BlueMax: 255, RedShift: 16, GreenShift: 8, BlueShift: 0}
+	}
 
-	for i := 0; i < len(data); i += 3 {
-		b := (uint32(data[i]) << 16)
-		if i+1 < len(data) {
-			b |= uint32(data[i+1]) << 8
-		}
-		if i+2 < len(data) {
-			b |= uint32(data[i+2])
-		}
+	return vncPixelFormat{
+		BitsPerPixel: data[0],
+		Depth:        data[1],
+		BigEndian:    data[2] != 0,
+		TrueColor:    data[3] != 0,
+		RedMax:       binary.BigEndian.Uint16(data[4:6]),
+		GreenMax:     binary.BigEndian.Uint16(data[6:8]),
+		BlueMax:      binary.BigEndian.Uint16(data[8:10]),
+		RedShift:     data[10],
+		GreenShift:   data[11],
+		BlueShift:    data[12],
+	}
+}
 
-		result.WriteByte(base64Table[(b>>18)&0x3F])
-		result.WriteByte(base64Table[(b>>12)&0x3F])
-		if i+1 < len(data) {
-			result.WriteByte(base64Table[(b>>6)&0x3F])
+func decodeVNCPixel(data []byte, format vncPixelFormat) color.RGBA {
+	if !format.TrueColor || len(data) == 0 {
+		return color.RGBA{A: 255}
+	}
+
+	var raw uint32
+	switch len(data) {
+	case 1:
+		raw = uint32(data[0])
+	case 2:
+		if format.BigEndian {
+			raw = uint32(binary.BigEndian.Uint16(data))
 		} else {
-			result.WriteByte('=')
+			raw = uint32(binary.LittleEndian.Uint16(data))
 		}
-		if i+2 < len(data) {
-			result.WriteByte(base64Table[b&0x3F])
+	case 4:
+		if format.BigEndian {
+			raw = binary.BigEndian.Uint32(data)
 		} else {
-			result.WriteByte('=')
+			raw = binary.LittleEndian.Uint32(data)
+		}
+	default:
+		for i := 0; i < len(data); i++ {
+			if format.BigEndian {
+				raw = (raw << 8) | uint32(data[i])
+			} else {
+				raw |= uint32(data[i]) << (8 * i)
+			}
 		}
 	}
 
-	return result.String()
+	return color.RGBA{
+		R: scaleVNCColor((raw>>format.RedShift)&uint32(format.RedMax), format.RedMax),
+		G: scaleVNCColor((raw>>format.GreenShift)&uint32(format.GreenMax), format.GreenMax),
+		B: scaleVNCColor((raw>>format.BlueShift)&uint32(format.BlueMax), format.BlueMax),
+		A: 255,
+	}
+}
+
+func scaleVNCColor(value uint32, max uint16) uint8 {
+	if max == 0 {
+		return 0
+	}
+	return uint8((value * 255) / uint32(max))
 }

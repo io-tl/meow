@@ -3,12 +3,19 @@ package modules
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"image"
+	"image/draw"
+	"image/png"
 	"net"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
+
+	grdp "github.com/nakagami/grdp"
 
 	"meow/grabber/pkg/enrichment/modules/helpers"
 )
@@ -25,6 +32,8 @@ type RDPResult struct {
 	NetBIOSComputerName string   `json:"netbios_computer_name,omitempty"`
 	DNSComputerName     string   `json:"dns_computer_name,omitempty"`
 	CertificateCN       string   `json:"certificate_cn,omitempty"`
+	Screenshot          string   `json:"screenshot,omitempty"`
+	ScreenshotFormat    string   `json:"screenshot_format,omitempty"`
 	TLS                 *TLSInfo `json:"tls,omitempty"`
 	Error               string   `json:"error,omitempty"`
 }
@@ -48,30 +57,37 @@ func (m *RDPModule) Scan(ip string, port int) (interface{}, error) {
 func scanRDP(ip string, port int, timeout time.Duration) (*RDPResult, error) {
 	// Try TLS handshake first to capture certificates and NetBIOS from certificate
 	tlsResult, tlsErr := scanRDPWithTLS(ip, port, timeout)
-	if tlsErr == nil && (tlsResult.CertificateCN != "" || tlsResult.NetBIOSComputerName != "") {
-		return tlsResult, nil
-	}
 
 	// If TLS failed, try NTLM authentication to get NetBIOS names
 	ntlmResult, ntlmErr := scanRDPWithNTLM(ip, port, timeout)
-	if ntlmErr == nil && ntlmResult.NetBIOSComputerName != "" {
-		return ntlmResult, nil
-	}
 
 	// Fallback to basic RDP detection
 	basicResult, basicErr := scanRDPBasic(ip, port, timeout)
-	if basicErr == nil {
-		return basicResult, nil
+
+	result, err := basicResult, basicErr
+	switch {
+	case tlsErr == nil:
+		result, err = tlsResult, nil
+		if result.NetBIOSComputerName == "" && ntlmErr == nil {
+			result.NetBIOSComputerName = ntlmResult.NetBIOSComputerName
+			result.DNSComputerName = ntlmResult.DNSComputerName
+		}
+	case ntlmErr == nil && ntlmResult.NetBIOSComputerName != "":
+		result, err = ntlmResult, nil
+	case basicErr == nil:
+		result, err = basicResult, nil
 	}
 
-	// Return most successful result
-	if tlsErr == nil {
-		return tlsResult, nil
+	if result == nil {
+		result = &RDPResult{Protocol: "rdp"}
 	}
-	if ntlmErr == nil {
-		return ntlmResult, nil
+
+	if screenshot, screenshotErr := captureRDPScreenshot(ip, port, timeout); screenshotErr == nil && screenshot != "" {
+		result.Screenshot = screenshot
+		result.ScreenshotFormat = "png"
 	}
-	return basicResult, basicErr
+
+	return result, err
 }
 
 // scanRDPWithTLS performs TLS handshake to capture RDP certificates and extract NetBIOS from certificate
@@ -499,6 +515,140 @@ func base64Encode(data []byte) string {
 	}
 
 	return result.String()
+}
+
+func captureRDPScreenshot(ip string, port int, timeout time.Duration) (string, error) {
+	captureTimeout := min(timeout, 5*time.Second)
+	collector := newRDPScreenshotCollector(1024, 768)
+	bitmapCh := make(chan []grdp.Bitmap, 8)
+	errCh := make(chan error, 2)
+	closeCh := make(chan struct{}, 1)
+
+	client := grdp.NewRdpClient(fmt.Sprintf("%s:%d", ip, port), 1024, 768)
+	if err := client.Login("", "", ""); err != nil {
+		client.Close()
+		return "", err
+	}
+	defer client.Close()
+
+	client.OnBitmap(func(bitmaps []grdp.Bitmap) {
+		select {
+		case bitmapCh <- bitmaps:
+		default:
+		}
+	}).OnError(func(e error) {
+		select {
+		case errCh <- e:
+		default:
+		}
+	}).OnClose(func() {
+		select {
+		case closeCh <- struct{}{}:
+		default:
+		}
+	})
+
+	waitTimer := time.NewTimer(captureTimeout)
+	defer waitTimer.Stop()
+
+	idleDelay := min(750*time.Millisecond, captureTimeout)
+	idleTimer := time.NewTimer(idleDelay)
+	if !idleTimer.Stop() {
+		<-idleTimer.C
+	}
+
+	gotBitmap := false
+	for {
+		select {
+		case bitmaps := <-bitmapCh:
+			collector.Paint(bitmaps)
+			if collector.HasPixels() {
+				gotBitmap = true
+				if !idleTimer.Stop() {
+					select {
+					case <-idleTimer.C:
+					default:
+					}
+				}
+				idleTimer.Reset(idleDelay)
+			}
+		case <-idleTimer.C:
+			if gotBitmap {
+				return collector.PNGDataURL()
+			}
+		case err := <-errCh:
+			if gotBitmap {
+				return collector.PNGDataURL()
+			}
+			return "", err
+		case <-closeCh:
+			if gotBitmap {
+				return collector.PNGDataURL()
+			}
+			return "", fmt.Errorf("rdp session closed before any bitmap")
+		case <-waitTimer.C:
+			if gotBitmap {
+				return collector.PNGDataURL()
+			}
+			return "", fmt.Errorf("rdp screenshot timeout")
+		}
+	}
+}
+
+type rdpScreenshotCollector struct {
+	mu      sync.Mutex
+	img     *image.RGBA
+	painted bool
+}
+
+func newRDPScreenshotCollector(width, height int) *rdpScreenshotCollector {
+	return &rdpScreenshotCollector{
+		img: image.NewRGBA(image.Rect(0, 0, width, height)),
+	}
+}
+
+func (c *rdpScreenshotCollector) HasPixels() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.painted
+}
+
+func (c *rdpScreenshotCollector) Paint(bitmaps []grdp.Bitmap) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, bitmap := range bitmaps {
+		if bitmap.Width == 0 || bitmap.Height == 0 {
+			continue
+		}
+
+		rgba := bitmap.RGBA()
+
+		dest := image.Rect(
+			bitmap.DestLeft,
+			bitmap.DestTop,
+			bitmap.DestLeft+bitmap.Width,
+			bitmap.DestTop+bitmap.Height,
+		)
+		draw.Draw(c.img, dest, rgba, image.Point{}, draw.Src)
+		c.painted = true
+	}
+}
+
+func (c *rdpScreenshotCollector) PNGDataURL() (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if !c.painted {
+		return "", fmt.Errorf("no bitmap captured")
+	}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, c.img); err != nil {
+		return "", err
+	}
+
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
 // buildRDPConnectionRequest builds an X.224 Connection Request with RDP negotiation
