@@ -472,4 +472,3 @@ func (s *Scanner) Progress() (done, total int) {
 func (s *Scanner) TransportMethod() string {
 	return s.transport.Method().String()
 }
-

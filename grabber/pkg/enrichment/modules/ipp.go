@@ -20,11 +20,11 @@ type IPPSModule struct {
 
 // IPPResult represents the enriched IPP data
 type IPPResult struct {
-	Protocol       string            `json:"protocol"` // ipp or ipps
-	Version        string            `json:"version,omitempty"`
-	PrinterInfo    map[string]string `json:"printer_info,omitempty"`
-	TLS            *TLSInfo          `json:"tls,omitempty"` // For IPPS
-	Error          string            `json:"error,omitempty"`
+	Protocol    string            `json:"protocol"` // ipp or ipps
+	Version     string            `json:"version,omitempty"`
+	PrinterInfo map[string]string `json:"printer_info,omitempty"`
+	TLS         *TLSInfo          `json:"tls,omitempty"` // For IPPS
+	Error       string            `json:"error,omitempty"`
 }
 
 func init() {

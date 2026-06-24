@@ -14,17 +14,17 @@ type AMQPModule struct {
 }
 
 type AMQPResult struct {
-	Protocol     string                 `json:"protocol"`
-	Version      string                 `json:"version,omitempty"`
-	Product      string                 `json:"product,omitempty"`
-	Capabilities map[string]string      `json:"capabilities,omitempty"`
-	ClusterName  string                 `json:"cluster_name,omitempty"`
-	Copyright    string                 `json:"copyright,omitempty"`
-	Information  string                 `json:"information,omitempty"`
-	Platform     string                 `json:"platform,omitempty"`
-	Mechanisms   string                 `json:"mechanisms,omitempty"`
-	Locales      string                 `json:"locales,omitempty"`
-	Error        string                 `json:"error,omitempty"`
+	Protocol     string            `json:"protocol"`
+	Version      string            `json:"version,omitempty"`
+	Product      string            `json:"product,omitempty"`
+	Capabilities map[string]string `json:"capabilities,omitempty"`
+	ClusterName  string            `json:"cluster_name,omitempty"`
+	Copyright    string            `json:"copyright,omitempty"`
+	Information  string            `json:"information,omitempty"`
+	Platform     string            `json:"platform,omitempty"`
+	Mechanisms   string            `json:"mechanisms,omitempty"`
+	Locales      string            `json:"locales,omitempty"`
+	Error        string            `json:"error,omitempty"`
 }
 
 func init() {

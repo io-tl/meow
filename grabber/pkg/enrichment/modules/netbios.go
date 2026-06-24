@@ -17,22 +17,22 @@ type NetBIOSModule struct {
 
 // NetBIOSResult represents the enriched NetBIOS data
 type NetBIOSResult struct {
-	Protocol       string        `json:"protocol"`
-	NetBIOSName    string        `json:"netbios_name,omitempty"`     // Computer name
-	NetBIOSUser    string        `json:"netbios_user,omitempty"`     // Logged in user
-	NetBIOSDomain  string        `json:"netbios_domain,omitempty"`   // Domain/Workgroup
-	MACAddress     string        `json:"mac_address,omitempty"`
-	MACVendor      string        `json:"mac_vendor,omitempty"`
-	Names          []NetBIOSName `json:"names,omitempty"`
-	Error          string        `json:"error,omitempty"`
+	Protocol      string        `json:"protocol"`
+	NetBIOSName   string        `json:"netbios_name,omitempty"`   // Computer name
+	NetBIOSUser   string        `json:"netbios_user,omitempty"`   // Logged in user
+	NetBIOSDomain string        `json:"netbios_domain,omitempty"` // Domain/Workgroup
+	MACAddress    string        `json:"mac_address,omitempty"`
+	MACVendor     string        `json:"mac_vendor,omitempty"`
+	Names         []NetBIOSName `json:"names,omitempty"`
+	Error         string        `json:"error,omitempty"`
 }
 
 // NetBIOSName represents a NetBIOS name entry
 type NetBIOSName struct {
-	Name     string   `json:"name"`
-	Suffix   string   `json:"suffix"`           // Hex suffix like <00>, <20>, etc.
-	Service  string   `json:"service"`          // Human-readable service type
-	Flags    []string `json:"flags,omitempty"`  // group/unique, active/deregistering
+	Name    string   `json:"name"`
+	Suffix  string   `json:"suffix"`          // Hex suffix like <00>, <20>, etc.
+	Service string   `json:"service"`         // Human-readable service type
+	Flags   []string `json:"flags,omitempty"` // group/unique, active/deregistering
 }
 
 // NetBIOSNSModule implements the NetBIOS Name Service (UDP) module

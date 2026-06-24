@@ -11,11 +11,11 @@ import (
 
 // POP3Result represents the enriched POP3 data
 type POP3Result struct {
-	Protocol     string            `json:"protocol"` // pop3 or pop3s
-	Banner       string            `json:"banner"`
-	Capabilities []string          `json:"capabilities,omitempty"`
-	TLS          *TLSInfo          `json:"tls,omitempty"` // For POP3S
-	Error        string            `json:"error,omitempty"`
+	Protocol     string   `json:"protocol"` // pop3 or pop3s
+	Banner       string   `json:"banner"`
+	Capabilities []string `json:"capabilities,omitempty"`
+	TLS          *TLSInfo `json:"tls,omitempty"` // For POP3S
+	Error        string   `json:"error,omitempty"`
 }
 
 func init() {

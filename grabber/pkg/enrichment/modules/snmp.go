@@ -17,29 +17,29 @@ type SNMPModule struct {
 
 // SNMPResult represents the enriched SNMP data
 type SNMPResult struct {
-	Protocol      string            `json:"protocol"`
-	Version       string            `json:"version,omitempty"`       // v1, v2c, v3
-	Community     string            `json:"community,omitempty"`     // Community string (if public works)
-	SysDescr      string            `json:"sys_descr,omitempty"`     // System description (1.3.6.1.2.1.1.1.0)
-	SysObjectID   string            `json:"sys_object_id,omitempty"` // System OID (1.3.6.1.2.1.1.2.0)
-	SysUpTime     string            `json:"sys_uptime,omitempty"`    // System uptime (1.3.6.1.2.1.1.3.0)
-	SysContact    string            `json:"sys_contact,omitempty"`   // System contact (1.3.6.1.2.1.1.4.0)
-	SysName       string            `json:"sys_name,omitempty"`      // System name (1.3.6.1.2.1.1.5.0)
-	SysLocation   string            `json:"sys_location,omitempty"`  // System location (1.3.6.1.2.1.1.6.0)
-	SysServices   string            `json:"sys_services,omitempty"`  // System services (1.3.6.1.2.1.1.7.0)
-	Hostname      string            `json:"hostname,omitempty"`      // Hostname
-	Domain        string            `json:"domain,omitempty"`        // Domain name
-	Interfaces    []SNMPInterface   `json:"interfaces,omitempty"`    // Network interfaces
-	IfNumber      int               `json:"if_number,omitempty"`     // Number of interfaces (1.3.6.1.2.1.2.1.0)
-	HrSystemUptime string           `json:"hr_system_uptime,omitempty"` // Host Resources uptime (1.3.6.1.2.1.25.1.1.0)
-	HrSystemDate  string            `json:"hr_system_date,omitempty"`   // Host Resources system date (1.3.6.1.2.1.25.1.2.0)
-	HrSystemUsers int               `json:"hr_system_users,omitempty"`  // Number of logged users (1.3.6.1.2.1.25.1.5.0)
-	HrSystemProcs int               `json:"hr_system_procs,omitempty"`  // Number of processes (1.3.6.1.2.1.25.1.6.0)
-	HrMemorySize  int               `json:"hr_memory_size,omitempty"`   // Memory size in KB (1.3.6.1.2.1.25.2.2.0)
-	WindowsDomain string            `json:"windows_domain,omitempty"`   // Windows domain (1.3.6.1.4.1.77.1.4.1.0)
-	WindowsUsers  []string          `json:"windows_users,omitempty"`    // Windows users
-	Communities   []string          `json:"communities_found,omitempty"` // All valid communities found
-	Error         string            `json:"error,omitempty"`
+	Protocol       string          `json:"protocol"`
+	Version        string          `json:"version,omitempty"`           // v1, v2c, v3
+	Community      string          `json:"community,omitempty"`         // Community string (if public works)
+	SysDescr       string          `json:"sys_descr,omitempty"`         // System description (1.3.6.1.2.1.1.1.0)
+	SysObjectID    string          `json:"sys_object_id,omitempty"`     // System OID (1.3.6.1.2.1.1.2.0)
+	SysUpTime      string          `json:"sys_uptime,omitempty"`        // System uptime (1.3.6.1.2.1.1.3.0)
+	SysContact     string          `json:"sys_contact,omitempty"`       // System contact (1.3.6.1.2.1.1.4.0)
+	SysName        string          `json:"sys_name,omitempty"`          // System name (1.3.6.1.2.1.1.5.0)
+	SysLocation    string          `json:"sys_location,omitempty"`      // System location (1.3.6.1.2.1.1.6.0)
+	SysServices    string          `json:"sys_services,omitempty"`      // System services (1.3.6.1.2.1.1.7.0)
+	Hostname       string          `json:"hostname,omitempty"`          // Hostname
+	Domain         string          `json:"domain,omitempty"`            // Domain name
+	Interfaces     []SNMPInterface `json:"interfaces,omitempty"`        // Network interfaces
+	IfNumber       int             `json:"if_number,omitempty"`         // Number of interfaces (1.3.6.1.2.1.2.1.0)
+	HrSystemUptime string          `json:"hr_system_uptime,omitempty"`  // Host Resources uptime (1.3.6.1.2.1.25.1.1.0)
+	HrSystemDate   string          `json:"hr_system_date,omitempty"`    // Host Resources system date (1.3.6.1.2.1.25.1.2.0)
+	HrSystemUsers  int             `json:"hr_system_users,omitempty"`   // Number of logged users (1.3.6.1.2.1.25.1.5.0)
+	HrSystemProcs  int             `json:"hr_system_procs,omitempty"`   // Number of processes (1.3.6.1.2.1.25.1.6.0)
+	HrMemorySize   int             `json:"hr_memory_size,omitempty"`    // Memory size in KB (1.3.6.1.2.1.25.2.2.0)
+	WindowsDomain  string          `json:"windows_domain,omitempty"`    // Windows domain (1.3.6.1.4.1.77.1.4.1.0)
+	WindowsUsers   []string        `json:"windows_users,omitempty"`     // Windows users
+	Communities    []string        `json:"communities_found,omitempty"` // All valid communities found
+	Error          string          `json:"error,omitempty"`
 }
 
 // SNMPInterface represents a network interface
@@ -585,9 +585,9 @@ func getInterfaceInfo(conn net.Conn, community string, result *SNMPResult, timeo
 	queryTimeout := 300 * time.Millisecond // Quick timeout for interface queries
 
 	// Interface OID prefixes
-	ifDescr := "1.3.6.1.2.1.2.2.1.2"       // ifDescr
-	ifType := "1.3.6.1.2.1.2.2.1.3"        // ifType
-	ifOperStatus := "1.3.6.1.2.1.2.2.1.8"  // ifOperStatus
+	ifDescr := "1.3.6.1.2.1.2.2.1.2"      // ifDescr
+	ifType := "1.3.6.1.2.1.2.2.1.3"       // ifType
+	ifOperStatus := "1.3.6.1.2.1.2.2.1.8" // ifOperStatus
 
 	// Query first few interfaces only (limit to 3 for performance)
 	maxInterfaces := result.IfNumber
@@ -716,35 +716,35 @@ func buildSNMPv3Discovery() []byte {
 	// This would need to be much more complex for full SNMPv3 support
 	discovery, _ := hex.DecodeString(
 		"3081" + // SEQUENCE
-		"80" + // Length (long form)
-		"0201" + // Version (SNMPv3 = 3)
-		"03" +
-		"3011" + // HeaderData
-		"0208" + // msgID
-		"00000001" +
-		"020400" + // msgMaxSize
-		"00ffff" +
-		"0401" + // msgFlags (noAuthNoPriv)
-		"00" +
-		"0201" + // msgSecurityModel
-		"03" +
-		"3000" + // msgSecurityParameters (empty)
-		"3053" + // ScopedPDU
-		"0400" + // contextEngineID (empty for discovery)
-		"0400" + // contextName (empty)
-		"a046" + // PDU (GetRequest)
-		"0204" + // requestID
-		"00000001" +
-		"0201" + // errorStatus
-		"00" +
-		"0201" + // errorIndex
-		"00" +
-		"3038" + // VarBindList
-		"3036" + // VarBind
-		"0608" + // OID for sysDescr
-		"2b060102010101" +
-		"00" + // instance
-		"0500", // NULL
+			"80" + // Length (long form)
+			"0201" + // Version (SNMPv3 = 3)
+			"03" +
+			"3011" + // HeaderData
+			"0208" + // msgID
+			"00000001" +
+			"020400" + // msgMaxSize
+			"00ffff" +
+			"0401" + // msgFlags (noAuthNoPriv)
+			"00" +
+			"0201" + // msgSecurityModel
+			"03" +
+			"3000" + // msgSecurityParameters (empty)
+			"3053" + // ScopedPDU
+			"0400" + // contextEngineID (empty for discovery)
+			"0400" + // contextName (empty)
+			"a046" + // PDU (GetRequest)
+			"0204" + // requestID
+			"00000001" +
+			"0201" + // errorStatus
+			"00" +
+			"0201" + // errorIndex
+			"00" +
+			"3038" + // VarBindList
+			"3036" + // VarBind
+			"0608" + // OID for sysDescr
+			"2b060102010101" +
+			"00" + // instance
+			"0500", // NULL
 	)
 	return discovery
 }

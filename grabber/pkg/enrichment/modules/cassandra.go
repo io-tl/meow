@@ -15,15 +15,15 @@ type CassandraModule struct {
 }
 
 type CassandraResult struct {
-	Protocol           string            `json:"protocol"`
-	ProtocolVersion    string            `json:"protocol_version,omitempty"`
-	CQLVersions        []string          `json:"cql_versions,omitempty"`
-	Compression        []string          `json:"compression,omitempty"`
-	SupportedOptions   map[string]string `json:"supported_options,omitempty"`
-	ClusterName        string            `json:"cluster_name,omitempty"`
-	DataCenter         string            `json:"datacenter,omitempty"`
-	CassandraVersion   string            `json:"cassandra_version,omitempty"`
-	Error              string            `json:"error,omitempty"`
+	Protocol         string            `json:"protocol"`
+	ProtocolVersion  string            `json:"protocol_version,omitempty"`
+	CQLVersions      []string          `json:"cql_versions,omitempty"`
+	Compression      []string          `json:"compression,omitempty"`
+	SupportedOptions map[string]string `json:"supported_options,omitempty"`
+	ClusterName      string            `json:"cluster_name,omitempty"`
+	DataCenter       string            `json:"datacenter,omitempty"`
+	CassandraVersion string            `json:"cassandra_version,omitempty"`
+	Error            string            `json:"error,omitempty"`
 }
 
 func init() {
@@ -52,7 +52,7 @@ func (m *CassandraModule) Scan(ip string, port int) (interface{}, error) {
 			version,    // Version
 			0x00,       // Flags
 			0x00, 0x01, // Stream ID
-			0x05,       // Opcode: OPTIONS
+			0x05,                   // Opcode: OPTIONS
 			0x00, 0x00, 0x00, 0x00, // Length: 0
 		}
 

@@ -11,22 +11,22 @@ import (
 
 const (
 	// Socket options
-	PACKET_RX_RING    = 5
-	PACKET_TX_RING    = 13
-	PACKET_VERSION    = 10
-	PACKET_LOSS       = 14
+	PACKET_RX_RING      = 5
+	PACKET_TX_RING      = 13
+	PACKET_VERSION      = 10
+	PACKET_LOSS         = 14
 	PACKET_QDISC_BYPASS = 20
 
 	// Packet versions
 	TPACKET_V3 = 3
 
 	// Frame status
-	TP_STATUS_KERNEL          = 0
-	TP_STATUS_USER            = 1 << 0
-	TP_STATUS_SEND_REQUEST    = 1 << 1
-	TP_STATUS_SENDING         = 1 << 2
-	TP_STATUS_WRONG_FORMAT    = 1 << 3
-	TP_STATUS_AVAILABLE       = 0
+	TP_STATUS_KERNEL       = 0
+	TP_STATUS_USER         = 1 << 0
+	TP_STATUS_SEND_REQUEST = 1 << 1
+	TP_STATUS_SENDING      = 1 << 2
+	TP_STATUS_WRONG_FORMAT = 1 << 3
+	TP_STATUS_AVAILABLE    = 0
 
 	// Default frame size and counts
 	DefaultFrameSize = 2048
@@ -59,9 +59,9 @@ type tpacket3_hdr struct {
 
 // AFPacketTransport implements Transport using AF_PACKET with mmap
 type AFPacketTransport struct {
-	config     *TransportConfig
-	fd         int
-	ifIndex    int
+	config  *TransportConfig
+	fd      int
+	ifIndex int
 
 	// TX ring
 	txRing     []byte
@@ -333,9 +333,9 @@ func (a *AFPacketTransport) buildEthFrame(pkt *Packet) []byte {
 	frame := make([]byte, 14+len(pkt.Data))
 
 	// Ethernet header
-	copy(frame[0:6], a.gatewayMAC)   // Destination MAC
-	copy(frame[6:12], a.ifaceMAC)     // Source MAC
-	frame[12] = 0x08                   // EtherType: IPv4
+	copy(frame[0:6], a.gatewayMAC) // Destination MAC
+	copy(frame[6:12], a.ifaceMAC)  // Source MAC
+	frame[12] = 0x08               // EtherType: IPv4
 	frame[13] = 0x00
 
 	// IP + TCP packet
@@ -368,7 +368,7 @@ func (a *AFPacketTransport) Receive(ctx context.Context) ([]*ReceivedPacket, err
 
 		if packetSize > 0 && headerSize+packetSize <= int(a.rxReq.frame_size) {
 			// Skip Ethernet header, get IP packet
-			ipPacket := frame[headerSize:headerSize+packetSize]
+			ipPacket := frame[headerSize : headerSize+packetSize]
 
 			// Parse packet
 			if pkt := a.parsePacket(ipPacket); pkt != nil {

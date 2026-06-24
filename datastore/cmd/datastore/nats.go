@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/nats-io/nats.go"
 	natsserver "github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 	"github.com/rs/zerolog/log"
 )
 
@@ -147,4 +147,3 @@ func startEmbeddedNATS(host string, port int, authMode, authToken, authUser, aut
 
 	return ns, nil
 }
-

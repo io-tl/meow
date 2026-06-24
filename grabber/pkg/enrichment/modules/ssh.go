@@ -16,16 +16,16 @@ type SSHModule struct {
 
 // SSHResult represents the enriched SSH data
 type SSHResult struct {
-	Protocol        string   `json:"protocol"`
-	Banner          string   `json:"banner"`
-	ServerVersion   string   `json:"server_version"`
-	HostKeyAlgos    []string `json:"host_key_algorithms,omitempty"`
-	KexAlgos        []string `json:"kex_algorithms,omitempty"`
-	Ciphers         []string `json:"ciphers,omitempty"`
-	MACs            []string `json:"macs,omitempty"`
-	Compressions    []string `json:"compressions,omitempty"`
-	ServerHostKeys  []HostKey `json:"server_host_keys,omitempty"`
-	Error           string   `json:"error,omitempty"`
+	Protocol       string    `json:"protocol"`
+	Banner         string    `json:"banner"`
+	ServerVersion  string    `json:"server_version"`
+	HostKeyAlgos   []string  `json:"host_key_algorithms,omitempty"`
+	KexAlgos       []string  `json:"kex_algorithms,omitempty"`
+	Ciphers        []string  `json:"ciphers,omitempty"`
+	MACs           []string  `json:"macs,omitempty"`
+	Compressions   []string  `json:"compressions,omitempty"`
+	ServerHostKeys []HostKey `json:"server_host_keys,omitempty"`
+	Error          string    `json:"error,omitempty"`
 }
 
 // HostKey represents an SSH host key

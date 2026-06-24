@@ -15,11 +15,11 @@ type MySQLModule struct {
 
 // MySQLResult represents the enriched MySQL data
 type MySQLResult struct {
-	Protocol       string `json:"protocol"`
-	Version        string `json:"version,omitempty"`
-	AuthPlugin     string `json:"auth_plugin,omitempty"`
-	Capabilities   uint32 `json:"capabilities,omitempty"`
-	Error          string `json:"error,omitempty"`
+	Protocol     string `json:"protocol"`
+	Version      string `json:"version,omitempty"`
+	AuthPlugin   string `json:"auth_plugin,omitempty"`
+	Capabilities uint32 `json:"capabilities,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 func init() {

@@ -14,16 +14,16 @@ type MumbleModule struct {
 }
 
 type MumbleResult struct {
-	Protocol       string `json:"protocol"`
-	Version        string `json:"version,omitempty"`
-	VersionMajor   int    `json:"version_major,omitempty"`
-	VersionMinor   int    `json:"version_minor,omitempty"`
-	VersionPatch   int    `json:"version_patch,omitempty"`
-	Ping           bool   `json:"ping"`
-	Users          uint32 `json:"users,omitempty"`
-	MaxUsers       uint32 `json:"max_users,omitempty"`
-	Bandwidth      uint32 `json:"bandwidth,omitempty"`
-	Error          string `json:"error,omitempty"`
+	Protocol     string `json:"protocol"`
+	Version      string `json:"version,omitempty"`
+	VersionMajor int    `json:"version_major,omitempty"`
+	VersionMinor int    `json:"version_minor,omitempty"`
+	VersionPatch int    `json:"version_patch,omitempty"`
+	Ping         bool   `json:"ping"`
+	Users        uint32 `json:"users,omitempty"`
+	MaxUsers     uint32 `json:"max_users,omitempty"`
+	Bandwidth    uint32 `json:"bandwidth,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 func init() {

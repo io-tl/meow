@@ -14,10 +14,10 @@ type PostgresModule struct {
 
 // PostgresResult represents the enriched PostgreSQL data
 type PostgresResult struct {
-	Protocol      string            `json:"protocol"`
-	SSLSupported  bool              `json:"ssl_supported"`
-	Parameters    map[string]string `json:"parameters,omitempty"`
-	Error         string            `json:"error,omitempty"`
+	Protocol     string            `json:"protocol"`
+	SSLSupported bool              `json:"ssl_supported"`
+	Parameters   map[string]string `json:"parameters,omitempty"`
+	Error        string            `json:"error,omitempty"`
 }
 
 func init() {
@@ -53,8 +53,8 @@ func scanPostgres(ip string, port int, timeout time.Duration) (*PostgresResult, 
 	// Test SSL support
 	// SSL request message: length (4 bytes) + SSL request code (4 bytes)
 	sslRequest := make([]byte, 8)
-	binary.BigEndian.PutUint32(sslRequest[0:4], 8)           // Length
-	binary.BigEndian.PutUint32(sslRequest[4:8], 80877103)    // SSL request code
+	binary.BigEndian.PutUint32(sslRequest[0:4], 8)        // Length
+	binary.BigEndian.PutUint32(sslRequest[4:8], 80877103) // SSL request code
 
 	_, err = conn.Write(sslRequest)
 	if err != nil {

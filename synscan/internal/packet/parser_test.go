@@ -13,17 +13,17 @@ func buildTestPacket(srcIP net.IP, srcPort, dstPort uint16, flags uint8) []byte 
 	pkt := make([]byte, 40) // 20 IP + 20 TCP
 
 	// IP header
-	pkt[0] = 0x45 // Version 4, IHL 5
+	pkt[0] = 0x45                            // Version 4, IHL 5
 	binary.BigEndian.PutUint16(pkt[2:4], 40) // Total length
-	pkt[8] = 64                               // TTL
-	pkt[9] = 6                                // TCP protocol
+	pkt[8] = 64                              // TTL
+	pkt[9] = 6                               // TCP protocol
 	copy(pkt[12:16], srcIP.To4())
 
 	// TCP header at offset 20
 	binary.BigEndian.PutUint16(pkt[20:22], srcPort)
 	binary.BigEndian.PutUint16(pkt[22:24], dstPort)
 	pkt[32] = 5 << 4 // Data offset
-	pkt[33] = flags   // TCP flags
+	pkt[33] = flags  // TCP flags
 
 	return pkt
 }
@@ -119,7 +119,7 @@ func TestParseTCPResponse_IPHeaderLargerThan20(t *testing.T) {
 	copy(pkt[12:16], net.ParseIP("10.0.0.5").To4())
 
 	// TCP header at offset 24 (IHL*4)
-	binary.BigEndian.PutUint16(pkt[24:26], 443) // src port
+	binary.BigEndian.PutUint16(pkt[24:26], 443)   // src port
 	binary.BigEndian.PutUint16(pkt[26:28], 50000) // dst port
 	pkt[36] = 5 << 4
 	pkt[37] = 0x12 // SYN+ACK

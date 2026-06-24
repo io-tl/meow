@@ -64,7 +64,7 @@ func scanAJP13(ip string, port int, timeout time.Duration) (*AJP13Result, error)
 	cpingRequest := []byte{
 		0x12, 0x34, // Magic
 		0x00, 0x01, // Length: 1
-		0x0a,       // Type: CPING
+		0x0a, // Type: CPING
 	}
 
 	if _, err = conn.Write(cpingRequest); err != nil {

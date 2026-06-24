@@ -155,4 +155,3 @@ func awaitShutdown() {
 	<-sigChan
 	log.Info().Msg("Shutting down...")
 }
-

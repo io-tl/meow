@@ -24,8 +24,8 @@ type EnrichmentResult struct {
 	Port      int         `json:"port"`
 	Service   string      `json:"service"`
 	Domain    string      `json:"domain,omitempty"`
-	Data      interface{} `json:"data"`           // Module-specific enriched data
-	Timestamp string      `json:"timestamp"`      // RFC3339 timestamp
+	Data      interface{} `json:"data"`            // Module-specific enriched data
+	Timestamp string      `json:"timestamp"`       // RFC3339 timestamp
 	Error     string      `json:"error,omitempty"` // Error message if enrichment failed
 }
 

@@ -44,11 +44,11 @@ func (t TransportMethod) String() string {
 
 // Packet represents a packet to send or a received packet
 type Packet struct {
-	Data   []byte
-	DstIP  net.IP
+	Data    []byte
+	DstIP   net.IP
 	DstPort uint16
 	SrcPort uint16
-	Length int
+	Length  int
 }
 
 // TransportConfig holds transport configuration

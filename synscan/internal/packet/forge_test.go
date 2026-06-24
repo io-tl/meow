@@ -231,7 +231,7 @@ func TestCalculateTCPChecksum_NonZero(t *testing.T) {
 	binary.BigEndian.PutUint16(tcpHeader[0:2], 40000) // src port
 	binary.BigEndian.PutUint16(tcpHeader[2:4], 80)    // dst port
 	tcpHeader[12] = 5 << 4                            // data offset
-	tcpHeader[13] = 0x02                               // SYN flag
+	tcpHeader[13] = 0x02                              // SYN flag
 
 	cs := calculateTCPChecksum(srcIP, dstIP, tcpHeader)
 	if cs == 0 {

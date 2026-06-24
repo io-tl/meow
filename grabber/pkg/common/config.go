@@ -35,9 +35,9 @@ type FingerprintConfig struct {
 
 // EnrichmentConfig contient la configuration pour l'enrichissement
 type EnrichmentConfig struct {
-	Workers          int `yaml:"workers"`
-	EnrichTimeoutMS  int `yaml:"enrich_timeout_ms"`
-	GlobalTimeoutMS  int `yaml:"global_timeout_ms"`
+	Workers         int `yaml:"workers"`
+	EnrichTimeoutMS int `yaml:"enrich_timeout_ms"`
+	GlobalTimeoutMS int `yaml:"global_timeout_ms"`
 }
 
 // LoggingConfig contient la configuration du logging

@@ -17,7 +17,7 @@ func TestEncodeScanToken_Format(t *testing.T) {
 	if len(token) != 24 {
 		t.Fatalf("expected 24 chars, got %d: %s", len(token), token)
 	}
-	if token != "0000000000000000" + "00000000" {
+	if token != "0000000000000000"+"00000000" {
 		t.Errorf("expected all zeros, got %s", token)
 	}
 }
@@ -30,8 +30,8 @@ func TestEncodeScanToken_Length(t *testing.T) {
 		{0, 0},
 		{1, 1},
 		{12345678, 99999},
-		{-1, 0},                // negative seed (wraps to uint64)
-		{1<<62, 1<<31 - 1},    // large values
+		{-1, 0},              // negative seed (wraps to uint64)
+		{1 << 62, 1<<31 - 1}, // large values
 	}
 	for _, tt := range tests {
 		token := encodeScanToken(tt.seed, tt.offset)
@@ -86,7 +86,7 @@ func TestDecodeScanToken_InvalidLength(t *testing.T) {
 	tests := []string{
 		"",
 		"abc",
-		"0000000000000000000000",   // 22 chars
+		"0000000000000000000000",      // 22 chars
 		"000000000000000000000000000", // 27 chars
 	}
 	for _, token := range tests {

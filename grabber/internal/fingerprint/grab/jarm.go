@@ -21,13 +21,13 @@ import (
 
 // probeConfig represents a JARM probe configuration
 type probeConfig struct {
-	version    uint16
-	ciphers    string
-	order      string
-	grease     bool
-	alpn       string
-	v13mode    string
-	extOrder   string
+	version  uint16
+	ciphers  string
+	order    string
+	grease   bool
+	alpn     string
+	v13mode  string
+	extOrder string
 }
 
 // getProbes returns the 10 standard JARM probes
@@ -221,12 +221,12 @@ func getExtensions(hostname string, p probeConfig) []byte {
 	ext = append(ext, sni...)
 
 	// Standard extensions
-	ext = append(ext, 0x00, 0x17, 0x00, 0x00)                                                     // extended_master_secret
-	ext = append(ext, 0x00, 0x01, 0x00, 0x01, 0x01)                                               // max_fragment_length
-	ext = append(ext, 0xff, 0x01, 0x00, 0x01, 0x00)                                               // renegotiation_info
+	ext = append(ext, 0x00, 0x17, 0x00, 0x00)                                                             // extended_master_secret
+	ext = append(ext, 0x00, 0x01, 0x00, 0x01, 0x01)                                                       // max_fragment_length
+	ext = append(ext, 0xff, 0x01, 0x00, 0x01, 0x00)                                                       // renegotiation_info
 	ext = append(ext, 0x00, 0x0a, 0x00, 0x0a, 0x00, 0x08, 0x00, 0x1d, 0x00, 0x17, 0x00, 0x18, 0x00, 0x19) // supported_groups
-	ext = append(ext, 0x00, 0x0b, 0x00, 0x02, 0x01, 0x00)                                         // ec_point_formats
-	ext = append(ext, 0x00, 0x23, 0x00, 0x00)                                                     // session_ticket
+	ext = append(ext, 0x00, 0x0b, 0x00, 0x02, 0x01, 0x00)                                                 // ec_point_formats
+	ext = append(ext, 0x00, 0x23, 0x00, 0x00)                                                             // session_ticket
 
 	// ALPN
 	if p.alpn == "ALPN" {
@@ -237,9 +237,9 @@ func getExtensions(hostname string, p probeConfig) []byte {
 			{0x06, 0x73, 0x70, 0x64, 0x79, 0x2f, 0x31},             // spdy/1
 			{0x06, 0x73, 0x70, 0x64, 0x79, 0x2f, 0x32},             // spdy/2
 			{0x06, 0x73, 0x70, 0x64, 0x79, 0x2f, 0x33},             // spdy/3
-			{0x02, 0x68, 0x32},                                     // h2
-			{0x03, 0x68, 0x32, 0x63},                               // h2c
-			{0x02, 0x68, 0x71},                                     // hq
+			{0x02, 0x68, 0x32},       // h2
+			{0x03, 0x68, 0x32, 0x63}, // h2c
+			{0x02, 0x68, 0x71},       // hq
 		}
 		if p.extOrder != "FORWARD" {
 			alpnList = reorderCiphers(alpnList, p.extOrder)

@@ -25,9 +25,9 @@ const (
 
 // OSVersion contains OS version information from NTLM
 type OSVersion struct {
-	Major      uint8
-	Minor      uint8
-	Build      uint16
+	Major        uint8
+	Minor        uint8
+	Build        uint16
 	NTLMRevision uint8
 }
 

@@ -19,7 +19,7 @@ type SMTPResult struct {
 	Protocol     string   `json:"protocol"`
 	Banner       string   `json:"banner"`
 	Hostname     string   `json:"hostname,omitempty"`
-	Commands     []string `json:"commands,omitempty"`     // Supported commands from EHLO
+	Commands     []string `json:"commands,omitempty"` // Supported commands from EHLO
 	SupportsTLS  bool     `json:"supports_tls"`
 	SupportsAuth bool     `json:"supports_auth"`
 	AuthMethods  []string `json:"auth_methods,omitempty"` // AUTH methods (PLAIN, LOGIN, etc.)

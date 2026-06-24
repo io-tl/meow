@@ -115,7 +115,7 @@ func buildMinecraftHandshake(host string, port uint16) []byte {
 		hostBytes = hostBytes[:255]
 	}
 
-	buf := []byte{0x00} // Packet ID: handshake
+	buf := []byte{0x00}     // Packet ID: handshake
 	buf = append(buf, 0x04) // Protocol version: 4 (1.7.2+)
 
 	// Server address (string) — VarInt length + bytes

@@ -37,11 +37,11 @@ func (m *PPTPModule) Scan(ip string, port int) (interface{}, error) {
 
 	// PPTP Start-Control-Connection-Request
 	request := make([]byte, 156)
-	binary.BigEndian.PutUint16(request[0:2], 156)  // Length
-	binary.BigEndian.PutUint16(request[2:4], 1)    // Message Type: Control
+	binary.BigEndian.PutUint16(request[0:2], 156)        // Length
+	binary.BigEndian.PutUint16(request[2:4], 1)          // Message Type: Control
 	binary.BigEndian.PutUint32(request[4:8], 0x1a2b3c4d) // Magic Cookie
-	binary.BigEndian.PutUint16(request[8:10], 1)   // Control Message Type: Start-Control-Connection-Request
-	binary.BigEndian.PutUint16(request[12:14], 0x0100) // Protocol Version 1.0
+	binary.BigEndian.PutUint16(request[8:10], 1)         // Control Message Type: Start-Control-Connection-Request
+	binary.BigEndian.PutUint16(request[12:14], 0x0100)   // Protocol Version 1.0
 
 	conn.Write(request)
 

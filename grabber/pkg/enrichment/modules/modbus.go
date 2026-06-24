@@ -44,14 +44,14 @@ func (m *ModbusModule) Scan(ip string, port int) (interface{}, error) {
 
 	// Modbus TCP read device identification
 	request := make([]byte, 12)
-	binary.BigEndian.PutUint16(request[0:2], 1)     // Transaction ID
-	binary.BigEndian.PutUint16(request[2:4], 0)     // Protocol ID
-	binary.BigEndian.PutUint16(request[4:6], 6)     // Length
-	request[6] = 1                                   // Unit ID
-	request[7] = 0x2B                                // Function code: Read Device ID
-	request[8] = 0x0E                                // MEI type
-	request[9] = 0x01                                // Read Device ID code
-	request[10] = 0x00                               // Object ID
+	binary.BigEndian.PutUint16(request[0:2], 1) // Transaction ID
+	binary.BigEndian.PutUint16(request[2:4], 0) // Protocol ID
+	binary.BigEndian.PutUint16(request[4:6], 6) // Length
+	request[6] = 1                              // Unit ID
+	request[7] = 0x2B                           // Function code: Read Device ID
+	request[8] = 0x0E                           // MEI type
+	request[9] = 0x01                           // Read Device ID code
+	request[10] = 0x00                          // Object ID
 
 	if _, err := conn.Write(request); err != nil {
 		result.Error = err.Error()

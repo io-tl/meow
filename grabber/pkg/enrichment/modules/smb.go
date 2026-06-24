@@ -25,23 +25,23 @@ type SMBModule struct {
 
 // SMBResult contains SMB detection results
 type SMBResult struct {
-	Protocol          string           `json:"protocol"`
-	IsSMB             bool             `json:"is_smb"`
-	SMBVersion        *SMBVersionInfo  `json:"smb_version,omitempty"`
-	TargetName        string           `json:"target_name,omitempty"`        // Domain or machine name
-	NetBIOSName       string           `json:"netbios_name,omitempty"`       // NetBIOS machine name
-	DomainName        string           `json:"domain_name,omitempty"`        // DNS domain name
-	OSVersion         string           `json:"os_version,omitempty"`         // Operating system version
-	SMBCapabilities   *SMBCapabilities `json:"smb_capabilities,omitempty"`
-	SecurityMode      *SecurityMode    `json:"security_mode,omitempty"`
-	SystemTime        string           `json:"system_time,omitempty"`        // Formatted date
-	ServerStartTime   string           `json:"server_start_time,omitempty"`  // Formatted date
-	HasNTLM           bool             `json:"has_ntlm"`
-	Shares            []ShareInfo      `json:"shares,omitempty"`             // List of shares
-	SharesMethod      string           `json:"shares_method,omitempty"`      // Method used to enumerate shares
-	NegotiationLog    *NegotiationLog  `json:"negotiation_log,omitempty"`
-	SessionSetupLog   *SessionSetupLog `json:"session_setup_log,omitempty"`
-	Error             string           `json:"error,omitempty"`
+	Protocol        string           `json:"protocol"`
+	IsSMB           bool             `json:"is_smb"`
+	SMBVersion      *SMBVersionInfo  `json:"smb_version,omitempty"`
+	TargetName      string           `json:"target_name,omitempty"`  // Domain or machine name
+	NetBIOSName     string           `json:"netbios_name,omitempty"` // NetBIOS machine name
+	DomainName      string           `json:"domain_name,omitempty"`  // DNS domain name
+	OSVersion       string           `json:"os_version,omitempty"`   // Operating system version
+	SMBCapabilities *SMBCapabilities `json:"smb_capabilities,omitempty"`
+	SecurityMode    *SecurityMode    `json:"security_mode,omitempty"`
+	SystemTime      string           `json:"system_time,omitempty"`       // Formatted date
+	ServerStartTime string           `json:"server_start_time,omitempty"` // Formatted date
+	HasNTLM         bool             `json:"has_ntlm"`
+	Shares          []ShareInfo      `json:"shares,omitempty"`        // List of shares
+	SharesMethod    string           `json:"shares_method,omitempty"` // Method used to enumerate shares
+	NegotiationLog  *NegotiationLog  `json:"negotiation_log,omitempty"`
+	SessionSetupLog *SessionSetupLog `json:"session_setup_log,omitempty"`
+	Error           string           `json:"error,omitempty"`
 }
 
 // ShareInfo contains information about a SMB share
@@ -299,10 +299,10 @@ func buildSMB2NegotiateRequest() []byte {
 	// Dialects (8 bytes - 4 dialects x 2 bytes)
 	// Note: SMB 3.1.1 (0x0311) is excluded as it requires negotiate contexts
 	dialects := make([]byte, 8)
-	binary.LittleEndian.PutUint16(dialects[0:2], 0x0202)  // SMB 2.0.2
-	binary.LittleEndian.PutUint16(dialects[2:4], 0x0210)  // SMB 2.1
-	binary.LittleEndian.PutUint16(dialects[4:6], 0x0300)  // SMB 3.0
-	binary.LittleEndian.PutUint16(dialects[6:8], 0x0302)  // SMB 3.0.2
+	binary.LittleEndian.PutUint16(dialects[0:2], 0x0202) // SMB 2.0.2
+	binary.LittleEndian.PutUint16(dialects[2:4], 0x0210) // SMB 2.1
+	binary.LittleEndian.PutUint16(dialects[4:6], 0x0300) // SMB 3.0
+	binary.LittleEndian.PutUint16(dialects[6:8], 0x0302) // SMB 3.0.2
 
 	// Combine all parts
 	payload := append(header, negotiate...)
@@ -600,8 +600,8 @@ func buildSMB2SessionSetupRequest() []byte {
 	//            Channel(4) + SecurityBufferOffset(2) + SecurityBufferLength(2) + PreviousSessionId(8)
 	sessionSetup := make([]byte, 24)
 	binary.LittleEndian.PutUint16(sessionSetup[0:2], 25)   // StructureSize (always 25)
-	sessionSetup[2] = 0                                     // Flags (1 byte)
-	sessionSetup[3] = 0                                     // SecurityMode (1 byte)
+	sessionSetup[2] = 0                                    // Flags (1 byte)
+	sessionSetup[3] = 0                                    // SecurityMode (1 byte)
 	binary.LittleEndian.PutUint32(sessionSetup[4:8], 0)    // Capabilities
 	binary.LittleEndian.PutUint32(sessionSetup[8:12], 0)   // Channel
 	binary.LittleEndian.PutUint16(sessionSetup[12:14], 88) // SecurityBufferOffset (from start of header)
@@ -630,13 +630,13 @@ func buildSMB2SessionSetupRequest() []byte {
 	binary.LittleEndian.PutUint32(ntlmssp[28:32], 0) // BufferOffset
 
 	// Version (8 bytes) - Windows 10.0 Build 19041
-	ntlmssp[32] = 0x0a // Major: 10
-	ntlmssp[33] = 0x00 // Minor: 0
+	ntlmssp[32] = 0x0a                                   // Major: 10
+	ntlmssp[33] = 0x00                                   // Minor: 0
 	binary.LittleEndian.PutUint16(ntlmssp[34:36], 19041) // Build
-	ntlmssp[36] = 0x00 // Reserved
-	ntlmssp[37] = 0x00 // Reserved
-	ntlmssp[38] = 0x00 // Reserved
-	ntlmssp[39] = 0x0f // NTLMRevisionCurrent
+	ntlmssp[36] = 0x00                                   // Reserved
+	ntlmssp[37] = 0x00                                   // Reserved
+	ntlmssp[38] = 0x00                                   // Reserved
+	ntlmssp[39] = 0x0f                                   // NTLMRevisionCurrent
 
 	payload := append(header, sessionSetup...)
 	payload = append(payload, ntlmssp...)
@@ -936,16 +936,16 @@ func buildSMBv1NegotiateRequest() []byte {
 
 	// SMB Header (32 bytes)
 	buf.Write([]byte{0xFF, 'S', 'M', 'B'}) // Protocol
-	buf.WriteByte(0x72)                     // Command: Negotiate Protocol
-	buf.Write(make([]byte, 4))              // Status
-	buf.WriteByte(0x18)                     // Flags
-	buf.Write([]byte{0x01, 0x28})           // Flags2
-	buf.Write(make([]byte, 12))             // PID, Signature
-	buf.Write(make([]byte, 2))              // Reserved
-	buf.Write(make([]byte, 2))              // TID
-	buf.Write(make([]byte, 2))              // PID
-	buf.Write(make([]byte, 2))              // UID
-	buf.Write(make([]byte, 2))              // MID
+	buf.WriteByte(0x72)                    // Command: Negotiate Protocol
+	buf.Write(make([]byte, 4))             // Status
+	buf.WriteByte(0x18)                    // Flags
+	buf.Write([]byte{0x01, 0x28})          // Flags2
+	buf.Write(make([]byte, 12))            // PID, Signature
+	buf.Write(make([]byte, 2))             // Reserved
+	buf.Write(make([]byte, 2))             // TID
+	buf.Write(make([]byte, 2))             // PID
+	buf.Write(make([]byte, 2))             // UID
+	buf.Write(make([]byte, 2))             // MID
 
 	// Parameters
 	buf.WriteByte(0) // Word Count
@@ -994,17 +994,17 @@ func buildSMBv1SessionSetupRequest() []byte {
 	buf.Write(make([]byte, 2))
 
 	// Parameters
-	buf.WriteByte(13)            // Word Count
-	buf.WriteByte(0xFF)          // AndX Command: No further commands
-	buf.WriteByte(0)             // Reserved
-	buf.Write([]byte{0, 0})      // AndX Offset
+	buf.WriteByte(13)             // Word Count
+	buf.WriteByte(0xFF)           // AndX Command: No further commands
+	buf.WriteByte(0)              // Reserved
+	buf.Write([]byte{0, 0})       // AndX Offset
 	buf.Write([]byte{0xFF, 0xFF}) // Max Buffer
 	buf.Write([]byte{0x02, 0x00}) // Max Mpx Count
 	buf.Write([]byte{0x01, 0x00}) // VC Number
-	buf.Write(make([]byte, 4))   // Session Key
-	buf.Write([]byte{0, 0})      // ANSI Password Length
-	buf.Write([]byte{0, 0})      // Unicode Password Length
-	buf.Write(make([]byte, 4))   // Reserved
+	buf.Write(make([]byte, 4))    // Session Key
+	buf.Write([]byte{0, 0})       // ANSI Password Length
+	buf.Write([]byte{0, 0})       // Unicode Password Length
+	buf.Write(make([]byte, 4))    // Reserved
 	buf.Write([]byte{0, 0, 0, 0}) // Capabilities
 
 	// Data (empty for anonymous)
@@ -1044,12 +1044,12 @@ func buildSMBv1TreeConnectRequest(uid uint16, host string) []byte {
 	buf.Write(make([]byte, 2))
 
 	// Parameters
-	buf.WriteByte(4)            // Word Count
-	buf.WriteByte(0xFF)         // AndX Command
+	buf.WriteByte(4)    // Word Count
+	buf.WriteByte(0xFF) // AndX Command
 	buf.WriteByte(0)
-	buf.Write([]byte{0, 0})     // AndX Offset
-	buf.Write([]byte{0, 0})     // Flags
-	buf.Write([]byte{1, 0})     // Password Length
+	buf.Write([]byte{0, 0}) // AndX Offset
+	buf.Write([]byte{0, 0}) // Flags
+	buf.Write([]byte{1, 0}) // Password Length
 
 	// Data
 	path := fmt.Sprintf("\\\\%s\\IPC$", strings.ToUpper(host))
@@ -1102,22 +1102,22 @@ func buildSMBv1RAPNetShareEnumRequest(uid, tid uint16) []byte {
 	buf.Write(make([]byte, 2))
 
 	// Transaction Parameters
-	buf.WriteByte(14)              // Word Count
-	buf.Write([]byte{0, 0})        // Total Parameter Count
-	buf.Write([]byte{0, 0})        // Total Data Count
-	buf.Write([]byte{0xFF, 0xFF})  // Max Parameter Count
-	buf.Write([]byte{0xFF, 0xFF})  // Max Data Count
-	buf.WriteByte(0)               // Max Setup Count
-	buf.WriteByte(0)               // Reserved
-	buf.Write([]byte{0, 0})        // Flags
-	buf.Write(make([]byte, 4))     // Timeout
-	buf.Write([]byte{0, 0})        // Reserved2
-	buf.Write([]byte{0, 0})        // Parameter Count
-	buf.Write([]byte{0, 0})        // Parameter Offset
-	buf.Write([]byte{0, 0})        // Data Count
-	buf.Write([]byte{0, 0})        // Data Offset
-	buf.WriteByte(2)               // Setup Count
-	buf.WriteByte(0)               // Reserved3
+	buf.WriteByte(14)             // Word Count
+	buf.Write([]byte{0, 0})       // Total Parameter Count
+	buf.Write([]byte{0, 0})       // Total Data Count
+	buf.Write([]byte{0xFF, 0xFF}) // Max Parameter Count
+	buf.Write([]byte{0xFF, 0xFF}) // Max Data Count
+	buf.WriteByte(0)              // Max Setup Count
+	buf.WriteByte(0)              // Reserved
+	buf.Write([]byte{0, 0})       // Flags
+	buf.Write(make([]byte, 4))    // Timeout
+	buf.Write([]byte{0, 0})       // Reserved2
+	buf.Write([]byte{0, 0})       // Parameter Count
+	buf.Write([]byte{0, 0})       // Parameter Offset
+	buf.Write([]byte{0, 0})       // Data Count
+	buf.Write([]byte{0, 0})       // Data Offset
+	buf.WriteByte(2)              // Setup Count
+	buf.WriteByte(0)              // Reserved3
 
 	// Setup: RAP call
 	buf.Write([]byte{0, 0}) // Function: NetShareEnum
@@ -1141,12 +1141,12 @@ func buildSMBv1RAPNetShareEnumRequest(uid, tid uint16) []byte {
 func buildRAPNetShareEnumData() []byte {
 	var buf bytes.Buffer
 
-	buf.Write([]byte("WrLeh"))      // Parameter descriptor
+	buf.Write([]byte("WrLeh")) // Parameter descriptor
 	buf.WriteByte(0)
-	buf.Write([]byte("B13BWz"))     // Return descriptor
+	buf.Write([]byte("B13BWz")) // Return descriptor
 	buf.WriteByte(0)
-	buf.Write([]byte{1, 0})         // Info level 1
-	buf.Write([]byte{0xFF, 0xFF})   // Receive buffer size
+	buf.Write([]byte{1, 0})       // Info level 1
+	buf.Write([]byte{0xFF, 0xFF}) // Receive buffer size
 
 	return buf.Bytes()
 }

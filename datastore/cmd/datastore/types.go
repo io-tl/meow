@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	TopicOpenPort       = "scan.port.open"
-	TopicFingerprinted  = "scan.port.fingerprinted"
-	TopicEnriched       = "scan.port.enriched"
-	TopicEnrichRequest  = "scan.enrichment.request"
-	TopicScanRequest    = "scan.request"
-	TopicHeartbeat      = "scan.status.heartbeat"
+	TopicOpenPort      = "scan.port.open"
+	TopicFingerprinted = "scan.port.fingerprinted"
+	TopicEnriched      = "scan.port.enriched"
+	TopicEnrichRequest = "scan.enrichment.request"
+	TopicScanRequest   = "scan.request"
+	TopicHeartbeat     = "scan.status.heartbeat"
 
 	StatusPending  = "pending"
 	StatusEnriched = "enriched"
@@ -91,13 +91,13 @@ type FingerprintEvent struct {
 }
 
 type EnrichmentEvent struct {
-	IP        string      `json:"ip"`
-	Port      int         `json:"port"`
-	Service   string      `json:"service"`
-	Domain    string      `json:"domain,omitempty"`
-	Data      any         `json:"data"`
-	Timestamp string      `json:"timestamp"`
-	Error     string      `json:"error,omitempty"`
+	IP        string `json:"ip"`
+	Port      int    `json:"port"`
+	Service   string `json:"service"`
+	Domain    string `json:"domain,omitempty"`
+	Data      any    `json:"data"`
+	Timestamp string `json:"timestamp"`
+	Error     string `json:"error,omitempty"`
 }
 
 // ScanRequest is published to NATS to request an on-demand scan

@@ -15,17 +15,17 @@ type IcecastModule struct {
 }
 
 type IcecastResult struct {
-	Protocol    string            `json:"protocol"`
-	Server      string            `json:"server,omitempty"`
-	Version     string            `json:"version,omitempty"`
-	Admin       string            `json:"admin,omitempty"`
-	Host        string            `json:"host,omitempty"`
-	Location    string            `json:"location,omitempty"`
-	Listeners   int               `json:"listeners,omitempty"`
-	Sources     int               `json:"sources,omitempty"`
-	Streams     []IcecastStream   `json:"streams,omitempty"`
-	ServerInfo  map[string]string `json:"server_info,omitempty"`
-	Error       string            `json:"error,omitempty"`
+	Protocol   string            `json:"protocol"`
+	Server     string            `json:"server,omitempty"`
+	Version    string            `json:"version,omitempty"`
+	Admin      string            `json:"admin,omitempty"`
+	Host       string            `json:"host,omitempty"`
+	Location   string            `json:"location,omitempty"`
+	Listeners  int               `json:"listeners,omitempty"`
+	Sources    int               `json:"sources,omitempty"`
+	Streams    []IcecastStream   `json:"streams,omitempty"`
+	ServerInfo map[string]string `json:"server_info,omitempty"`
+	Error      string            `json:"error,omitempty"`
 }
 
 type IcecastStream struct {

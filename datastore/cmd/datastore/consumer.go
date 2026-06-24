@@ -33,18 +33,18 @@ import (
 // all active scanning/fingerprinting/enrichment tasks.
 
 type Consumer struct {
-	cfg          *Config
-	nc           *nats.Conn
-	db           *DB
-	ctx          context.Context
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
-	subs         []*nats.Subscription
-	geoipCity    *geoip2.Reader
-	geoipASN     *geoip2.Reader
-	cdnCheck     *cdncheck.Client
-	scanTracker  *ScannerTracker
-	eventFeed    *EventFeed
+	cfg         *Config
+	nc          *nats.Conn
+	db          *DB
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
+	subs        []*nats.Subscription
+	geoipCity   *geoip2.Reader
+	geoipASN    *geoip2.Reader
+	cdnCheck    *cdncheck.Client
+	scanTracker *ScannerTracker
+	eventFeed   *EventFeed
 
 	// domainIPCount tracks how many distinct IPs have been seen per domain.
 	// Used to skip enrichment for domains from widely-shared default certificates.
@@ -175,4 +175,3 @@ func (c *Consumer) Stop() {
 	}
 	c.wg.Wait()
 }
-

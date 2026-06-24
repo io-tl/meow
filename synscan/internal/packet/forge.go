@@ -56,13 +56,13 @@ func buildIPv4TCPSYNPacket(srcIP net.IP, srcPort uint16, dstIP net.IP, dstPort u
 	if err != nil {
 		// Fallback to manual IP header construction
 		ipBytes = make([]byte, 20)
-		ipBytes[0] = 0x45        // Version 4, IHL 5
-		ipBytes[1] = 0           // TOS
-		binary.BigEndian.PutUint16(ipBytes[2:4], 40) // Total length
+		ipBytes[0] = 0x45                                                 // Version 4, IHL 5
+		ipBytes[1] = 0                                                    // TOS
+		binary.BigEndian.PutUint16(ipBytes[2:4], 40)                      // Total length
 		binary.BigEndian.PutUint16(ipBytes[4:6], uint16(rng.Intn(65535))) // ID
-		binary.BigEndian.PutUint16(ipBytes[6:8], 0x4000) // Flags: DF
-		ipBytes[8] = 64          // TTL
-		ipBytes[9] = 6           // Protocol: TCP
+		binary.BigEndian.PutUint16(ipBytes[6:8], 0x4000)                  // Flags: DF
+		ipBytes[8] = 64                                                   // TTL
+		ipBytes[9] = 6                                                    // Protocol: TCP
 		copy(ipBytes[12:16], srcIP.To4())
 		copy(ipBytes[16:20], dstIP.To4())
 	}
@@ -95,7 +95,7 @@ func buildTCPHeader(srcPort, dstPort uint16, syn, ack, rst bool, rng *rand.Rand)
 	binary.BigEndian.PutUint16(tcp[2:4], dstPort)
 	binary.BigEndian.PutUint32(tcp[4:8], rng.Uint32()) // SEQ
 	binary.BigEndian.PutUint32(tcp[8:12], 0)           // ACK
-	tcp[12] = 5 << 4 // Data offset = 5 (20 bytes)
+	tcp[12] = 5 << 4                                   // Data offset = 5 (20 bytes)
 
 	var flags uint8
 	if syn {

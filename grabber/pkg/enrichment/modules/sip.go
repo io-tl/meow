@@ -16,12 +16,12 @@ type SIPModule struct {
 
 // SIPResult represents the enriched SIP data
 type SIPResult struct {
-	Protocol string            `json:"protocol"`
-	Server   string            `json:"server,omitempty"`
-	UserAgent string           `json:"user_agent,omitempty"`
-	Methods  []string          `json:"methods,omitempty"`
-	Headers  map[string]string `json:"headers,omitempty"`
-	Error    string            `json:"error,omitempty"`
+	Protocol  string            `json:"protocol"`
+	Server    string            `json:"server,omitempty"`
+	UserAgent string            `json:"user_agent,omitempty"`
+	Methods   []string          `json:"methods,omitempty"`
+	Headers   map[string]string `json:"headers,omitempty"`
+	Error     string            `json:"error,omitempty"`
 }
 
 func init() {

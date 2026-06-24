@@ -12,32 +12,32 @@ import (
 
 // LDAPResult represents the enriched LDAP data
 type LDAPResult struct {
-	Protocol                     string              `json:"protocol"` // ldap or ldaps
-	RootDSE                      map[string][]string `json:"root_dse,omitempty"`
-	SupportedLDAPVersion         []string            `json:"supported_ldap_version,omitempty"`
-	NamingContexts               []string            `json:"naming_contexts,omitempty"`
-	DefaultNamingContext         string              `json:"default_naming_context,omitempty"`
-	ConfigurationNamingContext   string              `json:"configuration_naming_context,omitempty"`
-	SchemaNamingContext          string              `json:"schema_naming_context,omitempty"`
-	RootDomainNamingContext      string              `json:"root_domain_naming_context,omitempty"`
-	DNSHostName                  string              `json:"dns_hostname,omitempty"`
-	ServerName                   string              `json:"server_name,omitempty"`
-	LDAPServiceName              string              `json:"ldap_service_name,omitempty"`
-	DomainControllerFunctionality int                `json:"domain_controller_functionality,omitempty"`
-	DomainFunctionality          int                 `json:"domain_functionality,omitempty"`
-	ForestFunctionality          int                 `json:"forest_functionality,omitempty"`
-	SupportedSASLMechanisms      []string            `json:"supported_sasl_mechanisms,omitempty"`
-	SupportedControl             []string            `json:"supported_control,omitempty"`
-	SupportedCapabilities        []string            `json:"supported_capabilities,omitempty"`
-	CurrentTime                  string              `json:"current_time,omitempty"`
-	SubschemaSubentry            string              `json:"subschema_subentry,omitempty"`
-	IsGlobalCatalogReady         string              `json:"is_global_catalog_ready,omitempty"`
-	IsSynchronized               string              `json:"is_synchronized,omitempty"`
+	Protocol                      string              `json:"protocol"` // ldap or ldaps
+	RootDSE                       map[string][]string `json:"root_dse,omitempty"`
+	SupportedLDAPVersion          []string            `json:"supported_ldap_version,omitempty"`
+	NamingContexts                []string            `json:"naming_contexts,omitempty"`
+	DefaultNamingContext          string              `json:"default_naming_context,omitempty"`
+	ConfigurationNamingContext    string              `json:"configuration_naming_context,omitempty"`
+	SchemaNamingContext           string              `json:"schema_naming_context,omitempty"`
+	RootDomainNamingContext       string              `json:"root_domain_naming_context,omitempty"`
+	DNSHostName                   string              `json:"dns_hostname,omitempty"`
+	ServerName                    string              `json:"server_name,omitempty"`
+	LDAPServiceName               string              `json:"ldap_service_name,omitempty"`
+	DomainControllerFunctionality int                 `json:"domain_controller_functionality,omitempty"`
+	DomainFunctionality           int                 `json:"domain_functionality,omitempty"`
+	ForestFunctionality           int                 `json:"forest_functionality,omitempty"`
+	SupportedSASLMechanisms       []string            `json:"supported_sasl_mechanisms,omitempty"`
+	SupportedControl              []string            `json:"supported_control,omitempty"`
+	SupportedCapabilities         []string            `json:"supported_capabilities,omitempty"`
+	CurrentTime                   string              `json:"current_time,omitempty"`
+	SubschemaSubentry             string              `json:"subschema_subentry,omitempty"`
+	IsGlobalCatalogReady          string              `json:"is_global_catalog_ready,omitempty"`
+	IsSynchronized                string              `json:"is_synchronized,omitempty"`
 	// Domain and Site extracted from naming contexts
-	Domain                       string              `json:"domain,omitempty"`
-	Site                         string              `json:"site,omitempty"`
-	TLS                          *TLSInfo            `json:"tls,omitempty"` // For LDAPS
-	Error                        string              `json:"error,omitempty"`
+	Domain string   `json:"domain,omitempty"`
+	Site   string   `json:"site,omitempty"`
+	TLS    *TLSInfo `json:"tls,omitempty"` // For LDAPS
+	Error  string   `json:"error,omitempty"`
 }
 
 func init() {

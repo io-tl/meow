@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 )
 
 // Probe représente un probe nmap
@@ -58,7 +57,7 @@ type ServiceResult struct {
 	CPE               []string
 	Probe             string
 	isSoft            bool
-	Uncertain         bool               // Service deviné depuis nmap-services sans probe match
+	Uncertain         bool // Service deviné depuis nmap-services sans probe match
 	RawResponse       string
 	NullProbeResponse string             // Réponse brute du probe NULL (pour analyse)
 	TLSVersion        uint16             // TLS version (ex: 0x0303 = TLS 1.2)

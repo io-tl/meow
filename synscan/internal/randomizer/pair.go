@@ -25,7 +25,7 @@ type PairRandomizer struct {
 
 	batchSize  int
 	seed       int64
-	stride     int // coprime to total, spreads indices across both dimensions
+	stride     int   // coprime to total, spreads indices across both dimensions
 	batch      []int // linear indices for current batch
 	batchIdx   int   // position within current batch
 	nextLinear int   // next linear index to load into a batch

@@ -238,12 +238,12 @@ func TestParseEmpty(t *testing.T) {
 
 func TestParseErrors(t *testing.T) {
 	tests := []string{
-		"port:",             // missing value
-		":443",              // missing field
-		"port:443 and",      // trailing operator
-		"port:443 or",       // trailing operator
-		"((port:443)",       // unbalanced parens
-		"port:{}",           // empty set
+		"port:",        // missing value
+		":443",         // missing field
+		"port:443 and", // trailing operator
+		"port:443 or",  // trailing operator
+		"((port:443)",  // unbalanced parens
+		"port:{}",      // empty set
 	}
 	for _, input := range tests {
 		_, err := Parse(input)
@@ -371,7 +371,7 @@ func TestCompileSet(t *testing.T) {
 
 func TestCompileCIDR(t *testing.T) {
 	tests := []struct {
-		input   string
+		input    string
 		contains string
 	}{
 		{"ip:192.168.1.0/24", "192.168.1.%"},
@@ -731,9 +731,9 @@ func TestCompileASNColonExactMatch(t *testing.T) {
 func TestCompileCIDRNonAligned(t *testing.T) {
 	// /17 should use ip_int BETWEEN, not LIKE which is too broad
 	tests := []struct {
-		input    string
-		wantSQL  string // substring that must appear in WHERE
-		noLIKE   bool   // should NOT contain LIKE
+		input   string
+		wantSQL string // substring that must appear in WHERE
+		noLIKE  bool   // should NOT contain LIKE
 	}{
 		{"ip:10.200.128.0/17", "BETWEEN", true},
 		{"ip:172.16.32.0/20", "BETWEEN", true},
@@ -1007,8 +1007,8 @@ func TestSQLInjectionJSONPathComprehensive(t *testing.T) {
 	// Each payload appended to each JSON prefix must be rejected
 	prefixes := []string{"enrichment.", "fingerprint.", "http.headers.", "http.tech."}
 	payloads := []struct {
-		name    string
-		suffix  string
+		name   string
+		suffix string
 	}{
 		// Classic SQL injection
 		{"single_quote", "x' OR '1'='1"},

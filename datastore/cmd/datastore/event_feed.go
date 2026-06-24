@@ -10,7 +10,7 @@ import (
 
 // RecentEvent represents a recent pipeline event for the UI feed
 type RecentEvent struct {
-	Type    string `json:"type"`    // "open", "fingerprinted", "enriched"
+	Type    string `json:"type"` // "open", "fingerprinted", "enriched"
 	IP      string `json:"ip"`
 	Port    int    `json:"port"`
 	Service string `json:"service,omitempty"`
