@@ -15,6 +15,7 @@ const version = "0.1"
 
 type cliOptions struct {
 	target     string
+	targetFile string
 	ports      string
 	topPorts   int
 	iface      string
@@ -42,6 +43,12 @@ func main() {
 			}
 			i++
 			opts.target = args[i]
+		case "--target-file":
+			if i+1 >= len(args) {
+				fatal("--target-file requires an argument")
+			}
+			i++
+			opts.targetFile = args[i]
 		case "-p", "--ports":
 			if i+1 >= len(args) {
 				fatal("--ports requires an argument")
@@ -151,8 +158,8 @@ func main() {
 		return
 	}
 
-	if config.Synscan.Target.CIDR == "" {
-		fmt.Fprintln(os.Stderr, "Error: --target is required")
+	if config.Synscan.Target.CIDR == "" && config.Synscan.Target.File == "" {
+		fmt.Fprintln(os.Stderr, "Error: --target or --target-file is required")
 		fmt.Fprintln(os.Stderr)
 		printUsage()
 		os.Exit(1)
@@ -185,9 +192,21 @@ func loadConfiguration(opts cliOptions) *YAMLConfig {
 	// CLI overrides
 	if opts.target != "" {
 		config.Synscan.Target.CIDR = opts.target
+		config.Synscan.Target.File = ""
+	}
+	if opts.targetFile != "" {
+		config.Synscan.Target.File = opts.targetFile
+		config.Synscan.Target.CIDR = ""
 	}
 	if opts.ports != "" {
 		config.Synscan.Target.Ports = opts.ports
+	}
+
+	if opts.target != "" && opts.targetFile != "" {
+		fatal("--target and --target-file are mutually exclusive")
+	}
+	if config.Synscan.Target.CIDR != "" && config.Synscan.Target.File != "" {
+		fatal("synscan.target.cidr and synscan.target.file are mutually exclusive")
 	}
 	if opts.topPorts > 0 {
 		config.Synscan.Target.TopPorts = opts.topPorts
@@ -254,6 +273,7 @@ Usage:
 
 Flags:
   -t, --target <cidr>      Target CIDR or IP range (required in scan mode)
+      --target-file <path> File containing one target/range per line
   -p, --ports <ports>      Ports to scan (default: 80,443,22,8080,8443)
   -P, --top-ports <n>      Scan the N most common ports (mutually exclusive with -p)
   -i, --interface <iface>  Network interface (auto-detected if empty)
@@ -270,6 +290,7 @@ Flags:
 
 Examples:
   synscan -t 192.168.1.0/24 -p 80,443
+  synscan --target-file scopes.txt -p 80,443
   synscan -t 10.0.0.1 --top-ports 100 -r 5000
   synscan -t 192.168.1-10.0/24 -p 22,80,443 --nats-url nats://localhost:4222
   synscan -c config.yaml -t 10.0.0.0/8 --timeout 10000

@@ -21,6 +21,9 @@ func TestGetDefaultConfig(t *testing.T) {
 	if config.Synscan.Target.CIDR != "" {
 		t.Errorf("default CIDR should be empty, got %s", config.Synscan.Target.CIDR)
 	}
+	if config.Synscan.Target.File != "" {
+		t.Errorf("default target file should be empty, got %s", config.Synscan.Target.File)
+	}
 	if config.Synscan.Network.Interface != "" {
 		t.Errorf("default interface should be empty, got %s", config.Synscan.Network.Interface)
 	}
@@ -47,6 +50,7 @@ nats:
 synscan:
   target:
     cidr: "10.0.0.0/24"
+    file: "targets.txt"
     ports: "22,80"
   network:
     interface: "eth0"
@@ -72,6 +76,9 @@ logging:
 	}
 	if config.Synscan.Target.CIDR != "10.0.0.0/24" {
 		t.Errorf("CIDR: expected 10.0.0.0/24, got %s", config.Synscan.Target.CIDR)
+	}
+	if config.Synscan.Target.File != "targets.txt" {
+		t.Errorf("file: expected targets.txt, got %s", config.Synscan.Target.File)
 	}
 	if config.Synscan.Target.Ports != "22,80" {
 		t.Errorf("ports: expected 22,80, got %s", config.Synscan.Target.Ports)
@@ -199,6 +206,7 @@ nats:
 synscan:
   target:
     cidr: "10.0.0.0/24"
+    file: "targets.txt"
     ports: "80"
   performance:
     rate_limit: 500
@@ -220,6 +228,9 @@ synscan:
 
 	if config.Synscan.Target.CIDR != "192.168.1.0/24" {
 		t.Errorf("expected CLI target, got %s", config.Synscan.Target.CIDR)
+	}
+	if config.Synscan.Target.File != "" {
+		t.Errorf("expected CLI target to clear YAML target file, got %s", config.Synscan.Target.File)
 	}
 	if config.Synscan.Target.Ports != "443,8080" {
 		t.Errorf("expected CLI ports, got %s", config.Synscan.Target.Ports)
@@ -268,6 +279,29 @@ synscan:
 	}
 	if config.Synscan.Performance.RateLimit != 3000 {
 		t.Errorf("expected YAML rate limit, got %d", config.Synscan.Performance.RateLimit)
+	}
+}
+
+func TestLoadConfiguration_CLITargetFileOverridesYAMLTarget(t *testing.T) {
+	yaml := `
+synscan:
+  target:
+    cidr: "172.16.0.0/16"
+    ports: "22,80,443"
+`
+	path := writeTempFile(t, "config-target-file-*.yaml", yaml)
+
+	opts := cliOptions{
+		configFile: path,
+		targetFile: "scopes.txt",
+	}
+	config := loadConfiguration(opts)
+
+	if config.Synscan.Target.File != "scopes.txt" {
+		t.Errorf("expected CLI target file, got %s", config.Synscan.Target.File)
+	}
+	if config.Synscan.Target.CIDR != "" {
+		t.Errorf("expected CLI target file to clear YAML CIDR, got %s", config.Synscan.Target.CIDR)
 	}
 }
 

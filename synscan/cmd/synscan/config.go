@@ -35,6 +35,7 @@ type SynscanConfig struct {
 // TargetConfig définit les cibles du scan
 type TargetConfig struct {
 	CIDR     string `yaml:"cidr"`
+	File     string `yaml:"file"`
 	Ports    string `yaml:"ports"`
 	TopPorts int    `yaml:"top_ports"`
 }
@@ -93,6 +94,7 @@ func GetDefaultConfig() *YAMLConfig {
 		Synscan: SynscanConfig{
 			Target: TargetConfig{
 				CIDR:  "",
+				File:  "",
 				Ports: "80,443,22,8080,8443",
 			},
 			Network: NetworkConfig{

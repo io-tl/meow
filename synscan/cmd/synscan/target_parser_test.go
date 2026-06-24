@@ -2,6 +2,8 @@ package main
 
 import (
 	"net"
+	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 )
@@ -196,6 +198,66 @@ func TestParseTarget_SingleOctetRange(t *testing.T) {
 	}
 	if len(ips) != 1 {
 		t.Fatalf("expected 1 IP for range 1-1, got %d", len(ips))
+	}
+}
+
+func TestParseTargetsFromFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "targets.txt")
+	content := "# comment\n192.168.1.1\n\n192.168.1.2-3\n10.0.0.0/30 # inline comment\n192.168.1.1\n"
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write target file: %v", err)
+	}
+
+	ips, err := parseTargetsFromFile(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := []string{
+		"192.168.1.1",
+		"192.168.1.2",
+		"192.168.1.3",
+		"10.0.0.1",
+		"10.0.0.2",
+	}
+	if len(ips) != len(expected) {
+		t.Fatalf("expected %d IPs, got %d (%v)", len(expected), len(ips), ips)
+	}
+	for i, want := range expected {
+		if ips[i] != want {
+			t.Errorf("ip[%d]: expected %s, got %s", i, want, ips[i])
+		}
+	}
+}
+
+func TestParseTargetsFromFile_InvalidLine(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "targets.txt")
+	if err := os.WriteFile(path, []byte("192.168.1.1\nnope\n"), 0644); err != nil {
+		t.Fatalf("failed to write target file: %v", err)
+	}
+
+	_, err := parseTargetsFromFile(path)
+	if err == nil {
+		t.Fatal("expected error for invalid target file line")
+	}
+}
+
+func TestLoadTargets(t *testing.T) {
+	ips, err := loadTargets("192.168.1.1", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ips) != 1 || ips[0] != "192.168.1.1" {
+		t.Fatalf("unexpected loadTargets result: %v", ips)
+	}
+}
+
+func TestLoadTargets_MutuallyExclusive(t *testing.T) {
+	_, err := loadTargets("192.168.1.1", "targets.txt")
+	if err == nil {
+		t.Fatal("expected error when target and target file are both set")
 	}
 }
 

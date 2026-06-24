@@ -70,6 +70,7 @@ Usage: synscan [flags]
 
 Flags:
   -t, --target <cidr>       Target CIDR, IP, or nmap-style range (required)
+      --target-file <path>  File containing one target/range per line
   -p, --ports <ports>       Ports to scan (default: 80,443,22,8080,8443)
   -P, --top-ports <n>       Scan the N most common ports
   -i, --interface <iface>   Network interface (auto-detected if empty)
@@ -83,7 +84,7 @@ Flags:
   -v, --verbose             Verbose output
 ```
 
-> `-p` and `-P` are mutually exclusive.
+> `-t` and `--target-file` are mutually exclusive. `-p` and `-P` are also mutually exclusive.
 
 ---
 
@@ -119,6 +120,18 @@ sudo ./synscan -t 192.168.1-3.1-254 -p 80,443
 
 # CIDR combined with ranges
 sudo ./synscan -t 10.0.1-5.0/24 -p 22,80
+```
+
+### Targets from file
+
+```bash
+cat > scopes.txt <<'EOF'
+# One target/range per line
+192.168.1.0/24
+10.0.10-12.1-254
+EOF
+
+sudo ./synscan --target-file scopes.txt -p 80,443
 ```
 
 ### Full pipeline with NATS
@@ -172,6 +185,7 @@ nats:
 synscan:
   target:
     cidr: 192.168.1.0/24
+    # file: scopes.txt      # alternative to cidr
     ports: "80,443,22,8080,8443"
     # top_ports: 100        # alternative to ports
   network:

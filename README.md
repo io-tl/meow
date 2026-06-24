@@ -44,7 +44,7 @@ TCP port scanner using forged SYN packets. Detects open ports without completing
 - **Auto-detected transport**: AF_PACKET > Raw Socket > Connect
 - Linux support (AF_PACKET, raw sockets) and Windows (Npcap)
 - Deterministic scan with resume token to pick up an interrupted scan
-- nmap-style targets: CIDR, octet ranges, combinations
+- nmap-style targets: CIDR, octet ranges, combinations, or input file
 - Daemon mode to receive scan orders via NATS
 
 ```bash

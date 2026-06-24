@@ -1,11 +1,26 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 )
+
+func loadTargets(target, targetFile string) ([]string, error) {
+	switch {
+	case target != "" && targetFile != "":
+		return nil, fmt.Errorf("target and target file are mutually exclusive")
+	case targetFile != "":
+		return parseTargetsFromFile(targetFile)
+	case target != "":
+		return parseTarget(target)
+	default:
+		return nil, fmt.Errorf("no target specified")
+	}
+}
 
 // parseTarget parses various nmap-style target formats and returns a list of IPs
 // Supported formats:
@@ -32,6 +47,50 @@ func parseTarget(target string) ([]string, error) {
 		return nil, fmt.Errorf("invalid IP address: %s", target)
 	}
 	return []string{ip.String()}, nil
+}
+
+func parseTargetsFromFile(path string) ([]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open target file: %w", err)
+	}
+	defer file.Close()
+
+	var targets []string
+	seen := make(map[string]struct{})
+	scanner := bufio.NewScanner(file)
+
+	for lineNo := 1; scanner.Scan(); lineNo++ {
+		line := strings.TrimSpace(scanner.Text())
+		if idx := strings.Index(line, "#"); idx >= 0 {
+			line = strings.TrimSpace(line[:idx])
+		}
+		if line == "" {
+			continue
+		}
+
+		ips, err := parseTarget(line)
+		if err != nil {
+			return nil, fmt.Errorf("line %d: %w", lineNo, err)
+		}
+
+		for _, ip := range ips {
+			if _, exists := seen[ip]; exists {
+				continue
+			}
+			seen[ip] = struct{}{}
+			targets = append(targets, ip)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read target file: %w", err)
+	}
+	if len(targets) == 0 {
+		return nil, fmt.Errorf("target file is empty")
+	}
+
+	return targets, nil
 }
 
 // parseCIDRWithRanges handles CIDR notation with optional ranges in octets

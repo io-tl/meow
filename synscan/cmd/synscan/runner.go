@@ -39,8 +39,8 @@ func decodeScanToken(token string) (int64, int, error) {
 
 // prepareScanConfig parses targets and ports, resolves source IP, and builds a ScanConfig.
 // Used by both run() and executeScanFromRequest() to avoid duplication.
-func prepareScanConfig(config *YAMLConfig, target, ports string, verbose bool) (*types.ScanConfig, []string, []int, error) {
-	targetIPs, err := parseTarget(target)
+func prepareScanConfig(config *YAMLConfig, target, targetFile, ports string, verbose bool) (*types.ScanConfig, []string, []int, error) {
+	targetIPs, err := loadTargets(target, targetFile)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("invalid target: %w", err)
 	}
@@ -72,7 +72,13 @@ func prepareScanConfig(config *YAMLConfig, target, ports string, verbose bool) (
 }
 
 func run(ctx context.Context, config *YAMLConfig, verbose bool, resumeToken string) error {
-	scanConfig, _, ports, err := prepareScanConfig(config, config.Synscan.Target.CIDR, config.Synscan.Target.Ports, verbose)
+	scanConfig, _, ports, err := prepareScanConfig(
+		config,
+		config.Synscan.Target.CIDR,
+		config.Synscan.Target.File,
+		config.Synscan.Target.Ports,
+		verbose,
+	)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ nats:
 synscan:
   target:
     cidr: ""
+    file: ""  # Alternative input file: one target/range per line
     ports: "80,443,22,8080,8443"
 
   network:

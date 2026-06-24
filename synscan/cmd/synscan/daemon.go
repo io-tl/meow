@@ -143,7 +143,7 @@ func executeScanFromRequest(ctx context.Context, config *YAMLConfig, req *types.
 		ports = config.Synscan.Target.Ports
 	}
 
-	scanConfig, targetIPs, parsedPorts, err := prepareScanConfig(config, req.Target, ports, verbose)
+	scanConfig, targetIPs, parsedPorts, err := prepareScanConfig(config, req.Target, "", ports, verbose)
 	if err != nil {
 		log.Printf("Scan %s: %v", req.RequestID, err)
 		return ""
