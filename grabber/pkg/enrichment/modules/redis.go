@@ -3,6 +3,7 @@ package modules
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -77,9 +78,13 @@ func scanRedis(ip string, port int, timeout time.Duration) (*RedisResult, error)
 		fmt.Sscanf(line, "$%d", &length)
 		if length > 0 && length < 100000 {
 			// Read the actual data
+			if length > 1000000 {
+				result.Error = "INFO response too large"
+				return result, nil
+			}
 			infoData := make([]byte, length)
-			_, err := reader.Read(infoData)
-			if err == nil {
+			if _, err := io.ReadFull(reader, infoData); err == nil {
+				_, _ = io.ReadFull(reader, make([]byte, 2))
 				// Parse INFO response using helper
 				lines := strings.Split(string(infoData), "\n")
 				for _, l := range lines {
@@ -100,6 +105,8 @@ func scanRedis(ip string, port int, timeout time.Duration) (*RedisResult, error)
 						}
 					}
 				}
+			} else {
+				result.Error = err.Error()
 			}
 		}
 	} else if strings.HasPrefix(line, "-NOAUTH") {

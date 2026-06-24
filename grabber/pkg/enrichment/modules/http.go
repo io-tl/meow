@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -46,18 +47,19 @@ type HTTPSModule struct {
 
 // HTTPResult represents the enriched HTTP/HTTPS data
 type HTTPResult struct {
-	Protocol     string              `json:"protocol"` // http or https
-	StatusCode   int                 `json:"status_code"`
-	StatusText   string              `json:"status_text"`
-	Headers      map[string][]string `json:"headers"`
-	Banner       string              `json:"banner,omitempty"`        // HTTP response headers as banner (status line + headers)
-	Body         string              `json:"body,omitempty"`          // Truncated body (first 10KB)
-	BodyLength   int                 `json:"body_length"`             // Full body length
-	Technologies []Technology        `json:"technologies,omitempty"`  // Wappalyzer detected technologies
-	Favicon      *FaviconInfo        `json:"favicon,omitempty"`       // Favicon hash info
-	Redirects    []string            `json:"redirects,omitempty"`     // Redirect chain
-	TLS          *TLSInfo            `json:"tls,omitempty"`           // TLS/SSL info (HTTPS only)
-	Error        string              `json:"error,omitempty"`         // Error if request failed
+	Protocol      string              `json:"protocol"` // http or https
+	StatusCode    int                 `json:"status_code"`
+	StatusText    string              `json:"status_text"`
+	Headers       map[string][]string `json:"headers"`
+	Banner        string              `json:"banner,omitempty"` // HTTP response headers as banner (status line + headers)
+	Body          string              `json:"body,omitempty"`   // Truncated body (first 10KB)
+	BodyLength    int                 `json:"body_length"`      // Best known full body length
+	BodyTruncated bool                `json:"body_truncated,omitempty"`
+	Technologies  []Technology        `json:"technologies,omitempty"` // Wappalyzer detected technologies
+	Favicon       *FaviconInfo        `json:"favicon,omitempty"`      // Favicon hash info
+	Redirects     []string            `json:"redirects,omitempty"`    // Redirect chain
+	TLS           *TLSInfo            `json:"tls,omitempty"`          // TLS/SSL info (HTTPS only)
+	Error         string              `json:"error,omitempty"`        // Error if request failed
 }
 
 // Technology represents a detected web technology
@@ -69,10 +71,10 @@ type Technology struct {
 
 // FaviconInfo represents favicon hash information
 type FaviconInfo struct {
-	URL     string `json:"url,omitempty"`
-	MD5     string `json:"md5,omitempty"`     // MD5 hash
-	MMH3    int32  `json:"mmh3,omitempty"`    // MurmurHash3 (Shodan compatible)
-	Size    int    `json:"size,omitempty"`    // Size in bytes
+	URL  string `json:"url,omitempty"`
+	MD5  string `json:"md5,omitempty"`  // MD5 hash
+	MMH3 int32  `json:"mmh3,omitempty"` // MurmurHash3 (Shodan compatible)
+	Size int    `json:"size,omitempty"` // Size in bytes
 }
 
 func init() {
@@ -192,6 +194,10 @@ func scanHTTP(ip string, port int, useHTTPS bool, domain string, timeout time.Du
 	if err == nil {
 		result.Body = string(bodyBytes)
 		result.BodyLength = len(bodyBytes)
+		if resp.ContentLength > int64(len(bodyBytes)) {
+			result.BodyLength = int(resp.ContentLength)
+			result.BodyTruncated = true
+		}
 	}
 
 	// Detect technologies using Wappalyzer
@@ -203,7 +209,7 @@ func scanHTTP(ip string, port int, useHTTPS bool, domain string, timeout time.Du
 	}
 
 	// Fetch favicon and compute hash
-	result.Favicon = fetchFavicon(client, baseURL, bodyBytes)
+	result.Favicon = fetchFavicon(client, baseURL, domain, bodyBytes)
 
 	return result, nil
 }
@@ -271,7 +277,7 @@ func detectTechnologiesFallback(headers http.Header) []Technology {
 }
 
 // fetchFavicon fetches and hashes the favicon
-func fetchFavicon(client *http.Client, baseURL string, body []byte) *FaviconInfo {
+func fetchFavicon(client *http.Client, baseURL, domain string, body []byte) *FaviconInfo {
 	// Try to find favicon URL in HTML
 	faviconURL := findFaviconURL(baseURL, body)
 	if faviconURL == "" {
@@ -285,6 +291,9 @@ func fetchFavicon(client *http.Client, baseURL string, body []byte) *FaviconInfo
 		return nil
 	}
 	req.Header.Set("User-Agent", censysUserAgent)
+	if domain != "" {
+		req.Host = domain
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -297,10 +306,26 @@ func fetchFavicon(client *http.Client, baseURL string, body []byte) *FaviconInfo
 		return nil
 	}
 
+	contentLength := 0
+	if resp.ContentLength > 0 {
+		contentLength = int(resp.ContentLength)
+	} else if value := resp.Header.Get("Content-Length"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			contentLength = parsed
+		}
+	}
+
 	// Read favicon (limit to 1MB)
 	faviconData, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
-	if err != nil || len(faviconData) == 0 {
+	if err != nil {
 		return nil
+	}
+	if len(faviconData) == 0 {
+		return nil
+	}
+	// Additional check to ensure content length is reasonable
+	if contentLength > 10*1024*1024 {
+		return nil // Reject unreasonably large favicons
 	}
 
 	// Compute hashes
@@ -311,7 +336,7 @@ func fetchFavicon(client *http.Client, baseURL string, body []byte) *FaviconInfo
 		URL:  faviconURL,
 		MD5:  md5Hash,
 		MMH3: mmh3Hash,
-		Size: len(faviconData),
+		Size: max(contentLength, len(faviconData)),
 	}
 }
 
@@ -416,4 +441,3 @@ func mmh3Hash32(data []byte) int32 {
 
 	return int32(h1)
 }
-

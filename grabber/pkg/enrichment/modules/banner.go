@@ -50,7 +50,15 @@ func scanBanner(ip string, port int, timeout time.Duration) (*BannerResult, erro
 
 	// Synchronous read — the deadline from DialTCP ensures we don't block forever
 	buf := make([]byte, 4096)
-	n, _ := conn.Read(buf)
+	n, err := conn.Read(buf)
+	if err != nil && n == 0 {
+		// If the server closes immediately, return empty result without error
+		if err.Error() == "EOF" {
+			return result, nil
+		}
+		result.Error = err.Error()
+		return result, err
+	}
 
 	result.Banner = string(buf[:n])
 	result.Length = n

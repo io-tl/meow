@@ -2,6 +2,7 @@ package modules
 
 import (
 	"bufio"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -15,15 +16,15 @@ type GitModule struct {
 }
 
 type GitResult struct {
-	Protocol    string            `json:"protocol"`
-	Version     string            `json:"version,omitempty"`
-	Refs        []string          `json:"refs,omitempty"`
-	Capabilities []string         `json:"capabilities,omitempty"`
-	RefCount    int               `json:"ref_count"`
-	HeadRef     string            `json:"head_ref,omitempty"`
-	Branches    map[string]string `json:"branches,omitempty"`
-	Tags        map[string]string `json:"tags,omitempty"`
-	Error       string            `json:"error,omitempty"`
+	Protocol     string            `json:"protocol"`
+	Version      string            `json:"version,omitempty"`
+	Refs         []string          `json:"refs,omitempty"`
+	Capabilities []string          `json:"capabilities,omitempty"`
+	RefCount     int               `json:"ref_count"`
+	HeadRef      string            `json:"head_ref,omitempty"`
+	Branches     map[string]string `json:"branches,omitempty"`
+	Tags         map[string]string `json:"tags,omitempty"`
+	Error        string            `json:"error,omitempty"`
 }
 
 func init() {
@@ -58,8 +59,7 @@ func (m *GitModule) Scan(ip string, port int) (interface{}, error) {
 	for iteration := 0; iteration < maxRefs; iteration++ {
 		// Read pkt-line length (4 hex digits)
 		lengthBytes := make([]byte, 4)
-		n, err := reader.Read(lengthBytes)
-		if err != nil || n != 4 {
+		if _, err := io.ReadFull(reader, lengthBytes); err != nil {
 			break
 		}
 
@@ -80,8 +80,7 @@ func (m *GitModule) Scan(ip string, port int) (interface{}, error) {
 		// Read the rest of the packet (length includes the 4-byte length prefix)
 		dataLen := length - 4
 		data := make([]byte, dataLen)
-		n, err = reader.Read(data)
-		if err != nil || int64(n) != dataLen {
+		if _, err := io.ReadFull(reader, data); err != nil {
 			break
 		}
 

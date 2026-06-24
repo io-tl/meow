@@ -2,10 +2,12 @@ package modules
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net"
+	"strings"
 	"time"
 
 	"meow/grabber/pkg/enrichment/modules/helpers"
@@ -18,37 +20,41 @@ type MongoDBModule struct {
 
 // MongoDBResult represents the enriched MongoDB data
 type MongoDBResult struct {
-	Protocol       string          `json:"protocol"`
-	Version        string          `json:"version,omitempty"`
-	GitVersion     string          `json:"git_version,omitempty"`
-	Modules        []string        `json:"modules,omitempty"`
-	Allocator      string          `json:"allocator,omitempty"`
-	JSEngine       string          `json:"javascript_engine,omitempty"`
-	Bits           int             `json:"bits,omitempty"`
-	MaxBsonSize    int             `json:"max_bson_object_size,omitempty"`
-	StorageEngines []string        `json:"storage_engines,omitempty"`
-	OpenSSL        string          `json:"openssl,omitempty"`
-	IsMaster       bool            `json:"is_master,omitempty"`
-	MaxWireVersion int             `json:"max_wire_version,omitempty"`
-	ReadOnly       bool            `json:"is_read_only,omitempty"`
-	ReplicaSet     string          `json:"replica_set,omitempty"`
-	ReplicaHosts   []string        `json:"replica_hosts,omitempty"`
-	Passives       []string        `json:"passive_hosts,omitempty"`
-	Arbiters       []string        `json:"arbiters,omitempty"`
-	Primary        string          `json:"primary,omitempty"`
-	Me             string          `json:"me,omitempty"`
-	Compression    []string        `json:"compression,omitempty"`
-	SessionTimeout int             `json:"session_timeout_minutes,omitempty"`
-	Hostname       string          `json:"hostname,omitempty"`
-	OSType         string          `json:"os_type,omitempty"`
-	OSName         string          `json:"os_name,omitempty"`
-	CPUArch        string          `json:"cpu_arch,omitempty"`
-	CPUCores       int             `json:"cpu_cores,omitempty"`
-	MemoryMB       int             `json:"memory_mb,omitempty"`
-	Databases      []MongoDatabase `json:"databases,omitempty"`
-	TotalDBSize    int64           `json:"total_db_size,omitempty"`
-	AuthRequired   bool            `json:"auth_required,omitempty"`
-	Error          string          `json:"error,omitempty"`
+	Protocol       string            `json:"protocol"`
+	Version        string            `json:"version,omitempty"`
+	GitVersion     string            `json:"git_version,omitempty"`
+	Modules        []string          `json:"modules,omitempty"`
+	Allocator      string            `json:"allocator,omitempty"`
+	JSEngine       string            `json:"javascript_engine,omitempty"`
+	Bits           int               `json:"bits,omitempty"`
+	MaxBsonSize    int               `json:"max_bson_object_size,omitempty"`
+	StorageEngines []string          `json:"storage_engines,omitempty"`
+	OpenSSL        string            `json:"openssl,omitempty"`
+	IsMaster       bool              `json:"is_master,omitempty"`
+	MaxWireVersion int               `json:"max_wire_version,omitempty"`
+	ReadOnly       bool              `json:"is_read_only,omitempty"`
+	ReplicaSet     string            `json:"replica_set,omitempty"`
+	ReplicaHosts   []string          `json:"replica_hosts,omitempty"`
+	Passives       []string          `json:"passive_hosts,omitempty"`
+	Arbiters       []string          `json:"arbiters,omitempty"`
+	Primary        string            `json:"primary,omitempty"`
+	Me             string            `json:"me,omitempty"`
+	Compression    []string          `json:"compression,omitempty"`
+	SessionTimeout int               `json:"session_timeout_minutes,omitempty"`
+	Hostname       string            `json:"hostname,omitempty"`
+	OSType         string            `json:"os_type,omitempty"`
+	OSName         string            `json:"os_name,omitempty"`
+	CPUArch        string            `json:"cpu_arch,omitempty"`
+	CPUCores       int               `json:"cpu_cores,omitempty"`
+	MemoryMB       int               `json:"memory_mb,omitempty"`
+	Databases      []MongoDatabase   `json:"databases,omitempty"`
+	Collections    []MongoCollection `json:"collections,omitempty"`
+	Buckets        []MongoBucket     `json:"buckets,omitempty"`
+	TotalDBSize    int64             `json:"total_db_size,omitempty"`
+	AuthStatus     string            `json:"auth_status,omitempty"`
+	AuthMessage    string            `json:"auth_message,omitempty"`
+	AuthRequired   bool              `json:"auth_required,omitempty"`
+	Error          string            `json:"error,omitempty"`
 }
 
 // MongoDatabase represents a database entry from listDatabases
@@ -56,6 +62,19 @@ type MongoDatabase struct {
 	Name       string `json:"name"`
 	SizeOnDisk int64  `json:"size_on_disk"`
 	Empty      bool   `json:"empty,omitempty"`
+}
+
+type MongoBucket struct {
+	Database   string `json:"database"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Collection string `json:"collection,omitempty"`
+}
+
+type MongoCollection struct {
+	Database string `json:"database"`
+	Name     string `json:"name"`
+	Type     string `json:"type,omitempty"`
 }
 
 func init() {
@@ -86,15 +105,28 @@ func scanMongoDB(ip string, port int, timeout time.Duration) (*MongoDBResult, er
 
 	// Try OP_MSG commands (MongoDB 3.6+)
 	if err := mongoProbeAll(conn, result); err != nil {
+		result.Error = err.Error()
+
 		// OP_MSG protocol failed, try OP_QUERY fallback for buildInfo
 		conn.Close()
 		conn, err = helpers.DialTCP(ip, port, timeout)
 		if err != nil {
-			result.Error = "connection failed"
-			return result, err
+			if result.Version == "" {
+				result.Error = err.Error()
+			}
+			return result, nil
 		}
 		defer conn.Close()
-		return result, mongoFallbackOpQuery(conn, result)
+
+		if fallbackErr := mongoFallbackOpQuery(conn, result); fallbackErr != nil {
+			if !errors.Is(fallbackErr, io.EOF) {
+				result.Error = fallbackErr.Error()
+			}
+			return result, nil
+		}
+
+		result.Error = ""
+		return result, nil
 	}
 
 	conn.Close()
@@ -112,10 +144,15 @@ func mongoProbeAll(conn net.Conn, result *MongoDBResult) error {
 	}
 	reqID++
 	mongoExtractBuildInfo(doc, result)
+	if result.Version == "" && !result.AuthRequired {
+		result.Version = "detected"
+	}
 
 	// 2. isMaster — topology, wire version, replica set, compression
 	doc, err = mongoRunCommand(conn, "isMaster", "admin", reqID)
-	if err == nil {
+	if err != nil {
+		result.Error = fmt.Sprintf("isMaster command failed: %v", err)
+	} else {
 		mongoExtractIsMaster(doc, result)
 	}
 	reqID++
@@ -131,6 +168,44 @@ func mongoProbeAll(conn net.Conn, result *MongoDBResult) error {
 	doc, err = mongoRunCommand(conn, "listDatabases", "admin", reqID)
 	if err == nil {
 		mongoExtractDatabases(doc, result)
+		if len(result.Databases) > 0 && result.AuthStatus == "" {
+			result.AuthStatus = "not_required"
+		}
+	}
+	if mongoIsUnauthorized(doc) {
+		result.AuthRequired = true
+		result.AuthStatus = "required"
+		result.AuthMessage = mongoExtractErrorMessage(doc)
+		return nil
+	}
+	reqID++
+
+	if len(result.Databases) > 0 {
+		for _, db := range result.Databases {
+			doc, err = mongoRunCommandElements(conn, "listCollections", db.Name, reqID,
+				mongoBoolElement("nameOnly", true),
+				mongoBoolElement("authorizedCollections", true),
+			)
+			if err == nil {
+				mongoExtractBuckets(db.Name, doc, result)
+			} else if result.AuthStatus == "" {
+				result.AuthStatus = "unknown"
+			}
+			if mongoIsUnauthorized(doc) && result.AuthStatus == "" {
+				result.AuthRequired = true
+				result.AuthStatus = "required"
+				result.AuthMessage = mongoExtractErrorMessage(doc)
+			}
+			reqID++
+		}
+	}
+
+	if result.AuthStatus == "" {
+		if result.AuthRequired {
+			result.AuthStatus = "required"
+		} else {
+			result.AuthStatus = "unknown"
+		}
 	}
 
 	return nil
@@ -140,12 +215,40 @@ func mongoProbeAll(conn net.Conn, result *MongoDBResult) error {
 
 // mongoBuildCommandBSON builds a BSON document for {cmd: 1, $db: db}
 func mongoBuildCommandBSON(cmd, db string) []byte {
+	return mongoBuildCommandBSONWithElements(cmd, db)
+}
+
+type mongoElement struct {
+	name string
+	kind byte
+	i32  int32
+	str  string
+	b    bool
+}
+
+func mongoBoolElement(name string, value bool) mongoElement {
+	return mongoElement{name: name, kind: 0x08, b: value}
+}
+
+func mongoBuildCommandBSONWithElements(cmd, db string, elems ...mongoElement) []byte {
 	// Element 1: type(1) + cmd\0 + int32(4)
 	// Element 2: type(1) + "$db\0"(4) + strLen(4) + db\0
-	// Document: size(4) + elem1 + elem2 + terminator(1)
+	// Document: size(4) + elem1 + elem2 + extras + terminator(1)
 	elem1 := 1 + len(cmd) + 1 + 4
 	elem2 := 1 + 4 + 4 + len(db) + 1
-	docSize := 4 + elem1 + elem2 + 1
+	extraSize := 0
+	for _, elem := range elems {
+		extraSize += 1 + len(elem.name) + 1
+		switch elem.kind {
+		case 0x10:
+			extraSize += 4
+		case 0x02:
+			extraSize += 4 + len(elem.str) + 1
+		case 0x08:
+			extraSize++
+		}
+	}
+	docSize := 4 + elem1 + elem2 + extraSize + 1
 
 	doc := make([]byte, docSize)
 	pos := 0
@@ -173,6 +276,35 @@ func mongoBuildCommandBSON(cmd, db string) []byte {
 	doc[pos] = 0x00
 	pos++
 
+	for _, elem := range elems {
+		doc[pos] = elem.kind
+		pos++
+		copy(doc[pos:], elem.name)
+		pos += len(elem.name)
+		doc[pos] = 0x00
+		pos++
+
+		switch elem.kind {
+		case 0x10:
+			binary.LittleEndian.PutUint32(doc[pos:], uint32(elem.i32))
+			pos += 4
+		case 0x02:
+			binary.LittleEndian.PutUint32(doc[pos:], uint32(len(elem.str)+1))
+			pos += 4
+			copy(doc[pos:], elem.str)
+			pos += len(elem.str)
+			doc[pos] = 0x00
+			pos++
+		case 0x08:
+			if elem.b {
+				doc[pos] = 0x01
+			} else {
+				doc[pos] = 0x00
+			}
+			pos++
+		}
+	}
+
 	doc[pos] = 0x00 // terminator
 	return doc
 }
@@ -183,10 +315,10 @@ func mongoBuildOpMsg(bson []byte, requestID uint32) []byte {
 	msg := make([]byte, msgLen)
 	binary.LittleEndian.PutUint32(msg[0:], msgLen)
 	binary.LittleEndian.PutUint32(msg[4:], requestID)
-	binary.LittleEndian.PutUint32(msg[8:], 0)    // responseTo
+	binary.LittleEndian.PutUint32(msg[8:], 0)     // responseTo
 	binary.LittleEndian.PutUint32(msg[12:], 2013) // OP_MSG
 	binary.LittleEndian.PutUint32(msg[16:], 0)    // flagBits
-	msg[20] = 0x00                                 // section kind: body
+	msg[20] = 0x00                                // section kind: body
 	copy(msg[21:], bson)
 	return msg
 }
@@ -206,7 +338,7 @@ func mongoBuildOpQuery() []byte {
 		0x01, 0x00, 0x00, 0x00, // numberToReturn: 1
 		// BSON: {buildInfo: 1} (20 bytes)
 		0x14, 0x00, 0x00, 0x00, // doc size: 20
-		0x10,                                                         // type: int32
+		0x10,                                                       // type: int32
 		0x62, 0x75, 0x69, 0x6c, 0x64, 0x49, 0x6e, 0x66, 0x6f, 0x00, // "buildInfo\0"
 		0x01, 0x00, 0x00, 0x00, // value: 1
 		0x00, // end
@@ -217,7 +349,11 @@ func mongoBuildOpQuery() []byte {
 
 // mongoRunCommand sends a command via OP_MSG and returns parsed BSON response
 func mongoRunCommand(conn net.Conn, cmd, db string, requestID uint32) (map[string]interface{}, error) {
-	bson := mongoBuildCommandBSON(cmd, db)
+	return mongoRunCommandElements(conn, cmd, db, requestID)
+}
+
+func mongoRunCommandElements(conn net.Conn, cmd, db string, requestID uint32, elems ...mongoElement) (map[string]interface{}, error) {
+	bson := mongoBuildCommandBSONWithElements(cmd, db, elems...)
 	msg := mongoBuildOpMsg(bson, requestID)
 
 	if _, err := conn.Write(msg); err != nil {
@@ -282,7 +418,15 @@ func mongoFallbackOpQuery(conn net.Conn, result *MongoDBResult) error {
 // --- Data extraction ---
 
 func mongoExtractBuildInfo(doc map[string]interface{}, result *MongoDBResult) {
+	if len(doc) == 0 {
+		return
+	}
+
 	if !mongoIsOK(doc) {
+		if mongoIsUnauthorized(doc) {
+			result.AuthStatus = "required"
+			result.AuthMessage = mongoExtractErrorMessage(doc)
+		}
 		result.AuthRequired = true
 		return
 	}
@@ -393,6 +537,11 @@ func mongoExtractHostInfo(doc map[string]interface{}, result *MongoDBResult) {
 
 func mongoExtractDatabases(doc map[string]interface{}, result *MongoDBResult) {
 	if !mongoIsOK(doc) {
+		if mongoIsUnauthorized(doc) {
+			result.AuthRequired = true
+			result.AuthStatus = "required"
+			result.AuthMessage = mongoExtractErrorMessage(doc)
+		}
 		return
 	}
 
@@ -425,6 +574,71 @@ func mongoExtractDatabases(doc map[string]interface{}, result *MongoDBResult) {
 	}
 }
 
+func mongoExtractBuckets(dbName string, doc map[string]interface{}, result *MongoDBResult) {
+	if !mongoIsOK(doc) {
+		return
+	}
+
+	cursor, ok := doc["cursor"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	firstBatch, ok := cursor["firstBatch"].([]interface{})
+	if !ok {
+		return
+	}
+
+	gridfs := make(map[string]map[string]bool)
+	for _, item := range firstBatch {
+		colDoc, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, ok := colDoc["name"].(string)
+		if !ok || name == "" {
+			continue
+		}
+		collType, _ := colDoc["type"].(string)
+
+		result.Collections = append(result.Collections, MongoCollection{
+			Database: dbName,
+			Name:     name,
+			Type:     collType,
+		})
+
+		if strings.HasPrefix(name, "system.buckets.") {
+			bucketName := strings.TrimPrefix(name, "system.buckets.")
+			result.Buckets = append(result.Buckets, MongoBucket{
+				Database:   dbName,
+				Name:       bucketName,
+				Type:       "timeseries",
+				Collection: name,
+			})
+			continue
+		}
+
+		if strings.HasSuffix(name, ".files") || strings.HasSuffix(name, ".chunks") {
+			base := strings.TrimSuffix(strings.TrimSuffix(name, ".files"), ".chunks")
+			entry := gridfs[base]
+			if entry == nil {
+				entry = make(map[string]bool)
+				gridfs[base] = entry
+			}
+			entry[name] = true
+		}
+	}
+
+	for bucketName, collections := range gridfs {
+		if collections[bucketName+".files"] && collections[bucketName+".chunks"] {
+			result.Buckets = append(result.Buckets, MongoBucket{
+				Database: dbName,
+				Name:     bucketName,
+				Type:     "gridfs",
+			})
+		}
+	}
+}
+
 // --- Helpers ---
 
 func mongoIsOK(doc map[string]interface{}) bool {
@@ -441,6 +655,27 @@ func mongoIsOK(doc map[string]interface{}) bool {
 		return val != 0
 	}
 	return false
+}
+
+func mongoIsUnauthorized(doc map[string]interface{}) bool {
+	if len(doc) == 0 || mongoIsOK(doc) {
+		return false
+	}
+	if code := mongoGetInt(doc, "code"); code == 13 || code == 18 {
+		return true
+	}
+	message := strings.ToLower(mongoExtractErrorMessage(doc))
+	return strings.Contains(message, "not authorized") || strings.Contains(message, "requires authentication") || strings.Contains(message, "unauthorized")
+}
+
+func mongoExtractErrorMessage(doc map[string]interface{}) string {
+	if msg, ok := doc["errmsg"].(string); ok && msg != "" {
+		return msg
+	}
+	if msg, ok := doc["codeName"].(string); ok && msg != "" {
+		return msg
+	}
+	return ""
 }
 
 func mongoGetInt(doc map[string]interface{}, key string) int {
@@ -634,7 +869,24 @@ func mongoParseBSON(data []byte) map[string]interface{} {
 			}
 			pos += 16
 		default:
-			return result // unknown type, stop parsing
+			// Skip unknown type but continue parsing
+			switch typ {
+			case 0x05: // binary
+				if pos+4 > len(data) {
+					return result
+				}
+				binLen := int(binary.LittleEndian.Uint32(data[pos : pos+4]))
+				pos += 4 + 1 + binLen
+			case 0x07: // ObjectId (12 bytes)
+				pos += 12
+			case 0x11: // MongoDB timestamp (8 bytes)
+				pos += 8
+			case 0x13: // decimal128 (16 bytes)
+				pos += 16
+			default:
+				// Skip 1 byte for unknown types to avoid infinite loop
+				pos++
+			}
 		}
 	}
 
