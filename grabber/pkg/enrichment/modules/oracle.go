@@ -1,6 +1,9 @@
 package modules
 
 import (
+	"encoding/binary"
+	"regexp"
+	"strings"
 	"time"
 
 	"meow/grabber/pkg/enrichment/modules/helpers"
@@ -13,10 +16,18 @@ type OracleModule struct {
 
 // OracleResult represents the enriched Oracle data
 type OracleResult struct {
-	Protocol string `json:"protocol"`
-	Version  string `json:"version,omitempty"`
-	Banner   string `json:"banner,omitempty"`
-	Error    string `json:"error,omitempty"`
+	Protocol      string   `json:"protocol"`
+	Version       string   `json:"version,omitempty"`
+	Banner        string   `json:"banner,omitempty"`
+	PacketType    string   `json:"packet_type,omitempty"`
+	ServiceName   string   `json:"service_name,omitempty"`
+	InstanceName  string   `json:"instance_name,omitempty"`
+	Host          string   `json:"host,omitempty"`
+	Port          string   `json:"port,omitempty"`
+	Program       string   `json:"program,omitempty"`
+	Errors        []string `json:"errors,omitempty"`
+	RawDescriptor string   `json:"raw_descriptor,omitempty"`
+	Error         string   `json:"error,omitempty"`
 }
 
 func init() {
@@ -57,25 +68,137 @@ func scanOracle(ip string, port int, timeout time.Duration) (*OracleResult, erro
 		return result, err
 	}
 
-	// Read response
-	response := make([]byte, 1024)
-	n, err := conn.Read(response)
+	header := make([]byte, 8)
+	n, err := conn.Read(header)
 	if err != nil {
 		result.Error = err.Error()
 		return result, err
 	}
+	if n < 8 {
+		return result, nil
+	}
 
-	if n >= 5 {
-		// Check if it's a valid TNS response
-		// TNS packet starts with length (2 bytes) + packet checksum (2 bytes) + type (1 byte)
-		packetType := response[4]
-		if packetType == 0x04 || packetType == 0x02 { // REFUSE or ACCEPT
-			result.Version = "detected"
-			// Could parse more details from TNS response
-		}
+	packetLength := int(binary.BigEndian.Uint16(header[0:2]))
+	packetType := header[4]
+	result.PacketType = oracleTNSTypeName(packetType)
+
+	response := append([]byte{}, header[:n]...)
+	if packetLength > n && packetLength <= 32*1024 {
+		rest := make([]byte, packetLength-n)
+		readN, _ := conn.Read(rest)
+		response = append(response, rest[:readN]...)
+	}
+
+	if packetType == 0x04 || packetType == 0x02 || packetType == 0x0b {
+		result.Version = "detected"
+	}
+
+	payload := string(response)
+	result.RawDescriptor = oracleExtractDescriptor(payload)
+	if result.RawDescriptor != "" {
+		result.Banner = result.RawDescriptor
+		result.Version = firstNonEmpty(oracleExtractVersion(result.RawDescriptor), result.Version)
+		result.ServiceName = oracleExtractKey(result.RawDescriptor, "SERVICE_NAME")
+		result.InstanceName = oracleExtractKey(result.RawDescriptor, "INSTANCE_NAME")
+		result.Host = oracleExtractKey(result.RawDescriptor, "HOST")
+		result.Port = oracleExtractKey(result.RawDescriptor, "PORT")
+		result.Program = oracleExtractKey(result.RawDescriptor, "PROGRAM")
+	}
+
+	result.Errors = oracleExtractErrors(payload)
+	if len(result.Errors) > 0 && result.Error == "" {
+		result.Error = result.Errors[0]
+	}
+	if result.Banner == "" && len(result.Errors) > 0 {
+		result.Banner = strings.Join(result.Errors, "; ")
 	}
 
 	return result, nil
+}
+
+func oracleTNSTypeName(packetType byte) string {
+	switch packetType {
+	case 0x01:
+		return "CONNECT"
+	case 0x02:
+		return "ACCEPT"
+	case 0x04:
+		return "REFUSE"
+	case 0x05:
+		return "REDIRECT"
+	case 0x0b:
+		return "RESEND"
+	default:
+		return ""
+	}
+}
+
+func oracleExtractDescriptor(payload string) string {
+	start := strings.Index(payload, "(DESCRIPTION=")
+	if start == -1 {
+		return ""
+	}
+
+	depth := 0
+	for i := start; i < len(payload); i++ {
+		switch payload[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return payload[start : i+1]
+			}
+		}
+	}
+	return strings.TrimSpace(payload[start:])
+}
+
+func oracleExtractKey(payload, key string) string {
+	re := regexp.MustCompile(`\(` + regexp.QuoteMeta(key) + `=([^)]+)\)`)
+	match := re.FindStringSubmatch(payload)
+	if len(match) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(match[1])
+}
+
+func oracleExtractVersion(payload string) string {
+	re := regexp.MustCompile(`(?i)VERSION=([0-9][0-9A-Za-z\.\-_]+)`)
+	match := re.FindStringSubmatch(payload)
+	if len(match) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(match[1])
+}
+
+func oracleExtractErrors(payload string) []string {
+	re := regexp.MustCompile(`(?:ORA|TNS)-\d{4,5}:[^\r\n\000]+`)
+	matches := re.FindAllString(payload, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(matches))
+	var result []string
+	for _, match := range matches {
+		match = strings.TrimSpace(match)
+		if _, ok := seen[match]; ok {
+			continue
+		}
+		seen[match] = struct{}{}
+		result = append(result, match)
+	}
+	return result
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 // buildTNSConnectPacket builds a simple Oracle TNS connect packet
