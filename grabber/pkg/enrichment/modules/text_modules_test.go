@@ -48,7 +48,7 @@ func TestScanRsync_ValidResponse(t *testing.T) {
 	host, port := startTestTCPServer(t, func(conn net.Conn) {
 		conn.Write([]byte("@RSYNCD: 31.0\n"))
 		buf := make([]byte, 256)
-		conn.Read(buf) // #list
+		conn.Read(buf) // client version + #list
 		conn.Write([]byte("backup\tBackup module\ndata\tData module\n@RSYNCD: EXIT\n"))
 	})
 
@@ -61,6 +61,12 @@ func TestScanRsync_ValidResponse(t *testing.T) {
 	}
 	if len(result.Modules) != 2 {
 		t.Errorf("Modules = %v, want 2 entries", result.Modules)
+	}
+	if len(result.ModuleDetail) != 2 {
+		t.Fatalf("ModuleDetail = %v, want 2 entries", result.ModuleDetail)
+	}
+	if result.ModuleDetail[0].Description != "Backup module" {
+		t.Errorf("ModuleDetail[0].Description = %q", result.ModuleDetail[0].Description)
 	}
 }
 
@@ -81,6 +87,18 @@ func TestScanRsync_NoModules(t *testing.T) {
 	}
 	if len(result.Modules) != 0 {
 		t.Errorf("Modules = %v, want empty", result.Modules)
+	}
+}
+
+func TestParseRsyncModuleLine(t *testing.T) {
+	name, description := parseRsyncModuleLine("backup\tBackup module")
+	if name != "backup" || description != "Backup module" {
+		t.Fatalf("got (%q, %q)", name, description)
+	}
+
+	name, description = parseRsyncModuleLine("public read only mirror")
+	if name != "public" || description != "read only mirror" {
+		t.Fatalf("got (%q, %q)", name, description)
 	}
 }
 

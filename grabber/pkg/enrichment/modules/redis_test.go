@@ -51,6 +51,30 @@ func TestScanRedis_NOAUTH(t *testing.T) {
 	}
 }
 
+func TestScanRedis_InfoResponseFragmented(t *testing.T) {
+	infoData := "# Server\r\nredis_version:7.0.1\r\nredis_mode:cluster\r\n"
+	host, port := startTestTCPServer(t, func(conn net.Conn) {
+		buf := make([]byte, 100)
+		conn.Read(buf)
+		fmt.Fprintf(conn, "$%d\r\n", len(infoData))
+		conn.Write([]byte(infoData[:12]))
+		time.Sleep(10 * time.Millisecond)
+		conn.Write([]byte(infoData[12:]))
+		conn.Write([]byte("\r\n"))
+	})
+
+	result, err := scanRedis(host, port, 5*time.Second)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Version != "7.0.1" {
+		t.Errorf("Version = %q, want %q", result.Version, "7.0.1")
+	}
+	if result.Mode != "cluster" {
+		t.Errorf("Mode = %q, want %q", result.Mode, "cluster")
+	}
+}
+
 func TestScanRedis_ERR(t *testing.T) {
 	host, port := startTestTCPServer(t, func(conn net.Conn) {
 		buf := make([]byte, 100)

@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -41,6 +43,18 @@ func TestScanFTP_FullServer(t *testing.T) {
 			return
 		}
 		fmt.Fprintf(conn, "230 Login successful.\r\n")
+
+		// Read PWD.
+		reader.ReadString('\n')
+		fmt.Fprintf(conn, "257 \"/\" is the current directory.\r\n")
+
+		// Read EPSV, refuse so scanner falls back.
+		reader.ReadString('\n')
+		fmt.Fprintf(conn, "500 EPSV not understood.\r\n")
+
+		// Read PASV, refuse listing path for this test.
+		reader.ReadString('\n')
+		fmt.Fprintf(conn, "425 Can't open data connection.\r\n")
 
 		// Read QUIT.
 		reader.ReadString('\n')
@@ -134,5 +148,74 @@ func TestScanFTP_FEATNotSupported(t *testing.T) {
 	}
 	if result.SupportsPassive {
 		t.Error("SupportsPassive should be false")
+	}
+}
+
+func TestScanFTP_AnonymousListing(t *testing.T) {
+	dataLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen data: %v", err)
+	}
+	defer dataLn.Close()
+
+	dataHost, dataPortStr, _ := net.SplitHostPort(dataLn.Addr().String())
+	dataPort, _ := strconv.Atoi(dataPortStr)
+	p1 := dataPort / 256
+	p2 := dataPort % 256
+	hostParts := strings.Split(dataHost, ".")
+
+	go func() {
+		conn, err := dataLn.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		fmt.Fprintf(conn, "drwxr-xr-x 2 ftp ftp 4096 Jan 01 00:00 pub\r\n-rw-r--r-- 1 ftp ftp 12 Jan 01 00:00 readme.txt\r\n")
+	}()
+
+	host, port := startTestTCPServer(t, func(conn net.Conn) {
+		reader := bufio.NewReader(conn)
+
+		fmt.Fprintf(conn, "220 Welcome to Test FTP Server\r\n")
+		reader.ReadString('\n')
+		fmt.Fprintf(conn, "211-Features:\r\n")
+		fmt.Fprintf(conn, " PASV\r\n")
+		fmt.Fprintf(conn, "211 End\r\n")
+
+		reader.ReadString('\n')
+		fmt.Fprintf(conn, "331 Please specify the password.\r\n")
+		reader.ReadString('\n')
+		fmt.Fprintf(conn, "230 Login successful.\r\n")
+
+		reader.ReadString('\n')
+		fmt.Fprintf(conn, "257 \"/\" is the current directory.\r\n")
+		reader.ReadString('\n')
+		fmt.Fprintf(conn, "500 EPSV not understood.\r\n")
+		reader.ReadString('\n')
+		fmt.Fprintf(conn, "227 Entering Passive Mode (%s,%s,%s,%s,%d,%d).\r\n", hostParts[0], hostParts[1], hostParts[2], hostParts[3], p1, p2)
+		reader.ReadString('\n')
+		fmt.Fprintf(conn, "200 Switching to ASCII mode.\r\n")
+		reader.ReadString('\n')
+		fmt.Fprintf(conn, "150 Here comes the directory listing.\r\n")
+		fmt.Fprintf(conn, "226 Directory send OK.\r\n")
+
+		reader.ReadString('\n')
+	})
+
+	result, err := scanFTP(host, port, 5*time.Second)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.AnonymousLogin {
+		t.Fatal("AnonymousLogin = false")
+	}
+	if !result.SupportsPassive {
+		t.Fatal("SupportsPassive = false")
+	}
+	if len(result.DirectoryList) != 2 {
+		t.Fatalf("len(DirectoryList) = %d", len(result.DirectoryList))
+	}
+	if !strings.Contains(result.DirectoryList[0], "pub") {
+		t.Fatalf("DirectoryList[0] = %q", result.DirectoryList[0])
 	}
 }
