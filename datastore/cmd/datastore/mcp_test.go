@@ -311,12 +311,12 @@ func TestSearchPagination(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// meow_count
+// meow_stats with query (count mode, formerly meow_count)
 // ---------------------------------------------------------------------------
 
-func TestCountHosts(t *testing.T) {
+func TestStatsCountHosts(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleCount(context.Background(), callTool(map[string]any{
+	result, err := h.handleStats(context.Background(), callTool(map[string]any{
 		"query": "country:FR",
 	}))
 	assertNoError(t, result, err)
@@ -328,9 +328,9 @@ func TestCountHosts(t *testing.T) {
 	}
 }
 
-func TestCountServices(t *testing.T) {
+func TestStatsCountServices(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleCount(context.Background(), callTool(map[string]any{
+	result, err := h.handleStats(context.Background(), callTool(map[string]any{
 		"query": "service:ssh",
 		"mode":  "services",
 	}))
@@ -343,9 +343,9 @@ func TestCountServices(t *testing.T) {
 	}
 }
 
-func TestCountCompound(t *testing.T) {
+func TestStatsCountCompound(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleCount(context.Background(), callTool(map[string]any{
+	result, err := h.handleStats(context.Background(), callTool(map[string]any{
 		"query": "port:443 and country:FR",
 	}))
 	assertNoError(t, result, err)
@@ -357,20 +357,9 @@ func TestCountCompound(t *testing.T) {
 	}
 }
 
-func TestCountEmptyQuery(t *testing.T) {
+func TestStatsCountInvalidQuery(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleCount(context.Background(), callTool(map[string]any{}))
-	if err != nil {
-		t.Fatalf("unexpected go error: %v", err)
-	}
-	if !result.IsError {
-		t.Error("expected tool error for missing query")
-	}
-}
-
-func TestCountInvalidQuery(t *testing.T) {
-	h := setupTestMCP(t)
-	result, err := h.handleCount(context.Background(), callTool(map[string]any{
+	result, err := h.handleStats(context.Background(), callTool(map[string]any{
 		"query": "port:",
 	}))
 	if err != nil {
@@ -378,6 +367,112 @@ func TestCountInvalidQuery(t *testing.T) {
 	}
 	if !result.IsError {
 		t.Error("expected tool error for invalid query")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// meow_stats with service (enrichment schema discovery)
+// ---------------------------------------------------------------------------
+
+func TestStatsEnrichmentSchemaService(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+		"service": "ftp",
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	if data["service"] != "ftp" {
+		t.Errorf("expected service=ftp, got %v", data["service"])
+	}
+	if int(data["enriched"].(float64)) != 1 {
+		t.Errorf("expected 1 enriched ftp, got %v", data["enriched"])
+	}
+	keys := data["keys"].([]any)
+	if len(keys) == 0 {
+		t.Fatal("expected enrichment keys for ftp")
+	}
+	// FTP test data has: protocol, anonymous_login
+	foundAnon := false
+	for _, k := range keys {
+		entry := k.(map[string]any)
+		if entry["key"] == "anonymous_login" {
+			foundAnon = true
+			if entry["type"] != "integer" {
+				// SQLite stores booleans as integers
+				t.Errorf("expected type integer for anonymous_login, got %v", entry["type"])
+			}
+		}
+	}
+	if !foundAnon {
+		t.Error("expected anonymous_login key in ftp enrichment schema")
+	}
+}
+
+func TestStatsEnrichmentSchemaAll(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+		"service": "*",
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	services := data["services"].([]any)
+	if len(services) == 0 {
+		t.Fatal("expected services in schema overview")
+	}
+	// Should have entries for ssh, https, ftp, http, redis (all enriched in test data)
+	svcNames := make(map[string]bool)
+	for _, s := range services {
+		entry := s.(map[string]any)
+		svcNames[entry["service"].(string)] = true
+	}
+	for _, expected := range []string{"ssh", "ftp", "redis"} {
+		if !svcNames[expected] {
+			t.Errorf("expected %s in schema overview", expected)
+		}
+	}
+}
+
+func TestStatsEnrichmentSchemaSearch(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+		"service": "*",
+		"search":  "anonymous",
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	services := data["services"].([]any)
+	if len(services) != 1 {
+		t.Errorf("expected 1 service with anonymous key, got %d", len(services))
+	}
+	if len(services) > 0 {
+		svc := services[0].(map[string]any)
+		if svc["service"] != "ftp" {
+			t.Errorf("expected ftp for anonymous search, got %v", svc["service"])
+		}
+	}
+}
+
+func TestStatsEnrichmentSchemaSearchPerService(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+		"service": "ftp",
+		"search":  "protocol",
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	keys := data["keys"].([]any)
+	if len(keys) != 1 {
+		t.Errorf("expected 1 key matching 'protocol' in ftp, got %d", len(keys))
+	}
+	if len(keys) > 0 {
+		entry := keys[0].(map[string]any)
+		if entry["key"] != "protocol" {
+			t.Errorf("expected key=protocol, got %v", entry["key"])
+		}
 	}
 }
 
@@ -1011,21 +1106,22 @@ func TestScanPublishError(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// meow_scanners
+// meow_status — scanners integration (formerly meow_scanners)
 // ---------------------------------------------------------------------------
 
-func TestScannersEmpty(t *testing.T) {
+func TestStatusScannersEmpty(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleScanners(context.Background(), callTool(map[string]any{}))
+	result, err := h.handleStatus(context.Background(), callTool(map[string]any{}))
 	assertNoError(t, result, err)
 
 	data := parseResult(t, result)
-	if int(data["count"].(float64)) != 0 {
-		t.Errorf("expected 0 scanners, got %v", data["count"])
+	scanners := data["scanners"].(map[string]any)
+	if int(scanners["count"].(float64)) != 0 {
+		t.Errorf("expected 0 scanners, got %v", scanners["count"])
 	}
 }
 
-func TestScannersActive(t *testing.T) {
+func TestStatusScannersActive(t *testing.T) {
 	h := setupTestMCP(t)
 	h.scanTracker.UpdateHeartbeat(&ScannerHeartbeat{
 		NodeID:       "node-1",
@@ -1037,15 +1133,16 @@ func TestScannersActive(t *testing.T) {
 		PacketsTotal: 5000,
 	})
 
-	result, err := h.handleScanners(context.Background(), callTool(map[string]any{}))
+	result, err := h.handleStatus(context.Background(), callTool(map[string]any{}))
 	assertNoError(t, result, err)
 
 	data := parseResult(t, result)
-	if int(data["count"].(float64)) != 1 {
-		t.Errorf("expected 1 scanner, got %v", data["count"])
+	scannersData := data["scanners"].(map[string]any)
+	if int(scannersData["count"].(float64)) != 1 {
+		t.Errorf("expected 1 scanner, got %v", scannersData["count"])
 	}
-	scanners := data["scanners"].([]any)
-	s := scanners[0].(map[string]any)
+	nodes := scannersData["nodes"].([]any)
+	s := nodes[0].(map[string]any)
 	if s["node_id"] != "node-1" {
 		t.Errorf("expected node_id=node-1, got %v", s["node_id"])
 	}

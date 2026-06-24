@@ -180,17 +180,7 @@ func (h *mcpHandler) searchServices(ctx context.Context, query string, limit, of
 	})
 }
 
-// ---------------------------------------------------------------------------
-// meow_count — Lightweight count query
-// ---------------------------------------------------------------------------
-
-func (h *mcpHandler) handleCount(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	query := req.GetString("query", "")
-	if query == "" {
-		return mcp.NewToolResultError("query parameter required"), nil
-	}
-	mode := req.GetString("mode", "hosts")
-
+func (h *mcpHandler) countQuery(ctx context.Context, query, mode string) (*mcp.CallToolResult, error) {
 	var total int
 	if mode == "services" {
 		expr, _ := meowql.Parse(query)
@@ -211,8 +201,7 @@ func (h *mcpHandler) handleCount(ctx context.Context, req mcp.CallToolRequest) (
 	} else {
 		result := meowql.Compile(query)
 		if result.Err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("MeowQL error: %v\nAvailable fields: %s",
-				result.Err, strings.Join(meowql.FieldNames(), ", "))), nil
+			return mcp.NewToolResultError(fmt.Sprintf("MeowQL error: %v", result.Err)), nil
 		}
 		if err := h.db.QueryRowContextLogged(ctx,
 			fmt.Sprintf("SELECT COUNT(*) FROM hosts h WHERE %s", result.Where),
@@ -221,8 +210,108 @@ func (h *mcpHandler) handleCount(ctx context.Context, req mcp.CallToolRequest) (
 			return nil, fmt.Errorf("count query failed: %w", err)
 		}
 	}
-
 	return mcpJSON(map[string]any{"total": total})
+}
+
+// enrichmentSchema returns the enrichment JSON keys for a given service (or all
+// services when service="*"), optionally filtered by a substring search on key names.
+func (h *mcpHandler) enrichmentSchema(ctx context.Context, service, search string) (*mcp.CallToolResult, error) {
+	if service == "*" {
+		return h.enrichmentSchemaAll(ctx, search)
+	}
+
+	q := `SELECT je.key,
+	             COUNT(*) as cnt,
+	             typeof(je.value) as typ,
+	             CASE typeof(je.value)
+	               WHEN 'text'    THEN substr(je.value, 1, 60)
+	               WHEN 'integer' THEN CAST(je.value AS TEXT)
+	               WHEN 'real'    THEN CAST(je.value AS TEXT)
+	               WHEN 'null'    THEN 'null'
+	               ELSE typeof(je.value)
+	             END as sample
+	      FROM services s, json_each(s.enrichment_data) je
+	      WHERE s.service = ? AND s.enrichment_status = 'enriched'
+	            AND s.enrichment_data IS NOT NULL AND s.enrichment_data != '{}'`
+	args := []any{service}
+
+	if search != "" {
+		q += " AND LOWER(je.key) LIKE ? ESCAPE '\\'"
+		args = append(args, "%"+escapeLike(strings.ToLower(search))+"%")
+	}
+	q += " GROUP BY je.key ORDER BY cnt DESC"
+
+	rows, err := h.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("enrichment schema query failed: %w", err)
+	}
+	defer rows.Close()
+
+	var keys []map[string]any
+	for rows.Next() {
+		var key, typ, sample string
+		var cnt int
+		if rows.Scan(&key, &cnt, &typ, &sample) != nil {
+			continue
+		}
+		entry := map[string]any{
+			"key":    key,
+			"count":  cnt,
+			"type":   typ,
+			"sample": sample,
+		}
+		keys = append(keys, entry)
+	}
+
+	var total int
+	h.db.QueryRowContextLogged(ctx,
+		"SELECT COUNT(*) FROM services WHERE service = ? AND enrichment_status = 'enriched'",
+		service).Scan(&total)
+
+	return mcpJSON(map[string]any{
+		"service":  service,
+		"enriched": total,
+		"keys":     keys,
+	})
+}
+
+func (h *mcpHandler) enrichmentSchemaAll(ctx context.Context, search string) (*mcp.CallToolResult, error) {
+	q := `SELECT s.service, GROUP_CONCAT(DISTINCT je.key) as key_list
+	      FROM services s, json_each(s.enrichment_data) je
+	      WHERE s.enrichment_status = 'enriched'
+	            AND s.enrichment_data IS NOT NULL AND s.enrichment_data != '{}'`
+	var args []any
+
+	if search != "" {
+		q += " AND LOWER(je.key) LIKE ? ESCAPE '\\'"
+		args = append(args, "%"+escapeLike(strings.ToLower(search))+"%")
+	}
+	q += " GROUP BY s.service ORDER BY COUNT(DISTINCT s.ip || ':' || CAST(s.port AS TEXT)) DESC"
+
+	rows, err := h.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("enrichment schema all query failed: %w", err)
+	}
+	defer rows.Close()
+
+	var services []map[string]any
+	for rows.Next() {
+		var svc string
+		var keyList sql.NullString
+		if rows.Scan(&svc, &keyList) != nil {
+			continue
+		}
+		entry := map[string]any{"service": svc}
+		if keyList.Valid {
+			entry["keys"] = strings.Split(keyList.String, ",")
+		}
+		services = append(services, entry)
+	}
+
+	return mcpJSON(map[string]any{
+		"count":    len(services),
+		"services": services,
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -436,6 +525,16 @@ func (h *mcpHandler) queryDomains(ctx context.Context, ip string) []map[string]a
 // ---------------------------------------------------------------------------
 
 func (h *mcpHandler) handleStats(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	// When query is provided, act as a lightweight count tool
+	if query := req.GetString("query", ""); query != "" {
+		return h.countQuery(ctx, query, req.GetString("mode", "hosts"))
+	}
+
+	// When service is provided, return enrichment schema for that service
+	if service := req.GetString("service", ""); service != "" {
+		return h.enrichmentSchema(ctx, service, req.GetString("search", ""))
+	}
+
 	stats := map[string]any{}
 
 	// Section filtering: only run queries for requested sections
@@ -1016,24 +1115,33 @@ func (h *mcpHandler) handleDNS(ctx context.Context, req mcp.CallToolRequest) (*m
 
 	// Enrich with database cross-reference
 	if ip := net.ParseIP(query); ip != nil {
-		// Reverse lookup: check if this IP is in our database
 		var hostCount int
 		h.db.QueryRowContextLogged(ctx,
 			"SELECT COUNT(*) FROM hosts WHERE ip = ?", query).Scan(&hostCount)
 		if hostCount > 0 {
 			result["in_database"] = true
 		}
-	} else if ipv4, ok := result["a"].([]string); ok {
-		// Forward lookup: check which resolved IPs are in our database
-		var knownIPs []string
-		for _, ip := range ipv4 {
-			var c int
-			if h.db.QueryRowContextLogged(ctx, "SELECT COUNT(*) FROM hosts WHERE ip = ?", ip).Scan(&c) == nil && c > 0 {
-				knownIPs = append(knownIPs, ip)
-			}
+	} else if ipv4, ok := result["a"].([]string); ok && len(ipv4) > 0 {
+		placeholders := make([]string, len(ipv4))
+		args := make([]any, len(ipv4))
+		for i, ip := range ipv4 {
+			placeholders[i] = "?"
+			args[i] = ip
 		}
-		if len(knownIPs) > 0 {
-			result["in_database"] = knownIPs
+		rows, err := h.db.QueryContext(ctx,
+			"SELECT ip FROM hosts WHERE ip IN ("+strings.Join(placeholders, ",")+")", args...)
+		if err == nil {
+			var knownIPs []string
+			for rows.Next() {
+				var ip string
+				if rows.Scan(&ip) == nil {
+					knownIPs = append(knownIPs, ip)
+				}
+			}
+			rows.Close()
+			if len(knownIPs) > 0 {
+				result["in_database"] = knownIPs
+			}
 		}
 	}
 
@@ -1115,6 +1223,34 @@ func (h *mcpHandler) handleStatus(ctx context.Context, _ mcp.CallToolRequest) (*
 		stats["service_breakdown"] = svcStats
 	}
 
+	// Active scanners (merged from former meow_scanners tool)
+	if h.scanTracker != nil {
+		scanners := h.scanTracker.GetActiveScanners()
+		scannerList := make([]map[string]any, 0, len(scanners))
+		for _, s := range scanners {
+			node := map[string]any{
+				"node_id":  s.NodeID,
+				"hostname": s.Hostname,
+				"status":   s.Status,
+			}
+			if s.ScanID != "" {
+				node["scan_id"] = s.ScanID
+			}
+			if s.Transport != "" {
+				node["transport"] = s.Transport
+			}
+			if s.PacketsTotal > 0 {
+				node["packets_sent"] = s.PacketsSent
+				node["packets_total"] = s.PacketsTotal
+			}
+			scannerList = append(scannerList, node)
+		}
+		stats["scanners"] = map[string]any{
+			"count": len(scannerList),
+			"nodes": scannerList,
+		}
+	}
+
 	return mcpJSON(stats)
 }
 
@@ -1157,40 +1293,6 @@ func (h *mcpHandler) handleScan(ctx context.Context, req mcp.CallToolRequest) (*
 	})
 }
 
-// ---------------------------------------------------------------------------
-// meow_scanners — List active scanner instances
-// ---------------------------------------------------------------------------
-
-func (h *mcpHandler) handleScanners(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	if h.scanTracker == nil {
-		return mcpJSON(map[string]any{"count": 0, "scanners": []any{}})
-	}
-
-	scanners := h.scanTracker.GetActiveScanners()
-	result := make([]map[string]any, 0, len(scanners))
-	for _, s := range scanners {
-		node := map[string]any{
-			"node_id":  s.NodeID,
-			"hostname": s.Hostname,
-			"status":   s.Status,
-		}
-		if s.ScanID != "" {
-			node["scan_id"] = s.ScanID
-		}
-		if s.Transport != "" {
-			node["transport"] = s.Transport
-		}
-		if s.PacketsTotal > 0 {
-			node["packets_sent"] = s.PacketsSent
-			node["packets_total"] = s.PacketsTotal
-		}
-		result = append(result, node)
-	}
-	return mcpJSON(map[string]any{
-		"count":    len(result),
-		"scanners": result,
-	})
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
