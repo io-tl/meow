@@ -79,6 +79,7 @@ func Main(cfg *common.Config) {
 
 	// Create WorkerPool with auto-tuning (intensity is internal constant: 5)
 	poolConfig := grab.DefaultWorkerPoolConfig()
+	poolConfig.NumWorkers = cfg.Fingerprint.Workers
 	poolConfig.AutoTune = true
 	poolConfig.ProbeTimeout = cfg.Fingerprint.ProbeTimeout()
 	poolConfig.GlobalTimeout = cfg.Fingerprint.GlobalTimeout()

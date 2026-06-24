@@ -33,8 +33,9 @@ type Enricher struct {
 	stopped   atomic.Bool
 
 	// Timeouts
-	enrichTimeout time.Duration
-	globalTimeout time.Duration
+	enrichTimeout  time.Duration
+	globalTimeout  time.Duration
+	enqueueTimeout time.Duration
 
 	// Deduplication
 	dedup     *bloom.BloomFilter
@@ -46,12 +47,12 @@ type Enricher struct {
 
 // Stats holds enrichment statistics
 type Stats struct {
-	TotalRequests      atomic.Uint64
-	TotalSuccess       atomic.Uint64
-	TotalErrors        atomic.Uint64
-	TotalSkipped       atomic.Uint64
-	TotalDeduplicated  atomic.Uint64
-	ActiveWorkers      atomic.Int32
+	TotalRequests     atomic.Uint64
+	TotalSuccess      atomic.Uint64
+	TotalErrors       atomic.Uint64
+	TotalSkipped      atomic.Uint64
+	TotalDeduplicated atomic.Uint64
+	ActiveWorkers     atomic.Int32
 }
 
 // Config holds enricher configuration
@@ -76,13 +77,14 @@ func NewEnricher(cfg *Config) (*Enricher, error) {
 	}
 
 	e := &Enricher{
-		workers:       cfg.Workers,
-		jobQueue:      make(chan *types.EnrichmentRequest, cfg.QueueSize),
-		stopChan:      make(chan struct{}),
-		publisher:     natsclient.NewPublisher(cfg.NATSConn, cfg.OutputSubject),
-		dedup:         bloom.NewWithEstimates(10_000_000, 0.001), // 10M entries, 0.1% FP (~18MB)
-		enrichTimeout: cfg.EnrichTimeout,
-		globalTimeout: cfg.GlobalTimeout,
+		workers:        cfg.Workers,
+		jobQueue:       make(chan *types.EnrichmentRequest, cfg.QueueSize),
+		stopChan:       make(chan struct{}),
+		publisher:      natsclient.NewPublisher(cfg.NATSConn, cfg.OutputSubject),
+		dedup:          bloom.NewWithEstimates(10_000_000, 0.001), // 10M entries, 0.1% FP (~18MB)
+		enrichTimeout:  cfg.EnrichTimeout,
+		globalTimeout:  cfg.GlobalTimeout,
+		enqueueTimeout: 30 * time.Second,
 	}
 
 	// Build list of subjects to consume from
@@ -165,8 +167,9 @@ func dedupKey(ip string, port int, service, domain string) []byte {
 	return buf
 }
 
-// handleRequest is called by the NATS consumer for each message
-func (e *Enricher) handleRequest(req *types.EnrichmentRequest) {
+// handleRequest is called by the NATS consumer for each message.
+// It returns true when the request was accepted locally, false when it should be redelivered.
+func (e *Enricher) handleRequest(req *types.EnrichmentRequest) bool {
 	e.stats.TotalRequests.Add(1)
 
 	// Dedup via bloom filter using TestAndAdd for atomicity
@@ -180,25 +183,32 @@ func (e *Enricher) handleRequest(req *types.EnrichmentRequest) {
 			Int("port", req.Port).
 			Str("service", req.Service).
 			Msg("Skipping duplicate enrichment request")
-		return
+		return true
 	}
 	e.dedupLock.Unlock()
 
-	// Try to queue the job (non-blocking)
+	enqueueTimeout := e.enqueueTimeout
+	if enqueueTimeout <= 0 {
+		enqueueTimeout = 30 * time.Second
+	}
+	timer := time.NewTimer(enqueueTimeout)
+	defer timer.Stop()
+
+	// Apply bounded backpressure instead of dropping immediately.
 	select {
 	case e.jobQueue <- req:
-		// Job queued successfully
+		return true
 	case <-e.stopChan:
-		// Enricher is stopping
-		return
-	default:
-		// Queue is full, drop the job
+		return false
+	case <-timer.C:
 		log.Warn().
 			Str("ip", req.IP).
 			Int("port", req.Port).
 			Str("service", req.Service).
-			Msg("Job queue full, dropping request")
+			Dur("waited", enqueueTimeout).
+			Msg("Job queue still full after backpressure wait")
 		e.stats.TotalSkipped.Add(1)
+		return false
 	}
 }
 
@@ -414,14 +424,14 @@ func (e *Enricher) statsLoop() {
 // GetStats returns current statistics
 func (e *Enricher) GetStats() map[string]interface{} {
 	return map[string]interface{}{
-		"total_requests":      e.stats.TotalRequests.Load(),
-		"total_success":       e.stats.TotalSuccess.Load(),
-		"total_errors":        e.stats.TotalErrors.Load(),
-		"total_skipped":       e.stats.TotalSkipped.Load(),
-		"total_deduplicated":  e.stats.TotalDeduplicated.Load(),
-		"active_workers":      e.stats.ActiveWorkers.Load(),
-		"queue_length":        len(e.jobQueue),
-		"workers":             e.workers,
+		"total_requests":     e.stats.TotalRequests.Load(),
+		"total_success":      e.stats.TotalSuccess.Load(),
+		"total_errors":       e.stats.TotalErrors.Load(),
+		"total_skipped":      e.stats.TotalSkipped.Load(),
+		"total_deduplicated": e.stats.TotalDeduplicated.Load(),
+		"active_workers":     e.stats.ActiveWorkers.Load(),
+		"queue_length":       len(e.jobQueue),
+		"workers":            e.workers,
 	}
 }
 

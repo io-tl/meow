@@ -3,6 +3,7 @@ package enricher
 import (
 	"net"
 	"testing"
+	"time"
 
 	"meow/grabber/pkg/enrichment/types"
 
@@ -148,7 +149,9 @@ func TestHandleRequest_Dedup(t *testing.T) {
 	}
 
 	// First call should queue
-	e.handleRequest(req)
+	if !e.handleRequest(req) {
+		t.Fatal("first request should be accepted")
+	}
 	if e.stats.TotalRequests.Load() != 1 {
 		t.Errorf("TotalRequests = %d, want 1", e.stats.TotalRequests.Load())
 	}
@@ -157,7 +160,9 @@ func TestHandleRequest_Dedup(t *testing.T) {
 	}
 
 	// Second call with same key should be deduplicated
-	e.handleRequest(req)
+	if !e.handleRequest(req) {
+		t.Fatal("duplicate request should be accepted as already handled")
+	}
 	if e.stats.TotalRequests.Load() != 2 {
 		t.Errorf("TotalRequests = %d, want 2", e.stats.TotalRequests.Load())
 	}
@@ -168,18 +173,23 @@ func TestHandleRequest_Dedup(t *testing.T) {
 
 func TestHandleRequest_QueueFull(t *testing.T) {
 	e := &Enricher{
-		jobQueue: make(chan *types.EnrichmentRequest, 1), // tiny queue
-		stopChan: make(chan struct{}),
+		jobQueue:       make(chan *types.EnrichmentRequest, 1), // tiny queue
+		stopChan:       make(chan struct{}),
+		enqueueTimeout: 10 * time.Millisecond,
 	}
 	e.dedup = newTestBloom()
 
 	// Fill the queue
 	req1 := &types.EnrichmentRequest{IP: "1.1.1.1", Port: 80, Service: "http"}
-	e.handleRequest(req1)
+	if !e.handleRequest(req1) {
+		t.Fatal("first request should be accepted")
+	}
 
 	// This should be dropped (queue full, different key to avoid dedup)
 	req2 := &types.EnrichmentRequest{IP: "2.2.2.2", Port: 80, Service: "http"}
-	e.handleRequest(req2)
+	if e.handleRequest(req2) {
+		t.Fatal("second request should be rejected when queue is full")
+	}
 
 	if e.stats.TotalSkipped.Load() != 1 {
 		t.Errorf("TotalSkipped = %d, want 1", e.stats.TotalSkipped.Load())

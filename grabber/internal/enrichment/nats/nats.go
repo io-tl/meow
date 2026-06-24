@@ -5,21 +5,21 @@ import (
 	"fmt"
 	"time"
 
-	"meow/grabber/pkg/enrichment/types"
 	"github.com/nats-io/nats.go"
 	"github.com/rs/zerolog/log"
+	"meow/grabber/pkg/enrichment/types"
 )
 
 // Consumer handles NATS message consumption from one or more subjects
 type Consumer struct {
 	nc            *nats.Conn
 	subscriptions []*nats.Subscription
-	handler       func(*types.EnrichmentRequest)
+	handler       func(*types.EnrichmentRequest) bool
 	subjects      []string
 }
 
 // NewConsumer creates a new NATS consumer for multiple subjects
-func NewConsumer(nc *nats.Conn, subjects []string, handler func(*types.EnrichmentRequest)) (*Consumer, error) {
+func NewConsumer(nc *nats.Conn, subjects []string, handler func(*types.EnrichmentRequest) bool) (*Consumer, error) {
 	return &Consumer{
 		nc:       nc,
 		subjects: subjects,
@@ -49,12 +49,16 @@ func (c *Consumer) Start() error {
 			Str("subject", msg.Subject).
 			Msg("Received enrichment request")
 
-		// Handle the request
-		c.handler(&req)
+		// Handle the request. Only ACK if it was accepted locally.
+		if c.handler(&req) {
+			if msg.Reply != "" {
+				msg.Ack()
+			}
+			return
+		}
 
-		// ACK after successful handling
 		if msg.Reply != "" {
-			msg.Ack()
+			msg.Nak()
 		}
 	}
 
@@ -147,4 +151,3 @@ func (p *Publisher) PublishWithRetry(result *types.EnrichmentResult, maxRetries 
 
 	return fmt.Errorf("failed to publish after %d retries: %w", maxRetries, lastErr)
 }
-

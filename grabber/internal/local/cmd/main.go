@@ -15,6 +15,9 @@ import (
 	"meow/grabber/pkg/fingerprint/types"
 
 	"github.com/rs/zerolog/log"
+
+	// Import all modules to register them for the embedded enricher.
+	_ "meow/grabber/pkg/enrichment/modules"
 )
 
 // HostTracker detects hosts that SYN-ACK all ports (false positive floods)
@@ -149,6 +152,7 @@ func Main(cfg *common.Config) {
 	pub := publisher.NewPublisher(ncFinger, cfg.GetFingerprintOutputTopic())
 
 	poolConfig := grab.DefaultWorkerPoolConfig()
+	poolConfig.NumWorkers = cfg.Fingerprint.Workers
 	poolConfig.AutoTune = true
 	poolConfig.ProbeTimeout = cfg.Fingerprint.ProbeTimeout()
 	poolConfig.GlobalTimeout = cfg.Fingerprint.GlobalTimeout()

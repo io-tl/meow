@@ -8,8 +8,8 @@ import (
 
 	"meow/grabber/pkg/enrichment/types"
 
-	natsgo "github.com/nats-io/nats.go"
 	natsserver "github.com/nats-io/nats-server/v2/server"
+	natsgo "github.com/nats-io/nats.go"
 )
 
 // startTestNATS starts an embedded NATS server and returns a connected client.
@@ -36,7 +36,7 @@ func startTestNATS(t *testing.T) *natsgo.Conn {
 
 func TestNewConsumer(t *testing.T) {
 	nc := startTestNATS(t)
-	c, err := NewConsumer(nc, []string{"test.subject"}, func(req *types.EnrichmentRequest) {})
+	c, err := NewConsumer(nc, []string{"test.subject"}, func(req *types.EnrichmentRequest) bool { return true })
 	if err != nil {
 		t.Fatalf("NewConsumer: %v", err)
 	}
@@ -52,11 +52,12 @@ func TestConsumer_StartAndReceive(t *testing.T) {
 	var mu sync.Mutex
 	done := make(chan struct{})
 
-	c, _ := NewConsumer(nc, []string{"test.enrich"}, func(req *types.EnrichmentRequest) {
+	c, _ := NewConsumer(nc, []string{"test.enrich"}, func(req *types.EnrichmentRequest) bool {
 		mu.Lock()
 		received = req
 		mu.Unlock()
 		close(done)
+		return true
 	})
 
 	if err := c.Start(); err != nil {
@@ -96,8 +97,9 @@ func TestConsumer_InvalidJSON(t *testing.T) {
 	nc := startTestNATS(t)
 
 	called := false
-	c, _ := NewConsumer(nc, []string{"test.bad"}, func(req *types.EnrichmentRequest) {
+	c, _ := NewConsumer(nc, []string{"test.bad"}, func(req *types.EnrichmentRequest) bool {
 		called = true
+		return true
 	})
 
 	if err := c.Start(); err != nil {
@@ -117,7 +119,7 @@ func TestConsumer_InvalidJSON(t *testing.T) {
 
 func TestConsumer_Stop(t *testing.T) {
 	nc := startTestNATS(t)
-	c, _ := NewConsumer(nc, []string{"test.stop"}, func(req *types.EnrichmentRequest) {})
+	c, _ := NewConsumer(nc, []string{"test.stop"}, func(req *types.EnrichmentRequest) bool { return true })
 	c.Start()
 
 	err := c.Stop()
@@ -198,15 +200,17 @@ func TestQueueGroup_LoadBalanced(t *testing.T) {
 	var mu sync.Mutex
 	done := make(chan struct{})
 
-	c1, _ := NewConsumer(nc, []string{"test.queue"}, func(req *types.EnrichmentRequest) {
+	c1, _ := NewConsumer(nc, []string{"test.queue"}, func(req *types.EnrichmentRequest) bool {
 		mu.Lock()
 		count1++
 		mu.Unlock()
+		return true
 	})
-	c2, _ := NewConsumer(nc, []string{"test.queue"}, func(req *types.EnrichmentRequest) {
+	c2, _ := NewConsumer(nc, []string{"test.queue"}, func(req *types.EnrichmentRequest) bool {
 		mu.Lock()
 		count2++
 		mu.Unlock()
+		return true
 	})
 
 	c1.Start()
