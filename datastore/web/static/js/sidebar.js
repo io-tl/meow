@@ -63,35 +63,10 @@ class SidebarManager {
     }
 
     createToggleButton() {
-        // First, try to find an existing toggle button in the DOM
         this.toggleBtn = document.getElementById('sidebar-toggle') || document.querySelector('.sidebar-toggle-btn');
-
         if (this.toggleBtn) {
-            // Use existing button - just add click handler
             this.toggleBtn.addEventListener('click', () => this.toggle());
-            return;
         }
-
-        // No existing button found - create one and add to top-bar-left
-        const topBarLeft = document.querySelector('.top-bar-left');
-        if (!topBarLeft) return;
-
-        this.toggleBtn = document.createElement('button');
-        this.toggleBtn.className = 'sidebar-toggle-btn';
-        this.toggleBtn.id = 'sidebar-toggle';
-        this.toggleBtn.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-        `;
-        this.toggleBtn.setAttribute('aria-label', 'Toggle sidebar');
-        this.toggleBtn.setAttribute('title', 'Toggle Menu (Ctrl+B)');
-
-        // Add click handler
-        this.toggleBtn.addEventListener('click', () => this.toggle());
-
-        // Insert at the beginning of top-bar-left
-        topBarLeft.insertBefore(this.toggleBtn, topBarLeft.firstChild);
     }
 
     setupKeyboardShortcut() {
