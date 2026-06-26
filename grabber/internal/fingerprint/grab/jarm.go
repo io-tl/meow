@@ -175,10 +175,14 @@ func reorderCiphers(ciphers [][]byte, order string) [][]byte {
 		}
 		return result
 	case "TOP_HALF":
+		// Pour une liste impaire, la cipher du milieu vient en premier,
+		// puis le bottom-half du reverse (cf. salesforce/jarm cipher_mung).
+		result := [][]byte{}
 		if n%2 == 1 {
-			return reorderCiphers(reorderCiphers(ciphers, "REVERSE"), "BOTTOM_HALF")
+			result = append(result, ciphers[n/2])
 		}
-		return reorderCiphers(reorderCiphers(ciphers, "REVERSE"), "BOTTOM_HALF")
+		result = append(result, reorderCiphers(reorderCiphers(ciphers, "REVERSE"), "BOTTOM_HALF")...)
+		return result
 	case "BOTTOM_HALF":
 		if n%2 == 1 {
 			return ciphers[(n/2)+1:]
@@ -262,6 +266,9 @@ func getExtensions(hostname string, p probeConfig) []byte {
 			{0x06, 0x73, 0x70, 0x64, 0x79, 0x2f, 0x33},
 			{0x03, 0x68, 0x32, 0x63},
 			{0x02, 0x68, 0x71},
+		}
+		if p.extOrder != "FORWARD" {
+			alpnList = reorderCiphers(alpnList, p.extOrder)
 		}
 		alpnBytes := []byte{}
 		for _, a := range alpnList {
@@ -373,7 +380,7 @@ func parseExtensions(data []byte, offset int, helloLen int) string {
 	if len(data) < 85 || len(data) < (offset+53) || data[offset+47] == 11 || offset+42 >= helloLen {
 		return "|"
 	}
-	if bytes.Equal(data[offset+50:offset+53], []byte{0x0e, 0xac, 0x0b}) || (len(data) >= 85 && bytes.Equal(data[82:85], []byte{0x0f, 0xf0, 0x0b})) {
+	if bytes.Equal(data[offset+50:offset+53], []byte{0x0e, 0xac, 0x0b}) || (len(data) >= 85 && bytes.Equal(data[82:85], []byte{0x0f, 0xf0, 0x0b})) || data[offset+50] == 22 {
 		return "|"
 	}
 
