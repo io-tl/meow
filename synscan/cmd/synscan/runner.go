@@ -39,7 +39,7 @@ func decodeScanToken(token string) (int64, int, error) {
 
 // prepareScanConfig parses targets and ports, resolves source IP, and builds a ScanConfig.
 // Used by both run() and executeScanFromRequest() to avoid duplication.
-func prepareScanConfig(config *YAMLConfig, target, targetFile, ports string, verbose bool) (*types.ScanConfig, []string, []int, error) {
+func prepareScanConfig(config *YAMLConfig, target, targetFile, ports string, debug bool) (*types.ScanConfig, []string, []int, error) {
 	targetIPs, err := loadTargets(target, targetFile)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("invalid target: %w", err)
@@ -49,7 +49,7 @@ func prepareScanConfig(config *YAMLConfig, target, targetFile, ports string, ver
 		return nil, nil, nil, fmt.Errorf("no valid IPs found in target")
 	}
 
-	if verbose {
+	if debug {
 		log.Printf("Target parsed: %d IPs", len(targetIPs))
 	}
 
@@ -62,7 +62,7 @@ func prepareScanConfig(config *YAMLConfig, target, targetFile, ports string, ver
 		return nil, nil, nil, fmt.Errorf("invalid ports: %w", err)
 	}
 
-	sourceIP, err := resolveSourceIP(config, targetIPs[0], verbose)
+	sourceIP, err := resolveSourceIP(config, targetIPs[0], debug)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -71,13 +71,13 @@ func prepareScanConfig(config *YAMLConfig, target, targetFile, ports string, ver
 	return scanConfig, targetIPs, parsedPorts, nil
 }
 
-func run(ctx context.Context, config *YAMLConfig, verbose bool, resumeToken string) error {
+func run(ctx context.Context, config *YAMLConfig, debug bool, resumeToken string) error {
 	scanConfig, _, ports, err := prepareScanConfig(
 		config,
 		config.Synscan.Target.CIDR,
 		config.Synscan.Target.File,
 		config.Synscan.Target.Ports,
-		verbose,
+		debug,
 	)
 	if err != nil {
 		return err
@@ -104,7 +104,7 @@ func run(ctx context.Context, config *YAMLConfig, verbose bool, resumeToken stri
 	}
 	defer scan.Close()
 
-	pub := setupNATSPublisher(scanConfig, verbose)
+	pub := setupNATSPublisher(scanConfig, debug)
 	if pub != nil {
 		defer pub.Close()
 	}
@@ -120,7 +120,7 @@ func run(ctx context.Context, config *YAMLConfig, verbose bool, resumeToken stri
 		return fmt.Errorf("failed to start scan: %w", err)
 	}
 
-	stats := processResults(results, pub, verbose)
+	stats := processResults(results, pub, debug)
 
 	printScanSummary(stats.duration, stats.open, stats.closed, stats.filtered)
 
@@ -144,7 +144,7 @@ type scanStats struct {
 	duration time.Duration
 }
 
-func processResults(results <-chan *types.ScanResult, pub *nats.Publisher, verbose bool) scanStats {
+func processResults(results <-chan *types.ScanResult, pub *nats.Publisher, debug bool) scanStats {
 	var stats scanStats
 	startTime := time.Now()
 
@@ -162,13 +162,13 @@ func processResults(results <-chan *types.ScanResult, pub *nats.Publisher, verbo
 
 		case types.PortClosed:
 			stats.closed++
-			if verbose {
+			if debug {
 				fmt.Fprintf(os.Stderr, "[-] %s:%d CLOSED\n", result.IP, result.Port)
 			}
 
 		case types.PortFiltered:
 			stats.filtered++
-			if verbose {
+			if debug {
 				fmt.Fprintf(os.Stderr, "[?] %s:%d FILTERED\n", result.IP, result.Port)
 			}
 		}
@@ -178,13 +178,13 @@ func processResults(results <-chan *types.ScanResult, pub *nats.Publisher, verbo
 	return stats
 }
 
-func resolveSourceIP(config *YAMLConfig, targetHint string, verbose bool) (net.IP, error) {
+func resolveSourceIP(config *YAMLConfig, targetHint string, debug bool) (net.IP, error) {
 	if config.Synscan.Network.Interface != "" {
 		ip, err := packet.GetInterfaceIP(config.Synscan.Network.Interface)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get interface IP: %w", err)
 		}
-		if verbose {
+		if debug {
 			log.Printf("Using source IP from interface %s: %s", config.Synscan.Network.Interface, ip)
 		}
 		return ip, nil
@@ -197,7 +197,7 @@ func resolveSourceIP(config *YAMLConfig, targetHint string, verbose bool) (net.I
 	if ip == nil {
 		return nil, fmt.Errorf("could not detect source IP, please specify --interface")
 	}
-	if verbose {
+	if debug {
 		log.Printf("Auto-detected source IP: %s", ip)
 	}
 	return ip, nil
@@ -229,13 +229,13 @@ func buildScanConfig(config *YAMLConfig, targetIPs []string, ports []int, source
 	}
 }
 
-func setupNATSPublisher(scanConfig *types.ScanConfig, verbose bool) *nats.Publisher {
+func setupNATSPublisher(scanConfig *types.ScanConfig, debug bool) *nats.Publisher {
 	if scanConfig.NATSUrl == "" {
 		log.Printf("WARNING: NATS not configured - results will not be published")
 		return nil
 	}
 
-	if verbose {
+	if debug {
 		log.Printf("Connecting to NATS: %s", scanConfig.NATSUrl)
 	}
 
@@ -251,7 +251,7 @@ func setupNATSPublisher(scanConfig *types.ScanConfig, verbose bool) *nats.Publis
 		return nil
 	}
 
-	if verbose {
+	if debug {
 		log.Printf("Connected to NATS successfully")
 	}
 	return pub

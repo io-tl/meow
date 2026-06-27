@@ -98,7 +98,7 @@ Central hub of the system. Hosts the NATS server, stores results and exposes a w
 - **GeoIP**: automatic enrichment (country, ASN, cloud provider)
 
 ```bash
-./datastore -nats-token SECRET
+./datastore --nats-token SECRET
 # Web UI → http://localhost:18080
 ```
 
@@ -133,7 +133,7 @@ make dist
 ./grab local
 
 # 3. SynScan — daemon mode (controllable from the Web UI)
-sudo ./synscan -d
+sudo ./synscan --daemon
 ```
 
 Open **http://localhost:18080** to see results in real time.
@@ -144,7 +144,7 @@ For large scans, spread components across multiple machines:
 
 ```bash
 # Machine 1 — Datastore
-./datastore -nats-host 0.0.0.0 -nats-token SECRET -api-bind 0.0.0.0 -api-pass APIKEY
+./datastore --nats-host 0.0.0.0 --nats-token SECRET --api-bind 0.0.0.0 --api-pass APIKEY
 
 # Machine 2 — Grabber (like synscan can be launched multiple times to scale)
 ./grab finger --nats-url nats://10.0.0.1:4222 --nats-token SECRET

@@ -48,11 +48,11 @@ Local usage listen on 127.0.0.1
 
 Listen on NATS *:4222 and API *:18080 
 ```
-./datastore -nats-token=secretnats -nats-host 0.0.0.0 -api-pass apipassword -api-bind 0.0.0.0
+./datastore --nats-token=secretnats --nats-host 0.0.0.0 --api-pass apipassword --api-bind 0.0.0.0
 ```
 Listen on NATS *:1337 and API 127.0.0.1:18080 
 ```
-DATASTORE_NATS_TOKEN=secretnats ./datastore -nats-host 0.0.0.0 -nats-port 1337
+MEOW_NATS_TOKEN=secretnats ./datastore --nats-host 0.0.0.0 --nats-port 1337
 ```
 
 
@@ -68,47 +68,49 @@ Usage:
 Flags:
   -h, --help         Show this help
   -v, --version      Show version
-  -verbose           Enable debug logging and explain sql
+  -d, --debug        Enable debug logging and explain sql (or env: MEOW_DEBUG)
 
 NATS (default: embedded server on 127.0.0.1:4222):
-  -nats-url string   Connect to external NATS (e.g., nats://host:4222)
-  -nats-host string  Listen address for embedded server (default: 127.0.0.1)
-  -nats-port int     Port for embedded server (default: 4222)
-  -nats-token string Auth token (or env: DATASTORE_NATS_TOKEN)
-  -nats-user string  Username (or env: DATASTORE_NATS_USER)
-  -nats-pass string  Password (or env: DATASTORE_NATS_PASSWORD)
+  --nats-url string   Connect to external NATS (e.g., nats://host:4222) (or env: MEOW_NATS_URL)
+  --nats-host string  Listen address for embedded server (default: 127.0.0.1)
+  --nats-port int     Port for embedded server (default: 4222)
+  --nats-token string Auth token (or env: MEOW_NATS_TOKEN)
+  --nats-user string  Username (or env: MEOW_NATS_USER)
+  --nats-pass string  Password (or env: MEOW_NATS_PASS)
 
 Storage:
-  -db-path string    SQLite database path (default: ./scanner.db)
+  --db-path string    SQLite database path (default: ./scanner.db)
 
 API (default: enabled on 127.0.0.1:18080):
-  -no-api            Disable REST API and Web UI
-  -api-bind string   API server listen address (default: 127.0.0.1)
-  -api-port int      API server port (default: 18080)
-  -api-pass string   Require X-API-Key header for /api/* (or env: DATASTORE_API_PASSWORD)
+  --no-api            Disable REST API and Web UI
+  --api-bind string   API server listen address (default: 127.0.0.1)
+  --api-port int      API server port (default: 18080)
+  --api-pass string   Require X-API-Key header for /api/* (or env: MEOW_API_PASS)
 
 GeoIP (default: embedded databases):
-  -geoip-city string Path to GeoLite2-City.mmdb (or env: DATASTORE_GEOIP_CITY)
-  -geoip-asn string  Path to GeoLite2-ASN.mmdb (or env: DATASTORE_GEOIP_ASN)
+  --geoip-city string Path to GeoLite2-City.mmdb (or env: MEOW_GEOIP_CITY)
+  --geoip-asn string  Path to GeoLite2-ASN.mmdb (or env: MEOW_GEOIP_ASN)
 
 Advanced:
-  -queue-group string NATS queue group (default: datastore-workers)
-  -domain-enrich-threshold int Skip domain enrichment when seen on N+ IPs (default: 50, 0=unlimited)
+  --queue-group string NATS queue group (default: datastore-workers)
+  --domain-enrich-threshold int Skip domain enrichment when seen on N+ IPs (default: 50, 0=unlimited)
 
 Examples:
-  datastore -verbose
-  datastore -nats-token="SECRET"
-  datastore -api-pass="SECRET" -verbose
-  datastore -nats-url="nats://prod:4222" -nats-user="admin" -nats-pass="pass"
-  datastore -db-path=/data/scan.db -api-port=9090
-  datastore -no-api
+  datastore --debug
+  datastore --nats-token="SECRET"
+  datastore --api-pass="SECRET" --debug
+  datastore --nats-url="nats://prod:4222" --nats-user="admin" --nats-pass="pass"
+  datastore --db-path=/data/scan.db --api-port=9090
+  datastore --no-api
 Environment variables:
-  DATASTORE_NATS_TOKEN    Alternative to -nats-token
-  DATASTORE_NATS_USER     Alternative to -nats-user
-  DATASTORE_NATS_PASSWORD Alternative to -nats-pass
-  DATASTORE_GEOIP_CITY    Alternative to -geoip-city
-  DATASTORE_GEOIP_ASN     Alternative to -geoip-asn
-  DATASTORE_API_PASSWORD  Alternative to -api-pass
+  MEOW_NATS_URL       Alternative to --nats-url
+  MEOW_NATS_TOKEN     Alternative to --nats-token
+  MEOW_NATS_USER      Alternative to --nats-user
+  MEOW_NATS_PASS      Alternative to --nats-pass
+  MEOW_DEBUG          Alternative to --debug
+  MEOW_API_PASS       Alternative to --api-pass
+  MEOW_GEOIP_CITY     Alternative to --geoip-city
+  MEOW_GEOIP_ASN      Alternative to --geoip-asn
 ```
 ---
 
@@ -133,7 +135,7 @@ A *mobile-friendly-best-effort* version is also available under `/mobile/*`.
 
 ## REST API
 
-All endpoints are under `/api/`. If `-api-pass` is set, include the `X-API-Key` header or `?key=` query parameter.
+All endpoints are under `/api/`. If `--api-pass` is set, include the `X-API-Key` header or `?key=` query parameter.
 
 ### Hosts
 
@@ -304,23 +306,29 @@ The datastore exposes an MCP endpoint via Streamable HTTP at `/mcp`
 
 | Flag | Default | Env | Description |
 |------|---------|-----|-------------|
-| `-verbose` | `false` | | Debug logging |
-| `-db-path` | `./scanner.db` | | SQLite database path |
-| `-nats-port` | `4222` | | Embedded NATS server port |
-| `-nats-url` | | | External NATS URL (disables embedded server) |
-| `-nats-token` | | `DATASTORE_NATS_TOKEN` | NATS authentication token |
-| `-nats-user` | | `DATASTORE_NATS_USER` | NATS username |
-| `-nats-pass` | | `DATASTORE_NATS_PASSWORD` | NATS password |
-| `-queue-group` | `datastore-workers` | | NATS queue group |
-| `-api-port` | `18080` | | REST API port |
-| `-api-pass` | | | API password (`X-API-Key` header) |
-| `-no-api` | `false` | | Disable API and Web UI |
+| `--debug` | `false` | `MEOW_DEBUG` | Debug logging |
+| `--db-path` | `./scanner.db` | | SQLite database path |
+| `--nats-host` | `127.0.0.1` | | Embedded NATS server listen address |
+| `--nats-port` | `4222` | | Embedded NATS server port |
+| `--nats-url` | | `MEOW_NATS_URL` | External NATS URL (disables embedded server) |
+| `--nats-token` | | `MEOW_NATS_TOKEN` | NATS authentication token |
+| `--nats-user` | | `MEOW_NATS_USER` | NATS username |
+| `--nats-pass` | | `MEOW_NATS_PASS` | NATS password |
+| `--queue-group` | `datastore-workers` | | NATS queue group |
+| `--api-bind` | `127.0.0.1` | | REST API listen address |
+| `--api-port` | `18080` | | REST API port |
+| `--api-pass` | | `MEOW_API_PASS` | API password (`X-API-Key` header) |
+| `--no-api` | `false` | | Disable API and Web UI |
+| `--geoip-city` | | `MEOW_GEOIP_CITY` | Path to GeoLite2-City.mmdb |
+| `--geoip-asn` | | `MEOW_GEOIP_ASN` | Path to GeoLite2-ASN.mmdb |
+| `--domain-enrich-threshold` | `50` | | Skip domain enrichment above N IPs (0=unlimited) |
 
 ### Auto-detection
 
-- **NATS**: embedded server by default, switches to client mode when `-nats-url` is provided
-- **Auth**: `token` if `-nats-token` is set, `user/pass` if both `-nats-user` and `-nats-pass` are set, otherwise `none`
-- **API**: enabled by default, disable with `-no-api`
+- **NATS**: embedded server by default, switches to client mode when `--nats-url` is provided
+- **Auth**: `token` if `--nats-token` is set, `user/pass` if both `--nats-user` and `--nats-pass` are set, otherwise `none`
+- **API**: enabled by default, disable with `--no-api`
+- **Priority**: CLI flag > `MEOW_*` env var > default (this inverts the previous behavior where env took precedence over flags)
 
 ---
 
@@ -366,7 +374,7 @@ Includes automatic cloud provider detection (AWS, GCP, Azure, OVH, Hetzner...) b
 
 ```bash
 # 1. Datastore (starts NATS + API)
-./datastore -nats-token="SECRET"
+./datastore --nats-token="SECRET"
 
 # 2. Grabber fingerprint
 ./grab finger --nats-token SECRET

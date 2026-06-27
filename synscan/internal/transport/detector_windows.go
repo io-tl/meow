@@ -22,7 +22,7 @@ func DetectBestTransport(config *TransportConfig) (Transport, error) {
 
 // CheckCapabilities checks what capabilities are available and logs them
 func CheckCapabilities() {
-	verbose := os.Getenv("VERBOSE") != ""
+	verbose := os.Getenv("MEOW_DEBUG") != ""
 	if verbose {
 		npcapAvail := npcapDLL.Load() == nil
 		log.Println("Checking available transport capabilities...")

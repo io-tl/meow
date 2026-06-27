@@ -39,7 +39,7 @@ type Config struct {
 	DomainEnrichThreshold int // Max distinct IPs per domain before skipping enrichment (0 = unlimited)
 
 	// Logging
-	Verbose bool
+	Debug bool
 }
 
 func loadConfig() *Config {
@@ -52,9 +52,9 @@ func loadConfig() *Config {
 
 	// NATS auth (resolved from env after parse)
 	var natsToken, natsUser, natsPass string
-	flag.StringVar(&natsToken, "nats-token", "", "NATS authentication token (or env: DATASTORE_NATS_TOKEN)")
-	flag.StringVar(&natsUser, "nats-user", "", "NATS username (or env: DATASTORE_NATS_USER)")
-	flag.StringVar(&natsPass, "nats-pass", "", "NATS password (or env: DATASTORE_NATS_PASSWORD)")
+	flag.StringVar(&natsToken, "nats-token", "", "NATS authentication token (or env: MEOW_NATS_TOKEN)")
+	flag.StringVar(&natsUser, "nats-user", "", "NATS username (or env: MEOW_NATS_USER)")
+	flag.StringVar(&natsPass, "nats-pass", "", "NATS password (or env: MEOW_NATS_PASS)")
 
 	// Consumer
 	flag.StringVar(&cfg.QueueGroup, "queue-group", "datastore-workers", "NATS queue group name")
@@ -68,29 +68,40 @@ func loadConfig() *Config {
 	flag.BoolVar(&disableAPI, "no-api", false, "Disable REST API and Web UI")
 	flag.StringVar(&cfg.APIBind, "api-bind", "127.0.0.1", "API server listen address")
 	flag.IntVar(&cfg.APIPort, "api-port", 18080, "API server port")
-	flag.StringVar(&apiPass, "api-pass", "", "API password for /api/* endpoints (or env: DATASTORE_API_PASSWORD)")
+	flag.StringVar(&apiPass, "api-pass", "", "API password for /api/* endpoints (or env: MEOW_API_PASS)")
 
 	// GeoIP (resolved from env after parse)
 	var geoipCity, geoipASN string
-	flag.StringVar(&geoipCity, "geoip-city", "", "Path to GeoLite2-City.mmdb (default: embedded)")
-	flag.StringVar(&geoipASN, "geoip-asn", "", "Path to GeoLite2-ASN.mmdb (default: embedded)")
+	flag.StringVar(&geoipCity, "geoip-city", "", "Path to GeoLite2-City.mmdb (or env: MEOW_GEOIP_CITY)")
+	flag.StringVar(&geoipASN, "geoip-asn", "", "Path to GeoLite2-ASN.mmdb (or env: MEOW_GEOIP_ASN)")
 
 	// Enrichment
 	flag.IntVar(&cfg.DomainEnrichThreshold, "domain-enrich-threshold", 50, "Skip domain enrichment when domain seen on more than N distinct IPs (0 = unlimited)")
 
 	// Logging
-	flag.BoolVar(&cfg.Verbose, "verbose", false, "Enable debug logging")
+	flag.BoolVar(&cfg.Debug, "debug", false, "Enable debug logging (or env: MEOW_DEBUG)")
+	flag.BoolVar(&cfg.Debug, "d", false, "Enable debug logging (shorthand)")
 
 	flag.Usage = printUsage
 	flag.Parse()
 
-	// Resolve env vars
-	cfg.NATSAuthToken = getEnvOrFlag("DATASTORE_NATS_TOKEN", natsToken)
-	cfg.NATSAuthUser = getEnvOrFlag("DATASTORE_NATS_USER", natsUser)
-	cfg.NATSAuthPassword = getEnvOrFlag("DATASTORE_NATS_PASSWORD", natsPass)
-	cfg.GeoIPCityPath = getEnvOrFlag("DATASTORE_GEOIP_CITY", geoipCity)
-	cfg.GeoIPASNPath = getEnvOrFlag("DATASTORE_GEOIP_ASN", geoipASN)
-	cfg.APIPassword = getEnvOrFlag("DATASTORE_API_PASSWORD", apiPass)
+	// Resolve env vars (flag takes precedence over env; MEOW_* namespace)
+	cfg.NATSAuthToken = flagOrEnv(natsToken, "MEOW_NATS_TOKEN")
+	cfg.NATSAuthUser = flagOrEnv(natsUser, "MEOW_NATS_USER")
+	cfg.NATSAuthPassword = flagOrEnv(natsPass, "MEOW_NATS_PASS")
+	cfg.GeoIPCityPath = flagOrEnv(geoipCity, "MEOW_GEOIP_CITY")
+	cfg.GeoIPASNPath = flagOrEnv(geoipASN, "MEOW_GEOIP_ASN")
+	cfg.APIPassword = flagOrEnv(apiPass, "MEOW_API_PASS")
+
+	// NATS URL: flag takes precedence over env
+	if cfg.NATSURL == "" {
+		cfg.NATSURL = os.Getenv("MEOW_NATS_URL")
+	}
+
+	// MEOW_DEBUG env fallback (flag takes precedence)
+	if !cfg.Debug && os.Getenv("MEOW_DEBUG") != "" {
+		cfg.Debug = true
+	}
 
 	// Auto-detect NATS mode
 	cfg.NATSMode = "embedded"
@@ -111,12 +122,13 @@ func loadConfig() *Config {
 	return cfg
 }
 
-// getEnvOrFlag returns environment variable value if set, otherwise returns flag value
-func getEnvOrFlag(envKey, flagValue string) string {
-	if val := os.Getenv(envKey); val != "" {
-		return val
+// flagOrEnv returns the flag value if set (non-empty), otherwise the env var value.
+// Flag takes precedence over environment.
+func flagOrEnv(flagValue, envKey string) string {
+	if flagValue != "" {
+		return flagValue
 	}
-	return flagValue
+	return os.Getenv(envKey)
 }
 
 func printUsage() {
@@ -126,48 +138,51 @@ Usage:
   datastore [flags]
 
 Flags:
-  -h, --help         Show this help
+  -h, --help         Show help
   -v, --version      Show version
-  -verbose           Enable debug logging and explain sql
+  -d, --debug        Enable debug logging and explain sql (or env: MEOW_DEBUG)
 
 NATS (default: embedded server on 127.0.0.1:4222):
-  -nats-url string   Connect to external NATS (e.g., nats://host:4222)
-  -nats-host string  Listen address for embedded server (default: 127.0.0.1)
-  -nats-port int     Port for embedded server (default: 4222)
-  -nats-token string Auth token (or env: DATASTORE_NATS_TOKEN)
-  -nats-user string  Username (or env: DATASTORE_NATS_USER)
-  -nats-pass string  Password (or env: DATASTORE_NATS_PASSWORD)
+  --nats-url string   Connect to external NATS (e.g., nats://host:4222) (or env: MEOW_NATS_URL)
+  --nats-host string  Listen address for embedded server (default: 127.0.0.1)
+  --nats-port int     Port for embedded server (default: 4222)
+  --nats-token string Auth token (or env: MEOW_NATS_TOKEN)
+  --nats-user string  Username (or env: MEOW_NATS_USER)
+  --nats-pass string  Password (or env: MEOW_NATS_PASS)
 
 Storage:
-  -db-path string    SQLite database path (default: ./scanner.db)
+  --db-path string    SQLite database path (default: ./scanner.db)
 
 API (default: enabled on 127.0.0.1:18080):
-  -no-api            Disable REST API and Web UI
-  -api-bind string   API server listen address (default: 127.0.0.1)
-  -api-port int      API server port (default: 18080)
-  -api-pass string   Require X-API-Key header for /api/* (or env: DATASTORE_API_PASSWORD)
+  --no-api            Disable REST API and Web UI
+  --api-bind string   API server listen address (default: 127.0.0.1)
+  --api-port int      API server port (default: 18080)
+  --api-pass string   Require X-API-Key header for /api/* (or env: MEOW_API_PASS)
 
 GeoIP (default: embedded databases):
-  -geoip-city string Path to GeoLite2-City.mmdb (or env: DATASTORE_GEOIP_CITY)
-  -geoip-asn string  Path to GeoLite2-ASN.mmdb (or env: DATASTORE_GEOIP_ASN)
+  --geoip-city string Path to GeoLite2-City.mmdb (or env: MEOW_GEOIP_CITY)
+  --geoip-asn string  Path to GeoLite2-ASN.mmdb (or env: MEOW_GEOIP_ASN)
 
 Advanced:
-  -queue-group string NATS queue group (default: datastore-workers)
-  -domain-enrich-threshold int Skip domain enrichment when seen on N+ IPs (default: 50, 0=unlimited)
+  --queue-group string          NATS queue group (default: datastore-workers)
+  --domain-enrich-threshold int Skip domain enrichment when seen on N+ IPs (default: 50, 0=unlimited)
 
 Examples:
-  datastore -verbose
-  datastore -nats-token="SECRET"
-  datastore -api-pass="SECRET" -verbose
-  datastore -nats-url="nats://prod:4222" -nats-user="admin" -nats-pass="pass"
-  datastore -db-path=/data/scan.db -api-port=9090
-  datastore -no-api
-Environment variables:
-  DATASTORE_NATS_TOKEN    Alternative to -nats-token
-  DATASTORE_NATS_USER     Alternative to -nats-user
-  DATASTORE_NATS_PASSWORD Alternative to -nats-pass
-  DATASTORE_GEOIP_CITY    Alternative to -geoip-city
-  DATASTORE_GEOIP_ASN     Alternative to -geoip-asn
-  DATASTORE_API_PASSWORD  Alternative to -api-pass
+  datastore --debug
+  datastore --nats-token="SECRET"
+  datastore --api-pass="SECRET" --debug
+  datastore --nats-url="nats://prod:4222" --nats-user="admin" --nats-pass="pass"
+  datastore --db-path=/data/scan.db --api-port=9090
+  datastore --no-api
+
+Environment variables (MEOW_* namespace, shared across all meow modules):
+  MEOW_NATS_URL    Alternative to --nats-url
+  MEOW_NATS_TOKEN  Alternative to --nats-token
+  MEOW_NATS_USER   Alternative to --nats-user
+  MEOW_NATS_PASS   Alternative to --nats-pass
+  MEOW_DEBUG       Alternative to --debug
+  MEOW_API_PASS    Alternative to --api-pass
+  MEOW_GEOIP_CITY  Alternative to --geoip-city
+  MEOW_GEOIP_ASN   Alternative to --geoip-asn
 `, version)
 }

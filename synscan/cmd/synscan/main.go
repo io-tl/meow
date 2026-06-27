@@ -24,7 +24,7 @@ type cliOptions struct {
 	configFile string
 	natsURL    string
 	natsToken  string
-	verbose    bool
+	debug      bool
 	resume     string
 	daemon     bool
 }
@@ -115,14 +115,14 @@ func main() {
 			}
 			i++
 			opts.resume = args[i]
-		case "-d", "--daemon":
+		case "--daemon":
 			opts.daemon = true
-		case "-v", "--verbose":
-			opts.verbose = true
+		case "-d", "--debug":
+			opts.debug = true
 		case "-h", "--help":
 			printUsage()
 			return
-		case "--version":
+		case "-v", "--version":
 			fmt.Printf("synscan v%s\n", version)
 			return
 		default:
@@ -132,9 +132,9 @@ func main() {
 		}
 	}
 
-	// VERBOSE env var fallback
-	if !opts.verbose && os.Getenv("VERBOSE") != "" {
-		opts.verbose = true
+	// MEOW_DEBUG env var fallback (flag takes precedence)
+	if !opts.debug && os.Getenv("MEOW_DEBUG") != "" {
+		opts.debug = true
 	}
 
 	config := loadConfiguration(opts)
@@ -152,7 +152,7 @@ func main() {
 	}()
 
 	if opts.daemon {
-		if err := runDaemon(ctx, config, opts.verbose); err != nil {
+		if err := runDaemon(ctx, config, opts.debug); err != nil {
 			fatal(err.Error())
 		}
 		return
@@ -165,7 +165,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := run(ctx, config, opts.verbose, opts.resume); err != nil {
+	if err := run(ctx, config, opts.debug, opts.resume); err != nil {
 		fatal(err.Error())
 	}
 }
@@ -239,6 +239,15 @@ func loadConfiguration(opts cliOptions) *YAMLConfig {
 	if opts.timeout > 0 {
 		config.Synscan.Performance.TimeoutMS = opts.timeout
 	}
+	// MEOW_* env overrides (after YAML, before CLI flags)
+	if v := os.Getenv("MEOW_NATS_URL"); v != "" {
+		config.NATS.URL = v
+	}
+	if v := os.Getenv("MEOW_NATS_TOKEN"); v != "" {
+		config.NATS.Auth.Token = v
+	}
+
+	// CLI flags override env and config file
 	if opts.natsURL != "" {
 		config.NATS.URL = opts.natsURL
 	}
@@ -272,21 +281,21 @@ Usage:
   synscan [flags]
 
 Flags:
-  -t, --target <cidr>      Target CIDR or IP range (required in scan mode)
-      --target-file <path> File containing one target/range per line
-  -p, --ports <ports>      Ports to scan (default: 80,443,22,8080,8443)
-  -P, --top-ports <n>      Scan the N most common ports (mutually exclusive with -p)
-  -i, --interface <iface>  Network interface (auto-detected if empty)
-  -r, --rate-limit <n>     Packets per second (default: 1000)
-  -T, --timeout <ms>       Timeout in milliseconds (default: 5000)
-  -c, --config <path>      Config file (default: config.yaml)
-      --nats-url <url>     NATS server URL
-      --nats-token <token> NATS auth token
-      --resume <token>     Resume scan from token (hex 24 chars)
-  -d, --daemon             Daemon mode: wait for scan requests via NATS
-  -v, --verbose            Verbose output
-  -h, --help               Show help
-      --version            Show version
+  -t, --target string       Target CIDR or IP range (required in scan mode)
+      --target-file string  File containing one target/range per line
+  -p, --ports string        Ports to scan (default: 80,443,22,8080,8443)
+  -P, --top-ports int       Scan the N most common ports (mutually exclusive with -p)
+  -i, --interface string    Network interface (auto-detected if empty)
+  -r, --rate-limit int      Packets per second (default: 1000)
+  -T, --timeout int         Timeout in milliseconds (default: 5000)
+  -c, --config string       Config file (default: config.yaml)
+      --nats-url string     NATS server URL (or env: MEOW_NATS_URL)
+      --nats-token string   NATS auth token (or env: MEOW_NATS_TOKEN)
+      --resume string       Resume scan from token (hex 24 chars)
+      --daemon              Daemon mode: wait for scan requests via NATS
+  -d, --debug               Enable debug logging (or env: MEOW_DEBUG)
+  -h, --help                Show help
+  -v, --version             Show version
 
 Examples:
   synscan -t 192.168.1.0/24 -p 80,443
@@ -295,6 +304,11 @@ Examples:
   synscan -t 192.168.1-10.0/24 -p 22,80,443 --nats-url nats://localhost:4222
   synscan -c config.yaml -t 10.0.0.0/8 --timeout 10000
   synscan --daemon --nats-url nats://localhost:4222 --nats-token SECRET
+
+Environment variables (MEOW_* namespace, shared across all meow modules):
+  MEOW_NATS_URL    Alternative to --nats-url
+  MEOW_NATS_TOKEN  Alternative to --nats-token
+  MEOW_DEBUG       Alternative to --debug
 `, version)
 }
 

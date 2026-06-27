@@ -69,19 +69,21 @@ sudo ./synscan --daemon --nats-url nats://10.1.1.1:4222 --nats-token SECRET
 Usage: synscan [flags]
 
 Flags:
-  -t, --target <cidr>       Target CIDR, IP, or nmap-style range (required)
-      --target-file <path>  File containing one target/range per line
-  -p, --ports <ports>       Ports to scan (default: 80,443,22,8080,8443)
-  -P, --top-ports <n>       Scan the N most common ports
-  -i, --interface <iface>   Network interface (auto-detected if empty)
-  -r, --rate-limit <n>      Packets per second (default: 1000)
-  -T, --timeout <ms>        Timeout in milliseconds (default: 5000)
-  -c, --config <path>       YAML configuration file
-      --nats-url <url>      NATS server URL
-      --nats-token <token>  NATS auth token
-      --resume <token>      Resume an interrupted scan (hex token)
-  -d, --daemon              Daemon mode: wait for scan requests via NATS
-  -v, --verbose             Verbose output
+  -t, --target string       Target CIDR, IP, or nmap-style range (required)
+      --target-file string  File containing one target/range per line
+  -p, --ports string        Ports to scan (default: 80,443,22,8080,8443)
+  -P, --top-ports int       Scan the N most common ports
+  -i, --interface string    Network interface (auto-detected if empty)
+  -r, --rate-limit int      Packets per second (default: 1000)
+  -T, --timeout int         Timeout in milliseconds (default: 5000)
+  -c, --config string       YAML configuration file
+      --nats-url string     NATS server URL (or env: MEOW_NATS_URL)
+      --nats-token string   NATS auth token (or env: MEOW_NATS_TOKEN)
+      --resume string       Resume an interrupted scan (hex token)
+      --daemon              Daemon mode: wait for scan requests via NATS
+  -d, --debug               Enable debug logging (or env: MEOW_DEBUG)
+  -h, --help                Show help
+  -v, --version             Show version
 ```
 
 > `-t` and `--target-file` are mutually exclusive. `-p` and `-P` are also mutually exclusive.
@@ -195,7 +197,13 @@ synscan:
     timeout_ms: 5000
 ```
 
-Priority: **CLI flags** > **config.yaml** > **defaults**
+Priority: **CLI flags** > **MEOW_\*** env vars > **config.yaml** > **defaults**
+
+| Environment variable | Equivalent flag |
+|----------------------|-----------------|
+| `MEOW_NATS_URL` | `--nats-url` |
+| `MEOW_NATS_TOKEN` | `--nats-token` |
+| `MEOW_DEBUG` | `-d, --debug` |
 
 ---
 
@@ -209,7 +217,7 @@ Priority: **CLI flags** > **config.yaml** > **defaults**
 | RST (flags `0x04`) | closed |
 | Timeout | filtered |
 
-Only **open** ports are displayed (and published to NATS). Closed/filtered ports are only visible with `-v`.
+Only **open** ports are displayed (and published to NATS). Closed/filtered ports are only visible with `-d`/`--debug`.
 
 ### Randomization
 

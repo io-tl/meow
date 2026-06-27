@@ -14,7 +14,7 @@ func DetectBestTransport(config *TransportConfig) (Transport, error) {
 
 // CheckCapabilities logs available transport capabilities on macOS.
 func CheckCapabilities() {
-	verbose := os.Getenv("VERBOSE") != ""
+	verbose := os.Getenv("MEOW_DEBUG") != ""
 	if verbose {
 		log.Println("Checking available transport capabilities (darwin)...")
 		log.Printf("  - Root/EUID=0: %v", IsRoot())

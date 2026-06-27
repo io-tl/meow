@@ -12,7 +12,7 @@ type transportCandidate struct {
 }
 
 func detectTransport(config *TransportConfig, methods []transportCandidate) (Transport, error) {
-	verbose := os.Getenv("VERBOSE") != ""
+	verbose := os.Getenv("MEOW_DEBUG") != ""
 
 	var lastErr error
 	for _, method := range methods {

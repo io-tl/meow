@@ -49,7 +49,7 @@ func CanUseRawSocket() bool {
 
 // CheckCapabilities checks what capabilities are available and logs them
 func CheckCapabilities() {
-	verbose := os.Getenv("VERBOSE") != ""
+	verbose := os.Getenv("MEOW_DEBUG") != ""
 	if verbose {
 		log.Println("Checking available transport capabilities...")
 		log.Printf("  - Root/EUID=0: %v", IsRoot())

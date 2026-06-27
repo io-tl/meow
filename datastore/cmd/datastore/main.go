@@ -26,7 +26,7 @@ func main() {
 	}
 
 	cfg := loadConfig()
-	setupLogging(cfg.Verbose)
+	setupLogging(cfg.Debug)
 
 	log.Info().Msg("Meow datastore service starting...")
 
@@ -76,7 +76,7 @@ func main() {
 	consumer.Stop()
 }
 
-func setupLogging(verbose bool) {
+func setupLogging(debug bool) {
 	// ANSI codes matching meow cyber theme
 	const (
 		reset     = "\x1b[0m"
@@ -141,7 +141,7 @@ func setupLogging(verbose bool) {
 	}
 
 	log.Logger = zerolog.New(w).With().Timestamp().Caller().Logger()
-	if verbose {
+	if debug {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	} else {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)

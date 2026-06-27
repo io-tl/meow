@@ -59,6 +59,7 @@ func runFinger(args []string) {
 	natsToken := ""
 	probeTimeout := 0
 	globalTimeout := 0
+	debug := false
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -104,6 +105,8 @@ func runFinger(args []string) {
 			} else {
 				fatal("--global-timeout requires a number (ms)")
 			}
+		case "-d", "--debug":
+			debug = true
 		case "-h", "--help":
 			printFingerHelp()
 			return
@@ -124,6 +127,9 @@ func runFinger(args []string) {
 	if globalTimeout > 0 {
 		cfg.Fingerprint.GlobalTimeoutMS = globalTimeout
 	}
+	if debug {
+		cfg.Logging.Level = "debug"
+	}
 	fingerprintcmd.Main(cfg)
 }
 
@@ -135,6 +141,7 @@ func runEnrich(args []string) {
 	natsToken := ""
 	enrichTimeout := 0
 	globalTimeout := 0
+	debug := false
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -180,6 +187,8 @@ func runEnrich(args []string) {
 			} else {
 				fatal("--global-timeout requires a number (ms)")
 			}
+		case "-d", "--debug":
+			debug = true
 		case "-h", "--help":
 			printEnrichHelp()
 			return
@@ -200,6 +209,9 @@ func runEnrich(args []string) {
 	if globalTimeout > 0 {
 		cfg.Enrichment.GlobalTimeoutMS = globalTimeout
 	}
+	if debug {
+		cfg.Logging.Level = "debug"
+	}
 	enrichmentcmd.Main(cfg)
 }
 
@@ -212,6 +224,7 @@ func runLocal(args []string) {
 	probeTimeout := 0
 	enrichTimeout := 0
 	globalTimeout := 0
+	debug := false
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -264,6 +277,8 @@ func runLocal(args []string) {
 			} else {
 				fatal("--global-timeout requires a number (ms)")
 			}
+		case "-d", "--debug":
+			debug = true
 		case "-h", "--help":
 			printLocalHelp()
 			return
@@ -287,6 +302,9 @@ func runLocal(args []string) {
 	}
 	if enrichTimeout > 0 {
 		cfg.Enrichment.EnrichTimeoutMS = enrichTimeout
+	}
+	if debug {
+		cfg.Logging.Level = "debug"
 	}
 	localcmd.Main(cfg)
 }
@@ -324,7 +342,7 @@ func listModules() {
 }
 
 func printUsage() {
-	fmt.Printf(`meow grab v%s 
+	fmt.Printf(`meow grab v%s
 
 Usage:
   grab <command> [flags]
@@ -351,6 +369,11 @@ Examples:
   grab modules
   grab debug finger -host 192.168.0.254 -port 22
   grab debug enrich -host 162.159.129.73 -port 443 -service https -domain example.com
+
+Environment variables (MEOW_* namespace, shared across all meow modules):
+  MEOW_NATS_URL    Alternative to --nats-url
+  MEOW_NATS_TOKEN  Alternative to --nats-token
+  MEOW_DEBUG       Alternative to --debug
 `, version)
 }
 
@@ -363,18 +386,24 @@ fingerprints each port, and publishes to scan.port.fingerprinted.
 Config file is optional if --nats-url is provided (defaults will be used).
 
 Flags:
-  -c, --config <path>         Config file (default: config.yaml)
-  -w, --workers <n>           Override worker count
-      --nats-url <url>        NATS server URL (overrides config)
-      --nats-token <tok>      NATS auth token (overrides config)
-      --probe-timeout <ms>    Per-probe timeout in ms (default: 9000)
-      --global-timeout <ms>   Global timeout per port in ms (default: 30000)
-  -h, --help                  Show this help
+  -c, --config string       Config file (default: config.yaml)
+  -w, --workers int         Override worker count
+      --nats-url string     NATS server URL (or env: MEOW_NATS_URL)
+      --nats-token string   NATS auth token (or env: MEOW_NATS_TOKEN)
+      --probe-timeout int   Per-probe timeout in ms (default: 9000)
+      --global-timeout int  Global timeout per port in ms (default: 30000)
+  -d, --debug               Enable debug logging (or env: MEOW_DEBUG)
+  -h, --help                Show help
 
 Examples:
   grab finger -c config.yaml
   grab finger --nats-url nats://localhost:4222 --nats-token SECRET
   grab finger --nats-url nats://localhost:4222 --probe-timeout 5000
+
+Environment variables (MEOW_* namespace, shared across all meow modules):
+  MEOW_NATS_URL    Alternative to --nats-url
+  MEOW_NATS_TOKEN  Alternative to --nats-token
+  MEOW_DEBUG       Alternative to --debug
 `)
 }
 
@@ -388,13 +417,14 @@ scan.port.enriched.
 Config file is optional if --nats-url is provided (defaults will be used).
 
 Flags:
-  -c, --config <path>          Config file (default: config.yaml)
-  -w, --workers <n>            Override worker count
-      --nats-url <url>         NATS server URL (overrides config)
-      --nats-token <tok>       NATS auth token (overrides config)
-      --enrich-timeout <ms>    Per-module scan timeout in ms (default: 10000)
-      --global-timeout <ms>    Hard deadline per job in ms (default: 30000)
-  -h, --help                   Show this help
+  -c, --config string       Config file (default: config.yaml)
+  -w, --workers int         Override worker count
+      --nats-url string     NATS server URL (or env: MEOW_NATS_URL)
+      --nats-token string   NATS auth token (or env: MEOW_NATS_TOKEN)
+      --enrich-timeout int  Per-module scan timeout in ms (default: 10000)
+      --global-timeout int  Hard deadline per job in ms (default: 30000)
+  -d, --debug               Enable debug logging (or env: MEOW_DEBUG)
+  -h, --help                Show help
 
 See 'grab modules' to list available enrichment modules.
 
@@ -402,6 +432,11 @@ Examples:
   grab enrich -c config.yaml
   grab enrich --nats-url nats://localhost:4222 --nats-token SECRET
   grab enrich --nats-url nats://localhost:4222 --enrich-timeout 15000
+
+Environment variables (MEOW_* namespace, shared across all meow modules):
+  MEOW_NATS_URL    Alternative to --nats-url
+  MEOW_NATS_TOKEN  Alternative to --nats-token
+  MEOW_DEBUG       Alternative to --debug
 `)
 }
 
@@ -414,19 +449,25 @@ Equivalent to running 'grab finger' and 'grab enrich' together.
 Config file is optional if --nats-url is provided (defaults will be used).
 
 Flags:
-  -c, --config <path>          Config file (default: config.yaml)
-  -w, --workers <n>            Override worker count
-      --nats-url <url>         NATS server URL (overrides config)
-      --nats-token <tok>       NATS auth token (overrides config)
-      --probe-timeout <ms>     Per-probe timeout in ms (default: 9000)
-      --enrich-timeout <ms>    Per-module scan timeout in ms (default: 10000)
-      --global-timeout <ms>    Global timeout in ms (default: 30000)
-  -h, --help                   Show this help
+  -c, --config string       Config file (default: config.yaml)
+  -w, --workers int         Override worker count
+      --nats-url string     NATS server URL (or env: MEOW_NATS_URL)
+      --nats-token string   NATS auth token (or env: MEOW_NATS_TOKEN)
+      --probe-timeout int   Per-probe timeout in ms (default: 9000)
+      --enrich-timeout int  Per-module scan timeout in ms (default: 10000)
+      --global-timeout int  Global timeout in ms (default: 30000)
+  -d, --debug               Enable debug logging (or env: MEOW_DEBUG)
+  -h, --help                Show help
 
 Examples:
   grab local -c config.yaml
   grab local --nats-url nats://localhost:4222 --nats-token SECRET
   grab local --nats-url nats://localhost:4222 --probe-timeout 5000 --enrich-timeout 15000
+
+Environment variables (MEOW_* namespace, shared across all meow modules):
+  MEOW_NATS_URL    Alternative to --nats-url
+  MEOW_NATS_TOKEN  Alternative to --nats-token
+  MEOW_DEBUG       Alternative to --debug
 `)
 }
 
@@ -470,7 +511,18 @@ func loadOrDefaultConfig(configPath, natsURL, natsToken string) *common.Config {
 		}
 	}
 
-	// CLI flags override config file values
+	// MEOW_* env overrides (after config file, before CLI flags)
+	if v := os.Getenv("MEOW_NATS_URL"); v != "" {
+		cfg.NATS.URL = v
+	}
+	if v := os.Getenv("MEOW_NATS_TOKEN"); v != "" {
+		cfg.NATS.Auth.Token = v
+	}
+	if os.Getenv("MEOW_DEBUG") != "" {
+		cfg.Logging.Level = "debug"
+	}
+
+	// CLI flags override env and config file values
 	if natsURL != "" {
 		cfg.NATS.URL = natsURL
 	}

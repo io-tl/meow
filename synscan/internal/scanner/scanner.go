@@ -404,7 +404,7 @@ func (s *Scanner) handleSendError(err error, ip net.IP, port uint16) {
 		time.Sleep(10 * time.Millisecond)
 	} else {
 		// Log other errors (but only if verbose or critical)
-		verbose := os.Getenv("VERBOSE") != ""
+		verbose := os.Getenv("MEOW_DEBUG") != ""
 		if verbose {
 			log.Printf("Failed to send SYN to %s:%d: %v", ip, port, err)
 		}

@@ -41,7 +41,7 @@ func startAPI(cfg *Config, db *DB, nc *nats.Conn, ns *natsserver.Server, scanTra
 		c.Next()
 	})
 
-	api := &API{db: db, nc: nc, ns: ns, scanTracker: scanTracker, eventFeed: eventFeed, verbose: cfg.Verbose}
+	api := &API{db: db, nc: nc, ns: ns, scanTracker: scanTracker, eventFeed: eventFeed, verbose: cfg.Debug}
 	api.responseCache = newAPIResponseCache()
 
 	// Serve static files from embedded filesystem

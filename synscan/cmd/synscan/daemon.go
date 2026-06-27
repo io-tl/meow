@@ -17,7 +17,7 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-func runDaemon(ctx context.Context, config *YAMLConfig, verbose bool) error {
+func runDaemon(ctx context.Context, config *YAMLConfig, debug bool) error {
 	if config.NATS.URL == "" {
 		config.NATS.URL = "nats://127.0.0.1:4222"
 	}
@@ -92,7 +92,7 @@ func runDaemon(ctx context.Context, config *YAMLConfig, verbose bool) error {
 		currentScanID = req.RequestID
 		mu.Unlock()
 
-		transport := executeScanFromRequest(ctx, config, &req, pub, verbose, func(s *scanner.Scanner) {
+		transport := executeScanFromRequest(ctx, config, &req, pub, debug, func(s *scanner.Scanner) {
 			mu.Lock()
 			currentScanner = s
 			mu.Unlock()
@@ -137,13 +137,13 @@ func sendHeartbeat(pub *natspub.Publisher, nodeID, hostname, status, scanID, tra
 	}
 }
 
-func executeScanFromRequest(ctx context.Context, config *YAMLConfig, req *types.ScanRequest, pub *natspub.Publisher, verbose bool, onScannerReady func(*scanner.Scanner)) string {
+func executeScanFromRequest(ctx context.Context, config *YAMLConfig, req *types.ScanRequest, pub *natspub.Publisher, debug bool, onScannerReady func(*scanner.Scanner)) string {
 	ports := req.Ports
 	if ports == "" {
 		ports = config.Synscan.Target.Ports
 	}
 
-	scanConfig, targetIPs, parsedPorts, err := prepareScanConfig(config, req.Target, "", ports, verbose)
+	scanConfig, targetIPs, parsedPorts, err := prepareScanConfig(config, req.Target, "", ports, debug)
 	if err != nil {
 		log.Printf("Scan %s: %v", req.RequestID, err)
 		return ""
@@ -169,7 +169,7 @@ func executeScanFromRequest(ctx context.Context, config *YAMLConfig, req *types.
 		onScannerReady(scan)
 	}
 
-	if verbose {
+	if debug {
 		log.Printf("Scan %s: starting (%d IPs, %d ports)", req.RequestID, len(targetIPs), len(parsedPorts))
 	}
 
@@ -179,6 +179,6 @@ func executeScanFromRequest(ctx context.Context, config *YAMLConfig, req *types.
 		return ""
 	}
 
-	processResults(results, pub, verbose)
+	processResults(results, pub, debug)
 	return scan.TransportMethod()
 }

@@ -66,7 +66,7 @@ func initDB(cfg *Config) (*DB, error) {
 		log.Warn().Err(err).Msg("PRAGMA mmap_size failed (non-fatal)")
 	}
 
-	return &DB{DB: db, verbose: cfg.Verbose}, nil
+	return &DB{DB: db, verbose: cfg.Debug}, nil
 }
 
 func (db *DB) Query(query string, args ...any) (*sql.Rows, error) {
