@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+
+# Runtime SQLite database (can be multi-GB) — never needed for the build
+**/scanner.db
+**/scanner.db-wal
+**/scanner.db-shm
+**/*.db
+**/*.db-wal
+**/*.db-shm
+
+# Build outputs / release artifacts (produced BY the build, not inputs)
+dist/
+out/
+synscan/synscan
+grabber/grab
+grabber/grab.exe
+datastore/datastore
+datastore/datastore.exe
+
+# Docs and local tooling (not needed to compile)
+docs/
+*.md
+.claude/
+
+# NOTE: datastore/geoip/*.mmdb is intentionally NOT ignored —
+# it is embedded into the datastore binary via //go:embed (see datastore/embed.go).

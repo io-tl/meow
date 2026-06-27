@@ -1,9 +1,10 @@
 # syntax=docker/dockerfile:1
 
 # ──────────────────────────────────────────────
-# Base: Go 1.24 + mingw for grabber Windows CGO
+# Base: Go 1.25 + mingw for grabber Windows CGO
+# (datastore requires go >= 1.25.5 via mark3labs/mcp-go)
 # ──────────────────────────────────────────────
-FROM golang:1.24-bookworm AS base
+FROM golang:1.25-bookworm AS base
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 && \
