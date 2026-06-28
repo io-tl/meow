@@ -40,6 +40,9 @@ type Config struct {
 
 	// Logging
 	Debug bool
+
+	// MCP
+	MCPStdio bool // serve MCP over stdio instead of the HTTP API/Web UI
 }
 
 func loadConfig() *Config {
@@ -82,6 +85,9 @@ func loadConfig() *Config {
 	flag.BoolVar(&cfg.Debug, "debug", false, "Enable debug logging (or env: MEOW_DEBUG)")
 	flag.BoolVar(&cfg.Debug, "d", false, "Enable debug logging (shorthand)")
 
+	// MCP
+	flag.BoolVar(&cfg.MCPStdio, "mcp-stdio", false, "Run as a stdio MCP server (no HTTP API; reads the DB) (or env: MEOW_MCP_STDIO)")
+
 	flag.Usage = printUsage
 	flag.Parse()
 
@@ -101,6 +107,11 @@ func loadConfig() *Config {
 	// MEOW_DEBUG env fallback (flag takes precedence)
 	if !cfg.Debug && os.Getenv("MEOW_DEBUG") != "" {
 		cfg.Debug = true
+	}
+
+	// MEOW_MCP_STDIO env fallback (flag takes precedence)
+	if !cfg.MCPStdio && os.Getenv("MEOW_MCP_STDIO") != "" {
+		cfg.MCPStdio = true
 	}
 
 	// Auto-detect NATS mode
@@ -163,6 +174,10 @@ GeoIP (default: embedded databases):
   --geoip-city string Path to GeoLite2-City.mmdb (or env: MEOW_GEOIP_CITY)
   --geoip-asn string  Path to GeoLite2-ASN.mmdb (or env: MEOW_GEOIP_ASN)
 
+MCP (Model Context Protocol):
+  --mcp-stdio         Serve MCP over stdin/stdout instead of the HTTP API/Web UI
+                      (reads the DB at --db-path; or env: MEOW_MCP_STDIO)
+
 Advanced:
   --queue-group string          NATS queue group (default: datastore-workers)
   --domain-enrich-threshold int Skip domain enrichment when seen on N+ IPs (default: 50, 0=unlimited)
@@ -174,6 +189,7 @@ Examples:
   datastore --nats-url="nats://prod:4222" --nats-user="admin" --nats-pass="pass"
   datastore --db-path=/data/scan.db --api-port=9090
   datastore --no-api
+  datastore --mcp-stdio --db-path=/data/scan.db   # MCP server over stdio
 
 Environment variables (MEOW_* namespace, shared across all meow modules):
   MEOW_NATS_URL    Alternative to --nats-url
@@ -181,6 +197,7 @@ Environment variables (MEOW_* namespace, shared across all meow modules):
   MEOW_NATS_USER   Alternative to --nats-user
   MEOW_NATS_PASS   Alternative to --nats-pass
   MEOW_DEBUG       Alternative to --debug
+  MEOW_MCP_STDIO   Alternative to --mcp-stdio
   MEOW_API_PASS    Alternative to --api-pass
   MEOW_GEOIP_CITY  Alternative to --geoip-city
   MEOW_GEOIP_ASN   Alternative to --geoip-asn

@@ -13,9 +13,11 @@ type natsPublisher interface {
 	Publish(subject string, data []byte) error
 }
 
-// newMCPHandler creates a Streamable HTTP handler for the MCP server.
-// Mount it on the gin router (e.g. at /mcp).
-func newMCPHandler(db *DB, nc natsPublisher, scanTracker *ScannerTracker) http.Handler {
+// newMCPServer builds the MCP server and registers all tools. Shared by the
+// HTTP transport (newMCPHandler) and the stdio transport (runMCPStdio).
+// nc and scanTracker may be nil (stdio mode): meow_scan then returns a clear
+// error and meow_status omits the scanners section (handlers nil-guard).
+func newMCPServer(db *DB, nc natsPublisher, scanTracker *ScannerTracker) *server.MCPServer {
 	s := server.NewMCPServer(
 		"meow-datastore",
 		version,
@@ -30,7 +32,13 @@ func newMCPHandler(db *DB, nc natsPublisher, scanTracker *ScannerTracker) http.H
 	}
 	h.registerTools(s)
 
-	return server.NewStreamableHTTPServer(s, server.WithStateLess(true))
+	return s
+}
+
+// newMCPHandler creates a Streamable HTTP handler for the MCP server.
+// Mount it on the gin router (e.g. at /mcp).
+func newMCPHandler(db *DB, nc natsPublisher, scanTracker *ScannerTracker) http.Handler {
+	return server.NewStreamableHTTPServer(newMCPServer(db, nc, scanTracker), server.WithStateLess(true))
 }
 
 // mcpHandler holds the shared state for all MCP tool handlers.

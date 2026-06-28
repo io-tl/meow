@@ -28,6 +28,14 @@ func main() {
 	cfg := loadConfig()
 	setupLogging(cfg.Debug)
 
+	// stdio MCP mode: serve MCP over stdin/stdout, no HTTP API / embedded NATS.
+	if cfg.MCPStdio {
+		if err := runMCPStdio(cfg); err != nil {
+			log.Fatal().Err(err).Msg("MCP stdio server failed")
+		}
+		return
+	}
+
 	log.Info().Msg("Meow datastore service starting...")
 
 	db, err := initDB(cfg)
