@@ -63,6 +63,14 @@ var FieldRegistry = map[string]FieldInfo{
 	"banner":      {Table: TableServices, Column: "banner", DataType: TypeString, CaseInsens: true},
 	"banner_hash": {Table: TableServices, Column: "banner_hash", DataType: TypeString},
 
+	// "protocol" is a VIRTUAL, family-aware alias over services.service.
+	// The compiler intercepts it (see compileProtocol / families.go) and rewrites
+	// protocol:smb into the literal set service:{smb,microsoft-ds,netbios-ssn,cifs}.
+	// The registry entry below only exists so the field is recognized by
+	// LookupField and surfaces in FieldNames()/help; its Table/Column are a
+	// fallback that points at the same column as the literal `service` field.
+	"protocol": {Table: TableServices, Column: "service", DataType: TypeString, CaseInsens: true},
+
 	// === HTTP fields (EXISTS subquery on services + http_data) ===
 	"http.title":     {Table: TableHTTPData, Column: "title", DataType: TypeString, CaseInsens: true},
 	"http.server":    {Table: TableHTTPData, Column: "server", DataType: TypeString, CaseInsens: true},

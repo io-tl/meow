@@ -1581,6 +1581,71 @@ func TestSQLInjectionEscapeLikeFunction(t *testing.T) {
 	}
 }
 
+// === Protocol families ===
+
+// TestCompileProtocolFamily verifies the virtual family-aware `protocol` field.
+// protocol:smb must compile byte-for-byte identically to the explicit literal
+// set service:{smb,microsoft-ds,netbios-ssn,cifs}, and must match strictly more
+// service names than the literal service:smb.
+func TestCompileProtocolFamily(t *testing.T) {
+	proto := Compile("protocol:smb")
+	if proto.Err != nil {
+		t.Fatalf("protocol:smb compile error: %v", proto.Err)
+	}
+	set := Compile("service:{smb,microsoft-ds,netbios-ssn,cifs}")
+	if set.Err != nil {
+		t.Fatalf("service set compile error: %v", set.Err)
+	}
+
+	// Identical SQL and args to the explicit service set.
+	if proto.Where != set.Where {
+		t.Errorf("protocol:smb WHERE mismatch:\n  protocol: %s\n  set:      %s", proto.Where, set.Where)
+	}
+	if len(proto.Args) != len(set.Args) {
+		t.Fatalf("expected %d args, got %d", len(set.Args), len(proto.Args))
+	}
+	for i := range proto.Args {
+		if proto.Args[i] != set.Args[i] {
+			t.Errorf("arg[%d] mismatch: protocol=%v set=%v", i, proto.Args[i], set.Args[i])
+		}
+	}
+
+	// Must produce an IN set over the services table.
+	if !strings.Contains(proto.Where, "IN (") {
+		t.Errorf("expected IN clause for protocol:smb, got: %s", proto.Where)
+	}
+	if !strings.Contains(proto.Where, "_s.service") {
+		t.Errorf("expected services.service column, got: %s", proto.Where)
+	}
+
+	// protocol:smb matches strictly more members than the literal service:smb.
+	lit := Compile("service:smb")
+	if lit.Err != nil {
+		t.Fatalf("service:smb compile error: %v", lit.Err)
+	}
+	if len(proto.Args) <= len(lit.Args) {
+		t.Errorf("expected protocol:smb (%d args) to match more services than service:smb (%d args)",
+			len(proto.Args), len(lit.Args))
+	}
+
+	// service:smb stays a literal (unchanged): single LIKE, no IN set.
+	if strings.Contains(lit.Where, "IN (") {
+		t.Errorf("service:smb must stay literal, got set: %s", lit.Where)
+	}
+}
+
+// TestCompileProtocolUnknownFamily checks that an unknown protocol degrades to a
+// single-member set equal to service:{name}.
+func TestCompileProtocolUnknownFamily(t *testing.T) {
+	proto := Compile("protocol:wat")
+	if proto.Err != nil {
+		t.Fatalf("protocol:wat compile error: %v", proto.Err)
+	}
+	if len(proto.Args) != 1 || proto.Args[0] != "wat" {
+		t.Errorf("expected single arg 'wat', got: %v", proto.Args)
+	}
+}
+
 // === Benchmark ===
 
 func BenchmarkCompile(b *testing.B) {

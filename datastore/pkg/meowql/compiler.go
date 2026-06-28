@@ -116,6 +116,12 @@ func (c *compiler) compileExpr(expr Expression) string {
 }
 
 func (c *compiler) compileCondition(cond *Condition) string {
+	// Virtual family-aware field: protocol:X expands to the literal
+	// service:{family members} set (see families.go / ProtocolFamily).
+	if strings.EqualFold(cond.Field, "protocol") {
+		return c.compileProtocol(cond)
+	}
+
 	field, ok := LookupField(cond.Field)
 	if !ok {
 		c.err = fmt.Errorf("unknown field %q", cond.Field)
@@ -140,6 +146,46 @@ func (c *compiler) compileCondition(cond *Condition) string {
 
 	// Wrap in EXISTS subquery if the field is not on the hosts table
 	return c.wrapWithTable(field, colSQL)
+}
+
+// compileProtocol expands the virtual "protocol" field into a literal service
+// set over the canonical protocol family, reusing the existing IN-set mechanism.
+//
+//	protocol:smb       ≡  service:{smb,microsoft-ds,netbios-ssn,cifs}
+//	protocol:{smb,nfs} ≡  service:{...smb members..., ...nfs members...}
+//
+// The generated SQL is byte-for-byte identical to the equivalent explicit
+// service set, so protocol is purely additive and does not alter the literal
+// `service` field. Family membership resolution is case-insensitive.
+func (c *compiler) compileProtocol(cond *Condition) string {
+	var members []string
+	seen := make(map[string]bool)
+	add := func(canonical string) {
+		for _, m := range ProtocolFamily(canonical) {
+			if !seen[m] {
+				seen[m] = true
+				members = append(members, m)
+			}
+		}
+	}
+
+	switch {
+	case len(cond.Values) > 0:
+		// Set form: protocol:{smb, nfs} → union of both families.
+		for _, v := range cond.Values {
+			add(v)
+		}
+	case cond.Value != "" && cond.Value != "*":
+		add(cond.Value)
+	default:
+		c.err = fmt.Errorf("protocol requires a value, e.g. protocol:smb")
+		return ""
+	}
+
+	// Rewrite as a literal service set and let compileSetCondition do the rest,
+	// guaranteeing identical SQL to service:{members...}.
+	svc, _ := LookupField("service")
+	return c.compileSetCondition(&Condition{Field: "service", Operator: TokenColon, Values: members}, svc)
 }
 
 // compileComparison generates the column comparison expression.
