@@ -259,7 +259,8 @@ http.headers.X-Powered-By:"PHP" framework:Laravel
 |-------|-------------|
 | `ip` | IP address (supports CIDR notation) |
 | `port` | Port number |
-| `service` | Service name (ssh, http, ftp...) |
+| `service` | Service name — literal match (ssh, http, ftp...) |
+| `protocol` | Protocol family — family-aware: `protocol:smb` matches smb, microsoft-ds, netbios-ssn, cifs |
 | `product` | Detected product (OpenSSH, nginx...) |
 | `version` | Version string |
 | `banner` | Raw banner |
@@ -288,17 +289,54 @@ http.headers.X-Powered-By:"PHP" framework:Laravel
 
 ## MCP (Model Context Protocol)
 
-The datastore exposes an MCP endpoint via Streamable HTTP at `/mcp`
+12 tools exposed to LLMs (Claude, GPT, etc.) via two transport modes:
+
+**HTTP** — served at `/mcp` alongside the REST API (same `X-API-Key` auth if `--api-pass` is set):
 
 ```json
 {
   "mcpServers": {
-    "meow": {
-      "url": "http://localhost:18080/mcp"
+    "meow-datastore": {
+      "type": "url",
+      "url": "http://127.0.0.1:18080/mcp"
     }
   }
 }
 ```
+
+**stdio** — MCP client spawns the binary directly, no server required, reads DB directly (`meow_scan` unavailable):
+
+```json
+{
+  "mcpServers": {
+    "meow-datastore": {
+      "command": "datastore",
+      "args": ["--mcp-stdio", "--db-path", "/path/to/scanner.db"]
+    }
+  }
+}
+```
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `meow_search` | MeowQL search (hosts or services mode) |
+| `meow_stats` | Dataset overview (counts, top services/countries/cloud/products/tech) |
+| `meow_count` | Count-only query — no row data, token-efficient |
+| `meow_schema` | Family-aware enrichment schema: list protocol families or inspect fields for a family |
+| `meow_host` | Full host profile (services, certificates, domains) |
+| `meow_pivot` | Infra correlation by banner_hash, jarm, cert, product, or ASN |
+| `meow_certs` | TLS certificate audit (expired, self-signed, expiring soon, weak key) |
+| `meow_domains` | Domain intelligence from certificates, SNI, reverse DNS |
+| `meow_export` | Export to ip_list / services / hosts for downstream tools |
+| `meow_dns` | DNS resolution and reverse lookup with DB cross-reference |
+| `meow_status` | System status (pipeline progress, service breakdown, active scanners) |
+| `meow_scan` | Submit a SYN scan via NATS — HTTP mode only |
+
+All tools return a unified envelope: `{ "tool": "…", "count": N, "truncated": bool, "results": […] }`.
+
+Protocol families (`protocol:smb` in MeowQL matches smb, microsoft-ds, netbios-ssn, cifs, etc.) are also used by `meow_schema` to group variants under one canonical name.
 
 ---
 

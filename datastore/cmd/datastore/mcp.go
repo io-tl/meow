@@ -56,19 +56,29 @@ func (h *mcpHandler) registerTools(s *server.MCPServer) {
 	), h.handleSearch)
 
 	s.AddTool(mcp.NewTool("meow_stats",
-		mcp.WithDescription("Multi-mode stats tool. No params: dataset overview. With query: count matching hosts/services. With service: enrichment schema discovery (keys, types, samples per protocol)."),
-		mcp.WithString("query",
-			mcp.Description("MeowQL query — returns count only when set")),
-		mcp.WithString("mode",
-			mcp.Description("Count granularity when query is set"),
-			mcp.Enum("hosts", "services")),
-		mcp.WithString("service",
-			mcp.Description("Service name for enrichment schema discovery (e.g. 'mysql','rdp','smb'). Use '*' for all services overview")),
-		mcp.WithString("search",
-			mcp.Description("Filter enrichment keys by substring (with service param). E.g. search='anonymous' finds services with anonymous-related fields")),
+		mcp.WithDescription("Dataset overview: total host/service/certificate counts, enrichment status breakdown, top services and countries (and on request cloud providers, top products, top technologies)."),
 		mcp.WithString("fields",
-			mcp.Description("Stat sections (overview mode): total_hosts,total_services,total_certificates,enrichment,top_services,top_countries. Extra: cloud_providers,top_products,top_technologies")),
+			mcp.Description("Sections to include (default: total_hosts,total_services,total_certificates,enrichment,top_services,top_countries). Extra: cloud_providers,top_products,top_technologies")),
 	), h.handleStats)
+
+	s.AddTool(mcp.NewTool("meow_count",
+		mcp.WithDescription("Lightweight count-only query: number of matching hosts or services for a MeowQL query, without row data. Much cheaper than meow_search when you only need a count."),
+		mcp.WithString("query", mcp.Required(),
+			mcp.Description("MeowQL query. Ex: port:443 country:FR")),
+		mcp.WithString("mode",
+			mcp.Description("Count hosts (default) or services"),
+			mcp.Enum("hosts", "services")),
+	), h.handleCount)
+
+	s.AddTool(mcp.NewTool("meow_schema",
+		mcp.WithDescription("Family-aware enrichment schema discovery. No args: list the protocol FAMILIES present (canonical protocol, member service names seen, enriched count). With protocol/service: union of enrichment fields (keys, types, sample values) across ALL members of that protocol family (e.g. 'smb' covers microsoft-ds, netbios-ssn, cifs)."),
+		mcp.WithString("protocol",
+			mcp.Description("Canonical protocol family to inspect (e.g. 'smb','nfs','http'). Preferred over 'service'. Resolves all family member service names.")),
+		mcp.WithString("service",
+			mcp.Description("Service name (e.g. 'mysql','rdp','smb'); resolved to its protocol family. Kept for backward compat — prefer 'protocol'. Empty/'*' = list families.")),
+		mcp.WithString("search",
+			mcp.Description("Filter enrichment keys by substring (e.g. 'anonymous')")),
+	), h.handleSchema)
 
 	s.AddTool(mcp.NewTool("meow_host",
 		mcp.WithDescription("Full profile of a single host: geo, ASN, cloud, services with enrichment, certificates, domains."),
@@ -134,7 +144,8 @@ func (h *mcpHandler) registerTools(s *server.MCPServer) {
 
 const mcpInstructions = `Meow network scanner datastore. Query scan results with MeowQL.
 
-Workflow: meow_stats first → meow_search to find targets → meow_host for details → meow_pivot to correlate.
+Workflow: meow_stats (overview) → meow_search to find targets → meow_host for details → meow_pivot to correlate.
+Use meow_count for fast counts and meow_schema to discover enrichment fields per service.
 
 MeowQL syntax:
   field:value (contains), field="exact", field!=val, field:{a,b,c} (set), ip:CIDR/24

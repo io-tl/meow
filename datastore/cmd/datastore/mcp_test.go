@@ -173,6 +173,55 @@ func assertNoError(t *testing.T, result *mcp.CallToolResult, err error) {
 	}
 }
 
+// envResults parses the unified output envelope { tool, count, truncated, results }
+// and returns the results array (always present for successful calls).
+func envResults(t *testing.T, result *mcp.CallToolResult) []any {
+	t.Helper()
+	data := parseResult(t, result)
+	res, ok := data["results"].([]any)
+	if !ok {
+		t.Fatalf("envelope missing results array: %v", data)
+	}
+	return res
+}
+
+// envFirst returns results[0] as an object map. Object-returning tools wrap their
+// single object as results = [ <obj> ].
+func envFirst(t *testing.T, result *mcp.CallToolResult) map[string]any {
+	t.Helper()
+	res := envResults(t, result)
+	if len(res) == 0 {
+		t.Fatal("envelope results array is empty")
+	}
+	m, ok := res[0].(map[string]any)
+	if !ok {
+		t.Fatalf("results[0] is not an object: %T", res[0])
+	}
+	return m
+}
+
+// envCount returns the envelope's count field (== len(results)).
+func envCount(t *testing.T, result *mcp.CallToolResult) int {
+	t.Helper()
+	data := parseResult(t, result)
+	c, ok := data["count"].(float64)
+	if !ok {
+		t.Fatalf("envelope missing count field: %v", data)
+	}
+	return int(c)
+}
+
+// envTruncated returns the envelope's truncated field.
+func envTruncated(t *testing.T, result *mcp.CallToolResult) bool {
+	t.Helper()
+	data := parseResult(t, result)
+	b, ok := data["truncated"].(bool)
+	if !ok {
+		t.Fatalf("envelope missing truncated field: %v", data)
+	}
+	return b
+}
+
 // ---------------------------------------------------------------------------
 // meow_search
 // ---------------------------------------------------------------------------
@@ -184,10 +233,8 @@ func TestSearchHostsBasic(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	total := int(data["total"].(float64))
-	if total != 2 {
-		t.Errorf("expected 2 FR hosts, got %d", total)
+	if got := envCount(t, result); got != 2 {
+		t.Errorf("expected 2 FR hosts, got %d", got)
 	}
 }
 
@@ -198,10 +245,8 @@ func TestSearchHostsByPort(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	total := int(data["total"].(float64))
-	if total != 2 {
-		t.Errorf("expected 2 hosts with port 22, got %d", total)
+	if got := envCount(t, result); got != 2 {
+		t.Errorf("expected 2 hosts with port 22, got %d", got)
 	}
 }
 
@@ -212,10 +257,8 @@ func TestSearchHostsCIDR(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	total := int(data["total"].(float64))
-	if total != 3 {
-		t.Errorf("expected 3 hosts in 10.0.0.0/24, got %d", total)
+	if got := envCount(t, result); got != 3 {
+		t.Errorf("expected 3 hosts in 10.0.0.0/24, got %d", got)
 	}
 }
 
@@ -227,10 +270,8 @@ func TestSearchServicesMode(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	total := int(data["total"].(float64))
-	if total != 2 {
-		t.Errorf("expected 2 SSH services, got %d", total)
+	if got := envCount(t, result); got != 2 {
+		t.Errorf("expected 2 SSH services, got %d", got)
 	}
 }
 
@@ -241,10 +282,8 @@ func TestSearchCompoundQuery(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	total := int(data["total"].(float64))
-	if total != 1 {
-		t.Errorf("expected 1 host with port 443 in FR, got %d", total)
+	if got := envCount(t, result); got != 1 {
+		t.Errorf("expected 1 host with port 443 in FR, got %d", got)
 	}
 }
 
@@ -255,10 +294,8 @@ func TestSearchSetOperator(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	total := int(data["total"].(float64))
-	if total != 2 {
-		t.Errorf("expected 2 hosts with port 22 or 443, got %d", total)
+	if got := envCount(t, result); got != 2 {
+		t.Errorf("expected 2 hosts with port 22 or 443, got %d", got)
 	}
 }
 
@@ -295,71 +332,71 @@ func TestSearchPagination(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	total := int(data["total"].(float64))
-	count := int(data["count"].(float64))
-	page := int(data["page"].(float64))
-	if total != 3 {
-		t.Errorf("expected total=3, got %d", total)
-	}
-	if count != 1 {
+	// limit=1 page=2 returns a single host row (offset 1 of 3 matches).
+	if count := envCount(t, result); count != 1 {
 		t.Errorf("expected count=1, got %d", count)
 	}
-	if page != 2 {
-		t.Errorf("expected page=2, got %d", page)
+	// A full page (len >= limit) signals more results may exist.
+	if !envTruncated(t, result) {
+		t.Error("expected truncated=true when page is filled to its limit")
 	}
 }
 
 // ---------------------------------------------------------------------------
-// meow_stats with query (count mode, formerly meow_count)
+// meow_count (lightweight count-only query)
 // ---------------------------------------------------------------------------
+
+// countTotal reads the single { total: N } object from a meow_count envelope.
+func countTotal(t *testing.T, result *mcp.CallToolResult) int {
+	t.Helper()
+	obj := envFirst(t, result)
+	v, ok := obj["total"].(float64)
+	if !ok {
+		t.Fatalf("count result missing total: %v", obj)
+	}
+	return int(v)
+}
 
 func TestStatsCountHosts(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+	result, err := h.handleCount(context.Background(), callTool(map[string]any{
 		"query": "country:FR",
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	total := int(data["total"].(float64))
-	if total != 2 {
-		t.Errorf("expected 2 FR hosts, got %d", total)
+	if got := countTotal(t, result); got != 2 {
+		t.Errorf("expected 2 FR hosts, got %d", got)
 	}
 }
 
 func TestStatsCountServices(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+	result, err := h.handleCount(context.Background(), callTool(map[string]any{
 		"query": "service:ssh",
 		"mode":  "services",
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	total := int(data["total"].(float64))
-	if total != 2 {
-		t.Errorf("expected 2 SSH services, got %d", total)
+	if got := countTotal(t, result); got != 2 {
+		t.Errorf("expected 2 SSH services, got %d", got)
 	}
 }
 
 func TestStatsCountCompound(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+	result, err := h.handleCount(context.Background(), callTool(map[string]any{
 		"query": "port:443 and country:FR",
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	total := int(data["total"].(float64))
-	if total != 1 {
-		t.Errorf("expected 1 host with port 443 in FR, got %d", total)
+	if got := countTotal(t, result); got != 1 {
+		t.Errorf("expected 1 host with port 443 in FR, got %d", got)
 	}
 }
 
 func TestStatsCountInvalidQuery(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+	result, err := h.handleCount(context.Background(), callTool(map[string]any{
 		"query": "port:",
 	}))
 	if err != nil {
@@ -371,24 +408,18 @@ func TestStatsCountInvalidQuery(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// meow_stats with service (enrichment schema discovery)
+// meow_schema (enrichment schema discovery)
 // ---------------------------------------------------------------------------
 
 func TestStatsEnrichmentSchemaService(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+	result, err := h.handleSchema(context.Background(), callTool(map[string]any{
 		"service": "ftp",
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	if data["service"] != "ftp" {
-		t.Errorf("expected service=ftp, got %v", data["service"])
-	}
-	if int(data["enriched"].(float64)) != 1 {
-		t.Errorf("expected 1 enriched ftp, got %v", data["enriched"])
-	}
-	keys := data["keys"].([]any)
+	// Per-service schema: results = list of enrichment key entries.
+	keys := envResults(t, result)
 	if len(keys) == 0 {
 		t.Fatal("expected enrichment keys for ftp")
 	}
@@ -411,60 +442,100 @@ func TestStatsEnrichmentSchemaService(t *testing.T) {
 
 func TestStatsEnrichmentSchemaAll(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+	result, err := h.handleSchema(context.Background(), callTool(map[string]any{
 		"service": "*",
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	services := data["services"].([]any)
-	if len(services) == 0 {
-		t.Fatal("expected services in schema overview")
+	// No target → family overview: results = list of {protocol, members, count}.
+	families := envResults(t, result)
+	if len(families) == 0 {
+		t.Fatal("expected families in schema overview")
 	}
-	// Should have entries for ssh, https, ftp, http, redis (all enriched in test data)
-	svcNames := make(map[string]bool)
-	for _, s := range services {
-		entry := s.(map[string]any)
-		svcNames[entry["service"].(string)] = true
+	// ssh, ftp, redis services are enriched → their canonical families appear.
+	// http + https collapse into the single "http" family.
+	famNames := make(map[string]map[string]any)
+	for _, f := range families {
+		entry := f.(map[string]any)
+		famNames[entry["protocol"].(string)] = entry
 	}
-	for _, expected := range []string{"ssh", "ftp", "redis"} {
-		if !svcNames[expected] {
-			t.Errorf("expected %s in schema overview", expected)
+	for _, expected := range []string{"ssh", "ftp", "redis", "http"} {
+		if famNames[expected] == nil {
+			t.Errorf("expected %s family in schema overview", expected)
 		}
+	}
+	// The "http" family must report BOTH member services seen in the DB.
+	httpMembers := famNames["http"]["members"].([]any)
+	memberSet := map[string]bool{}
+	for _, m := range httpMembers {
+		memberSet[m.(string)] = true
+	}
+	if !memberSet["http"] || !memberSet["https"] {
+		t.Errorf("expected http family to include both http and https members, got %v", httpMembers)
 	}
 }
 
 func TestStatsEnrichmentSchemaSearch(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+	result, err := h.handleSchema(context.Background(), callTool(map[string]any{
 		"service": "*",
 		"search":  "anonymous",
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	services := data["services"].([]any)
-	if len(services) != 1 {
-		t.Errorf("expected 1 service with anonymous key, got %d", len(services))
+	families := envResults(t, result)
+	if len(families) != 1 {
+		t.Errorf("expected 1 family with anonymous key, got %d", len(families))
 	}
-	if len(services) > 0 {
-		svc := services[0].(map[string]any)
-		if svc["service"] != "ftp" {
-			t.Errorf("expected ftp for anonymous search, got %v", svc["service"])
+	if len(families) > 0 {
+		fam := families[0].(map[string]any)
+		if fam["protocol"] != "ftp" {
+			t.Errorf("expected ftp family for anonymous search, got %v", fam["protocol"])
 		}
+	}
+}
+
+// TestStatsEnrichmentSchemaProtocolParam verifies the new family-aware
+// protocol= param performs a UNION of enrichment keys across all members of a
+// protocol family. The http family covers both the http (10.0.0.2:80) and https
+// (10.0.0.1:443) services, so status_code must aggregate a count of 2.
+func TestStatsEnrichmentSchemaProtocolParam(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleSchema(context.Background(), callTool(map[string]any{
+		"protocol": "http",
+	}))
+	assertNoError(t, result, err)
+
+	keys := envResults(t, result)
+	if len(keys) == 0 {
+		t.Fatal("expected enrichment keys for http family")
+	}
+	var statusCount int
+	found := false
+	for _, k := range keys {
+		entry := k.(map[string]any)
+		if entry["key"] == "status_code" {
+			found = true
+			statusCount = int(entry["count"].(float64))
+		}
+	}
+	if !found {
+		t.Fatal("expected status_code key in http family schema")
+	}
+	if statusCount != 2 {
+		t.Errorf("expected status_code count=2 across http+https members, got %d", statusCount)
 	}
 }
 
 func TestStatsEnrichmentSchemaSearchPerService(t *testing.T) {
 	h := setupTestMCP(t)
-	result, err := h.handleStats(context.Background(), callTool(map[string]any{
+	result, err := h.handleSchema(context.Background(), callTool(map[string]any{
 		"service": "ftp",
 		"search":  "protocol",
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	keys := data["keys"].([]any)
+	keys := envResults(t, result)
 	if len(keys) != 1 {
 		t.Errorf("expected 1 key matching 'protocol' in ftp, got %d", len(keys))
 	}
@@ -487,7 +558,7 @@ func TestHostDetail(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
+	data := envFirst(t, result)
 	if data["ip"] != "10.0.0.1" {
 		t.Errorf("expected ip=10.0.0.1, got %v", data["ip"])
 	}
@@ -531,7 +602,7 @@ func TestHostEnrichmentParsed(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
+	data := envFirst(t, result)
 	services := data["services"].([]any)
 
 	// FTP service (port 21) should have enrichment.anonymous_login parsed
@@ -556,7 +627,7 @@ func TestStats(t *testing.T) {
 	result, err := h.handleStats(context.Background(), callTool(nil))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
+	data := envFirst(t, result)
 	if int(data["total_hosts"].(float64)) != 3 {
 		t.Errorf("expected 3 hosts, got %v", data["total_hosts"])
 	}
@@ -694,8 +765,7 @@ func TestCertsFilterSelfSigned(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	certs := data["certs"].([]any)
+	certs := envResults(t, result)
 	if len(certs) != 1 {
 		t.Errorf("expected 1 self-signed cert, got %d", len(certs))
 	}
@@ -715,8 +785,7 @@ func TestCertsFilterExpired(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	certs := data["certs"].([]any)
+	certs := envResults(t, result)
 	if len(certs) != 1 {
 		t.Errorf("expected 1 expired cert, got %d", len(certs))
 	}
@@ -734,8 +803,7 @@ func TestCertsFilterWeakKey(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	certs := data["certs"].([]any)
+	certs := envResults(t, result)
 	if len(certs) != 1 {
 		t.Errorf("expected 1 weak key cert, got %d", len(certs))
 	}
@@ -753,8 +821,7 @@ func TestCertsSearch(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	certs := data["certs"].([]any)
+	certs := envResults(t, result)
 	if len(certs) != 1 {
 		t.Errorf("expected 1 cert matching example.com, got %d", len(certs))
 	}
@@ -769,12 +836,10 @@ func TestDomainsListAll(t *testing.T) {
 	result, err := h.handleDomains(context.Background(), callTool(map[string]any{}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	total := int(data["total"].(float64))
-	if total != 1 {
-		t.Errorf("expected 1 domain, got %d", total)
+	domains := envResults(t, result)
+	if len(domains) != 1 {
+		t.Errorf("expected 1 domain, got %d", len(domains))
 	}
-	domains := data["domains"].([]any)
 	d := domains[0].(map[string]any)
 	if d["domain"] != "example.com" {
 		t.Errorf("expected example.com, got %v", d["domain"])
@@ -791,11 +856,8 @@ func TestDomainsDetail(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	if data["domain"] != "example.com" {
-		t.Errorf("expected domain=example.com, got %v", data["domain"])
-	}
-	services := data["services"].([]any)
+	// Detail mode: results = list of services for the domain.
+	services := envResults(t, result)
 	if len(services) != 2 {
 		t.Errorf("expected 2 services, got %d", len(services))
 	}
@@ -808,8 +870,7 @@ func TestDomainsFilterQuery(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	if int(data["total"].(float64)) != 0 {
+	if envCount(t, result) != 0 {
 		t.Error("expected 0 domains for nonexistent query")
 	}
 }
@@ -821,9 +882,8 @@ func TestDomainsFilterProtocol(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	if int(data["total"].(float64)) != 1 {
-		t.Errorf("expected 1 domain with https, got %v", data["total"])
+	if got := envCount(t, result); got != 1 {
+		t.Errorf("expected 1 domain with https, got %d", got)
 	}
 }
 
@@ -839,11 +899,13 @@ func TestExportIPList(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	// ip_list returns plain text, not JSON
-	text := result.Content[0].(mcp.TextContent).Text
-	lines := splitNonEmpty(text)
+	// ip_list entries are wrapped as results = [{ "value": "ip:port" }, ...]
+	lines := envResults(t, result)
 	if len(lines) != 2 {
-		t.Errorf("expected 2 ip:port lines, got %d: %q", len(lines), text)
+		t.Errorf("expected 2 ip:port entries, got %d", len(lines))
+	}
+	if first := lines[0].(map[string]any); first["value"] == nil {
+		t.Errorf("expected 'value' field on ip_list entry, got %v", first)
 	}
 }
 
@@ -855,11 +917,7 @@ func TestExportServices(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	var services []any
-	text := result.Content[0].(mcp.TextContent).Text
-	if err := json.Unmarshal([]byte(text), &services); err != nil {
-		t.Fatalf("json: %v", err)
-	}
+	services := envResults(t, result)
 	if len(services) != 1 {
 		t.Errorf("expected 1 service, got %d", len(services))
 	}
@@ -873,11 +931,7 @@ func TestExportHosts(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	var hosts []any
-	text := result.Content[0].(mcp.TextContent).Text
-	if err := json.Unmarshal([]byte(text), &hosts); err != nil {
-		t.Fatalf("json: %v", err)
-	}
+	hosts := envResults(t, result)
 	if len(hosts) != 2 {
 		t.Errorf("expected 2 FR hosts, got %d", len(hosts))
 	}
@@ -890,10 +944,9 @@ func TestExportNoFilter(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	text := result.Content[0].(mcp.TextContent).Text
-	lines := splitNonEmpty(text)
+	lines := envResults(t, result)
 	if len(lines) != 6 {
-		t.Errorf("expected 6 ip:port lines (all services), got %d", len(lines))
+		t.Errorf("expected 6 ip:port entries (all services), got %d", len(lines))
 	}
 }
 
@@ -923,7 +976,7 @@ func TestDNSForward(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
+	data := envFirst(t, result)
 	if data["query"] != "localhost" {
 		t.Errorf("expected query=localhost, got %v", data["query"])
 	}
@@ -936,7 +989,7 @@ func TestDNSReverse(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
+	data := envFirst(t, result)
 	if data["query"] != "127.0.0.1" {
 		t.Errorf("expected query=127.0.0.1, got %v", data["query"])
 	}
@@ -962,7 +1015,7 @@ func TestStatus(t *testing.T) {
 	result, err := h.handleStatus(context.Background(), callTool(nil))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
+	data := envFirst(t, result)
 	if int(data["hosts"].(float64)) != 3 {
 		t.Errorf("expected 3 hosts, got %v", data["hosts"])
 	}
@@ -1044,7 +1097,7 @@ func TestScanSuccess(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
+	data := envFirst(t, result)
 	if data["request_id"] == nil || data["request_id"] == "" {
 		t.Error("expected non-empty request_id")
 	}
@@ -1114,7 +1167,7 @@ func TestStatusScannersEmpty(t *testing.T) {
 	result, err := h.handleStatus(context.Background(), callTool(map[string]any{}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
+	data := envFirst(t, result)
 	scanners := data["scanners"].(map[string]any)
 	if int(scanners["count"].(float64)) != 0 {
 		t.Errorf("expected 0 scanners, got %v", scanners["count"])
@@ -1136,7 +1189,7 @@ func TestStatusScannersActive(t *testing.T) {
 	result, err := h.handleStatus(context.Background(), callTool(map[string]any{}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
+	data := envFirst(t, result)
 	scannersData := data["scanners"].(map[string]any)
 	if int(scannersData["count"].(float64)) != 1 {
 		t.Errorf("expected 1 scanner, got %v", scannersData["count"])
@@ -1174,38 +1227,6 @@ func searchString(s, sub string) bool {
 		}
 	}
 	return false
-}
-
-// ---------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------
-
-func splitNonEmpty(s string) []string {
-	var lines []string
-	for _, line := range splitLines(s) {
-		if line != "" {
-			lines = append(lines, line)
-		}
-	}
-	return lines
-}
-
-func splitLines(s string) []string {
-	if s == "" {
-		return nil
-	}
-	result := []string{}
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			result = append(result, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		result = append(result, s[start:])
-	}
-	return result
 }
 
 // ---------------------------------------------------------------------------
@@ -1275,8 +1296,7 @@ func TestSearchServicesFieldsDefault(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	services := data["services"].([]any)
+	services := envResults(t, result)
 	if len(services) == 0 {
 		t.Fatal("expected services")
 	}
@@ -1299,8 +1319,7 @@ func TestSearchServicesFieldsCustom(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	services := data["services"].([]any)
+	services := envResults(t, result)
 	if len(services) == 0 {
 		t.Fatal("expected services")
 	}
@@ -1322,8 +1341,7 @@ func TestSearchServicesEnrichmentKeys(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
-	services := data["services"].([]any)
+	services := envResults(t, result)
 	if len(services) == 0 {
 		t.Fatal("expected services")
 	}
@@ -1352,7 +1370,7 @@ func TestHostSectionsFilter(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
+	data := envFirst(t, result)
 	if data["services"] == nil {
 		t.Error("expected services section")
 	}
@@ -1369,7 +1387,7 @@ func TestStatsFieldsDefault(t *testing.T) {
 	result, err := h.handleStats(context.Background(), callTool(nil))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
+	data := envFirst(t, result)
 	// Defaults should include top_services but NOT cloud_providers
 	if data["top_services"] == nil {
 		t.Error("expected top_services in default stats")
@@ -1389,7 +1407,7 @@ func TestStatsFieldsCustom(t *testing.T) {
 	}))
 	assertNoError(t, result, err)
 
-	data := parseResult(t, result)
+	data := envFirst(t, result)
 	if data["total_hosts"] == nil {
 		t.Error("expected total_hosts")
 	}
