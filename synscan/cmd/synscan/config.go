@@ -7,32 +7,32 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// YAMLConfig représente la structure simplifiée du fichier config.yaml
+// YAMLConfig represents the simplified structure of the config.yaml file
 type YAMLConfig struct {
 	NATS    NATSConfig    `yaml:"nats"`
 	Synscan SynscanConfig `yaml:"synscan"`
 	Logging LoggingConfig `yaml:"logging"`
 }
 
-// NATSConfig contient la configuration NATS
+// NATSConfig contains the NATS configuration
 type NATSConfig struct {
 	URL  string         `yaml:"url"`
 	Auth NATSAuthConfig `yaml:"auth"`
 }
 
-// NATSAuthConfig contient l'authentification NATS
+// NATSAuthConfig contains the NATS authentication
 type NATSAuthConfig struct {
 	Token string `yaml:"token"`
 }
 
-// SynscanConfig contient la configuration du scanner
+// SynscanConfig contains the scanner configuration
 type SynscanConfig struct {
 	Target      TargetConfig      `yaml:"target"`
 	Network     NetworkConfig     `yaml:"network"`
 	Performance PerformanceConfig `yaml:"performance"`
 }
 
-// TargetConfig définit les cibles du scan
+// TargetConfig defines the scan targets
 type TargetConfig struct {
 	CIDR     string `yaml:"cidr"`
 	File     string `yaml:"file"`
@@ -40,20 +40,20 @@ type TargetConfig struct {
 	TopPorts int    `yaml:"top_ports"`
 }
 
-// NetworkConfig définit les paramètres réseau
+// NetworkConfig defines the network parameters
 type NetworkConfig struct {
 	Interface string `yaml:"interface"`
 }
 
-// PerformanceConfig définit les paramètres de performance
+// PerformanceConfig defines the performance parameters
 type PerformanceConfig struct {
 	RateLimit int `yaml:"rate_limit"`
 	TimeoutMS int `yaml:"timeout_ms"`
-	// Batch params définis en constantes internes (pas configurables)
+	// Batch params defined as internal constants (not configurable)
 	Batch BatchConfig `yaml:"-"`
 }
 
-// BatchConfig contient les paramètres de batch (constantes internes)
+// BatchConfig contains the batch parameters (internal constants)
 type BatchConfig struct {
 	Send        int
 	Recv        int
@@ -61,13 +61,13 @@ type BatchConfig struct {
 	IPBatchSize int
 }
 
-// LoggingConfig contient la configuration du logging
+// LoggingConfig contains the logging configuration
 type LoggingConfig struct {
 	Level  string `yaml:"level"`
 	Format string `yaml:"format"`
 }
 
-// LoadConfig charge la configuration depuis un fichier YAML
+// LoadConfig loads the configuration from a YAML file
 func LoadConfig(path string) (*YAMLConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -82,7 +82,7 @@ func LoadConfig(path string) (*YAMLConfig, error) {
 	return &config, nil
 }
 
-// GetDefaultConfig retourne une configuration par défaut simplifiée
+// GetDefaultConfig returns a simplified default configuration
 func GetDefaultConfig() *YAMLConfig {
 	return &YAMLConfig{
 		NATS: NATSConfig{

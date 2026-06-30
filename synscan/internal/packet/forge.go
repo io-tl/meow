@@ -36,7 +36,7 @@ func (f *Forger) GetSourceIP() net.IP {
 
 // buildIPv4TCPSYNPacket constructs a complete IP + TCP SYN packet
 func buildIPv4TCPSYNPacket(srcIP net.IP, srcPort uint16, dstIP net.IP, dstPort uint16, rng *rand.Rand) []byte {
-	// En-tête IPv4 (20 octets)
+	// IPv4 header (20 bytes)
 	ipHeader := &ipv4.Header{
 		Version:  4,
 		Len:      20,
@@ -51,7 +51,7 @@ func buildIPv4TCPSYNPacket(srcIP net.IP, srcPort uint16, dstIP net.IP, dstPort u
 		Dst:      dstIP,
 	}
 
-	// Serialiser IP
+	// Serialize IP
 	ipBytes, err := ipHeader.Marshal()
 	if err != nil {
 		// Fallback to manual IP header construction
@@ -72,14 +72,14 @@ func buildIPv4TCPSYNPacket(srcIP net.IP, srcPort uint16, dstIP net.IP, dstPort u
 	binary.BigEndian.PutUint16(ipBytes[10:12], 0)
 	binary.BigEndian.PutUint16(ipBytes[10:12], calculateChecksum(ipBytes))
 
-	// En-tête TCP (20 octets minimum)
+	// TCP header (20 bytes minimum)
 	tcpHeader := buildTCPHeader(srcPort, dstPort, true, false, false, rng)
 
-	// Calculer checksum TCP (pseudo-header + TCP)
+	// Calculate TCP checksum (pseudo-header + TCP)
 	tcpChecksum := calculateTCPChecksum(srcIP, dstIP, tcpHeader)
 	binary.BigEndian.PutUint16(tcpHeader[16:18], tcpChecksum)
 
-	// Concaténer IP + TCP
+	// Concatenate IP + TCP
 	packet := make([]byte, len(ipBytes)+len(tcpHeader))
 	copy(packet, ipBytes)
 	copy(packet[len(ipBytes):], tcpHeader)
@@ -110,7 +110,7 @@ func buildTCPHeader(srcPort, dstPort uint16, syn, ack, rst bool, rng *rand.Rand)
 	tcp[13] = flags
 
 	binary.BigEndian.PutUint16(tcp[14:16], 65535) // Window
-	// tcp[16:18] = checksum (rempli après calcul)
+	// tcp[16:18] = checksum (filled after calculation)
 	binary.BigEndian.PutUint16(tcp[18:20], 0) // Urgent pointer
 
 	return tcp
@@ -118,7 +118,7 @@ func buildTCPHeader(srcPort, dstPort uint16, syn, ack, rst bool, rng *rand.Rand)
 
 // calculateTCPChecksum calculates TCP checksum with pseudo-header
 func calculateTCPChecksum(srcIP, dstIP net.IP, tcpHeader []byte) uint16 {
-	// Pseudo-header pour checksum TCP
+	// Pseudo-header for TCP checksum
 	pseudoHeader := make([]byte, 12)
 	copy(pseudoHeader[0:4], srcIP.To4())
 	copy(pseudoHeader[4:8], dstIP.To4())
@@ -126,7 +126,7 @@ func calculateTCPChecksum(srcIP, dstIP net.IP, tcpHeader []byte) uint16 {
 	pseudoHeader[9] = 6 // TCP protocol
 	binary.BigEndian.PutUint16(pseudoHeader[10:12], uint16(len(tcpHeader)))
 
-	// Concaténer pseudo-header + TCP header
+	// Concatenate pseudo-header + TCP header
 	data := append(pseudoHeader, tcpHeader...)
 
 	return calculateChecksum(data)

@@ -1,60 +1,60 @@
 # Transport Layer Architecture
 
-Le système de transport de synscan est modulaire et multi-plateforme. Il détecte automatiquement la meilleure méthode disponible selon la plateforme et les privilèges.
+synscan's transport system is modular and cross-platform. It automatically detects the best available method based on the platform and privileges.
 
 ## Architecture
 
 ```
 internal/transport/
-├── transport.go              # Interface commune (cross-platform)
-├── connect.go                # Mode Connect (cross-platform)
+├── transport.go              # Common interface (cross-platform)
+├── connect.go                # Connect mode (cross-platform)
 │
-├── detector_linux.go         # Détection Linux
-├── afpacket_linux.go         # AF_PACKET + mmap (Linux uniquement)
+├── detector_linux.go         # Linux detection
+├── afpacket_linux.go         # AF_PACKET + mmap (Linux only)
 ├── rawsocket_linux.go        # Raw sockets + sendmmsg (Linux)
 │
-├── detector_windows.go       # Détection Windows
-└── rawsocket_windows.go      # Raw sockets Windows (limité)
+├── detector_windows.go       # Windows detection
+└── rawsocket_windows.go      # Windows raw sockets (limited)
 ```
 
-## Méthodes de Transport
+## Transport Methods
 
 ### Linux
 
 #### 1. AF_PACKET + mmap (PACKET_TX_RING/RX_RING)
 - **Performance**: ~2M PPS
-- **Requis**: Root/CAP_NET_RAW + kernel 2.6.27+
-- **Avantages**: Zero-copy I/O, latence minimale
-- **Fichier**: `afpacket_linux.go`
+- **Required**: Root/CAP_NET_RAW + kernel 2.6.27+
+- **Advantages**: Zero-copy I/O, minimal latency
+- **File**: `afpacket_linux.go`
 
 #### 2. Raw Socket + sendmmsg/recvmmsg
 - **Performance**: ~500K PPS
-- **Requis**: Root/CAP_NET_RAW
-- **Avantages**: Compatible 2.6.x anciens, batching efficace
-- **Fichier**: `rawsocket_linux.go`
+- **Required**: Root/CAP_NET_RAW
+- **Advantages**: Compatible with old 2.6.x, efficient batching
+- **File**: `rawsocket_linux.go`
 
-#### 3. Mode Connect()
+#### 3. Connect() Mode
 - **Performance**: ~10K PPS
-- **Requis**: Aucun privilège
-- **Avantages**: Fonctionne partout
-- **Fichier**: `connect.go`
+- **Required**: No privileges
+- **Advantages**: Works everywhere
+- **File**: `connect.go`
 
 ### Windows
 
-#### 1. Raw Socket (NON SUPPORTÉ)
-- **Status**: Désactivé
-- **Raison**: Windows XP SP2+ ne supporte pas IP_HDRINCL pour TCP
-- **Fichier**: `rawsocket_windows.go`
+#### 1. Raw Socket (NOT SUPPORTED)
+- **Status**: Disabled
+- **Reason**: Windows XP SP2+ does not support IP_HDRINCL for TCP
+- **File**: `rawsocket_windows.go`
 
-#### 2. Mode Connect()
+#### 2. Connect() Mode
 - **Performance**: ~10K PPS
-- **Requis**: Aucun privilège
-- **Avantages**: Seule méthode fiable sur Windows
-- **Fichier**: `connect.go`
+- **Required**: No privileges
+- **Advantages**: Only reliable method on Windows
+- **File**: `connect.go`
 
-## Détection Automatique
+## Automatic Detection
 
-Le système essaie les transports dans l'ordre de performance :
+The system tries the transports in order of performance:
 
 **Linux**:
 ```
@@ -63,12 +63,12 @@ AF_PACKET+mmap → Raw Socket → Connect
 
 **Windows**:
 ```
-Raw Socket (échec) → Connect
+Raw Socket (failure) → Connect
 ```
 
-## Interface Transport
+## Transport Interface
 
-Chaque transport implémente l'interface :
+Each transport implements the interface:
 
 ```go
 type Transport interface {
@@ -82,62 +82,62 @@ type Transport interface {
 
 ## Capabilities
 
-Chaque transport expose ses capacités :
+Each transport exposes its capabilities:
 
 ```go
 type Capabilities struct {
-    SupportsSYNScan          bool  // Vrai SYN scan
-    SupportsCustomSourcePort bool  // Port source personnalisé
-    SupportsRawPackets       bool  // Forge de paquets
-    RequiresRoot             bool  // Privilèges requis
-    MaxPacketsPerSecond      int   // PPS estimé
+    SupportsSYNScan          bool  // True SYN scan
+    SupportsCustomSourcePort bool  // Custom source port
+    SupportsRawPackets       bool  // Packet forging
+    RequiresRoot             bool  // Privileges required
+    MaxPacketsPerSecond      int   // Estimated PPS
 }
 ```
 
 ## Build Tags
 
-Go utilise automatiquement les suffixes de fichiers :
-- `*_linux.go` → compilé uniquement sur Linux
-- `*_windows.go` → compilé uniquement sur Windows
-- `*.go` (sans suffixe) → cross-platform
+Go automatically uses the file suffixes:
+- `*_linux.go` → compiled only on Linux
+- `*_windows.go` → compiled only on Windows
+- `*.go` (no suffix) → cross-platform
 
-Pas besoin de `// +build` tags explicites !
+No need for explicit `// +build` tags!
 
-## Compilation Cross-Platform
+## Cross-Platform Compilation
 
 ```bash
 # Linux
 make build
 
-# Windows (depuis Linux)
+# Windows (from Linux)
 GOOS=windows GOARCH=amd64 go build -o synscan.exe ./cmd/synscan
 
-# Binaire standalone (pas de dépendances)
+# Standalone binary (no dependencies)
 CGO_ENABLED=0 go build -o synscan ./cmd/synscan
 ```
 
-## Pourquoi pas WinPcap/Npcap ?
+## Why Not WinPcap/Npcap?
 
-- **Dépendance externe**: Nécessite installation séparée
-- **Complexité**: Bindings CGO, drivers
-- **Portabilité**: Le binaire ne serait plus standalone
+- **External dependency**: Requires separate installation
+- **Complexity**: CGO bindings, drivers
+- **Portability**: The binary would no longer be standalone
 
-Le mode Connect est largement suffisant pour la plupart des cas d'usage sur Windows.
+Connect mode is largely sufficient for most use cases on Windows.
 
-## Extensions Futures
+## Future Extensions
 
-Pour ajouter un nouveau transport :
+To add a new transport:
 
-1. Créer `newmethod_<platform>.go`
-2. Implémenter l'interface `Transport`
-3. Ajouter dans `detector_<platform>.go`
-4. Aucune modification du scanner nécessaire !
+1. Create `newmethod_<platform>.go`
+2. Implement the `Transport` interface
+3. Add it to `detector_<platform>.go`
+4. No scanner modification needed!
 
-## Limitations Windows
+## Windows Limitations
 
-Les raw sockets Windows ne permettent **pas** :
-- ❌ Forger l'en-tête IP (IP_HDRINCL)
+Windows raw sockets do **not** allow:
+- ❌ Forging the IP header (IP_HDRINCL)
 - ❌ SYN scan stealthy
 - ❌ Custom source port
 
-Seul le mode Connect fonctionne (connexion TCP complète).
+Only Connect mode works (full TCP connection).
