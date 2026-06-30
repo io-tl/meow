@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// MetricsSnapshot représente un snapshot de métriques à un instant T
+// MetricsSnapshot represents a snapshot of metrics at a given instant T
 type MetricsSnapshot struct {
 	Timestamp   time.Time
 	Scans       uint64
@@ -23,9 +23,9 @@ type MetricsSnapshot struct {
 	Adjustment  string // "increase", "decrease", "stable"
 }
 
-// WorkerTuner ajuste automatiquement le nombre de workers selon les performances
+// WorkerTuner automatically adjusts the number of workers based on performance
 type WorkerTuner struct {
-	// Métriques
+	// Metrics
 	totalScans    uint64
 	totalTimeouts uint64
 	totalErrors   uint64
@@ -34,15 +34,15 @@ type WorkerTuner struct {
 	// Config
 	minWorkers    int
 	maxWorkers    int
-	targetTimeout float64 // Taux de timeout cible (ex: 5%)
+	targetTimeout float64 // Target timeout rate (e.g.: 5%)
 
 	// State
 	currentWorkers          int
 	adjustments             int
 	lastAdjustmentDir       int // -1 = decrease, 0 = none, +1 = increase
-	consecutiveOscillations int // Compteur d'oscillations
+	consecutiveOscillations int // Oscillation counter
 
-	// Historique (buffer circulaire des 10 dernières périodes)
+	// History (circular buffer of the last 10 periods)
 	history     []MetricsSnapshot
 	historyIdx  int
 	historySize int
@@ -51,21 +51,21 @@ type WorkerTuner struct {
 	mu sync.RWMutex
 }
 
-// NewWorkerTuner crée un tuner automatique
+// NewWorkerTuner creates an automatic tuner
 func NewWorkerTuner(initialWorkers int) *WorkerTuner {
 	numCPU := runtime.NumCPU()
 
-	// Minimum plus élevé pour VPS moderne (au moins 20 workers même si peu de CPUs)
+	// Higher minimum for modern VPS (at least 20 workers even with few CPUs)
 	minWorkers := numCPU * 2
 	if minWorkers < 20 {
 		minWorkers = 20
 	}
 
 	return &WorkerTuner{
-		minWorkers:              minWorkers,     // Minimum: 20 ou 2*CPU (agressif pour I/O bound)
+		minWorkers:              minWorkers,     // Minimum: 20 or 2*CPU (aggressive for I/O bound)
 		maxWorkers:              300,            // Maximum: 300 workers (default from config)
-		targetTimeout:           0.05,           // 5% de timeout acceptable
-		currentWorkers:          initialWorkers, // Démarrer avec le nombre recommandé
+		targetTimeout:           0.05,           // 5% timeout acceptable
+		currentWorkers:          initialWorkers, // Start with the recommended number
 		lastCheck:               time.Now(),
 		lastAdjustmentDir:       0,
 		consecutiveOscillations: 0,
@@ -75,12 +75,12 @@ func NewWorkerTuner(initialWorkers int) *WorkerTuner {
 	}
 }
 
-// RecordScan enregistre le résultat d'un scan
+// RecordScan records the result of a scan
 func (wt *WorkerTuner) RecordScan(timedout bool, errored bool) {
 	scans := atomic.AddUint64(&wt.totalScans, 1)
 	if timedout {
 		timeouts := atomic.AddUint64(&wt.totalTimeouts, 1)
-		if scans%10 == 0 { // Log tous les 10 scans
+		if scans%10 == 0 { // Log every 10 scans
 			log.Debug().
 				Uint64("scan_count", scans).
 				Uint64("timeouts", timeouts).
@@ -93,7 +93,7 @@ func (wt *WorkerTuner) RecordScan(timedout bool, errored bool) {
 	}
 }
 
-// addSnapshot ajoute un snapshot à l'historique (buffer circulaire)
+// addSnapshot adds a snapshot to the history (circular buffer)
 func (wt *WorkerTuner) addSnapshot(snapshot MetricsSnapshot) {
 	wt.mu.Lock()
 	defer wt.mu.Unlock()
@@ -105,7 +105,7 @@ func (wt *WorkerTuner) addSnapshot(snapshot MetricsSnapshot) {
 	}
 }
 
-// GetHistory retourne l'historique des métriques
+// GetHistory returns the metrics history
 func (wt *WorkerTuner) GetHistory() []MetricsSnapshot {
 	wt.mu.RLock()
 	defer wt.mu.RUnlock()
@@ -118,28 +118,28 @@ func (wt *WorkerTuner) GetHistory() []MetricsSnapshot {
 	return result
 }
 
-// detectOscillation détecte si on oscille (augmente puis diminue répétitivement)
+// detectOscillation detects whether we are oscillating (increasing then decreasing repeatedly)
 func (wt *WorkerTuner) detectOscillation(newDir int) bool {
 	wt.mu.Lock()
 	defer wt.mu.Unlock()
 
-	// Si changement de direction, c'est une oscillation potentielle
+	// If the direction changes, it's a potential oscillation
 	if wt.lastAdjustmentDir != 0 && newDir != 0 && wt.lastAdjustmentDir != newDir {
 		wt.consecutiveOscillations++
 		wt.lastAdjustmentDir = newDir
-		return wt.consecutiveOscillations >= 3 // 3 oscillations = problème
+		return wt.consecutiveOscillations >= 3 // 3 oscillations = problem
 	}
 
 	wt.lastAdjustmentDir = newDir
 	if newDir == 0 {
-		wt.consecutiveOscillations = 0 // Reset si stable
+		wt.consecutiveOscillations = 0 // Reset if stable
 	}
 	return false
 }
 
-// ShouldAdjust vérifie si on doit ajuster les workers (AMÉLIORATION: ajustement graduel)
+// ShouldAdjust checks whether we should adjust the workers (IMPROVEMENT: gradual adjustment)
 func (wt *WorkerTuner) ShouldAdjust() (newWorkers int, shouldChange bool) {
-	// Vérifier toutes les 10 secondes minimum (réactivité accrue)
+	// Check at least every 10 seconds (increased responsiveness)
 	wt.mu.RLock()
 	timeSince := time.Since(wt.lastCheck)
 	wt.mu.RUnlock()
@@ -152,14 +152,14 @@ func (wt *WorkerTuner) ShouldAdjust() (newWorkers int, shouldChange bool) {
 	timeouts := atomic.LoadUint64(&wt.totalTimeouts)
 	errors := atomic.LoadUint64(&wt.totalErrors)
 
-	// Réduire le seuil à 10 scans pour réagir plus vite
+	// Lower the threshold to 10 scans to react faster
 	if scans < 10 {
 		return wt.currentWorkers, false
 	}
 
 	timeoutRate := float64(timeouts) / float64(scans)
 
-	// Créer un snapshot avant de reset les compteurs
+	// Create a snapshot before resetting the counters
 	snapshot := MetricsSnapshot{
 		Timestamp:   time.Now(),
 		Scans:       scans,
@@ -170,7 +170,7 @@ func (wt *WorkerTuner) ShouldAdjust() (newWorkers int, shouldChange bool) {
 		Adjustment:  "stable",
 	}
 
-	// Reset les compteurs
+	// Reset the counters
 	atomic.StoreUint64(&wt.totalScans, 0)
 	atomic.StoreUint64(&wt.totalTimeouts, 0)
 	atomic.StoreUint64(&wt.totalErrors, 0)
@@ -180,11 +180,11 @@ func (wt *WorkerTuner) ShouldAdjust() (newWorkers int, shouldChange bool) {
 
 	adjustmentDir := 0
 
-	// AMÉLIORATION 1: Réduction GRADUELLE au lieu d'agressive
+	// IMPROVEMENT 1: GRADUAL reduction instead of aggressive
 	if timeoutRate > wt.targetTimeout*2 { // > 10%
 		adjustmentDir = -1
 
-		// Détecter oscillation
+		// Detect oscillation
 		if wt.detectOscillation(adjustmentDir) {
 			log.Info().Int("workers", wt.currentWorkers).Msg("TUNE: Oscillation detected - Stabilizing")
 			snapshot.Adjustment = "oscillation-stabilize"
@@ -192,13 +192,13 @@ func (wt *WorkerTuner) ShouldAdjust() (newWorkers int, shouldChange bool) {
 			return wt.currentWorkers, false
 		}
 
-		// Réduction graduelle: -20% par cycle, plafonné à -50 workers max
+		// Gradual reduction: -20% per cycle, capped at -50 workers max
 		reduction := int(float64(wt.currentWorkers) * 0.20)
 		if reduction > 50 {
 			reduction = 50
 		}
 		if reduction < 10 {
-			reduction = 10 // Au moins -10 workers
+			reduction = 10 // At least -10 workers
 		}
 
 		newWorkers = wt.currentWorkers - reduction
@@ -220,10 +220,10 @@ func (wt *WorkerTuner) ShouldAdjust() (newWorkers int, shouldChange bool) {
 			return newWorkers, true
 		}
 	} else if timeoutRate < wt.targetTimeout && wt.currentWorkers < wt.maxWorkers {
-		// AMÉLIORATION 2: Augmentation adaptative selon qualité
+		// IMPROVEMENT 2: Adaptive increase based on quality
 		adjustmentDir = 1
 
-		// Détecter oscillation
+		// Detect oscillation
 		if wt.detectOscillation(adjustmentDir) {
 			log.Info().Int("workers", wt.currentWorkers).Msg("TUNE: Oscillation detected - Stabilizing")
 			snapshot.Adjustment = "oscillation-stabilize"
@@ -231,9 +231,9 @@ func (wt *WorkerTuner) ShouldAdjust() (newWorkers int, shouldChange bool) {
 			return wt.currentWorkers, false
 		}
 
-		increase := 10 // Par défaut: +10 workers
+		increase := 10 // Default: +10 workers
 
-		// Si conditions excellentes (< 2.5% timeout), accélérer
+		// If conditions are excellent (< 2.5% timeout), accelerate
 		if timeoutRate < wt.targetTimeout/2 {
 			increase = 30 // +30 workers
 		} else if timeoutRate < wt.targetTimeout*0.75 {
@@ -260,48 +260,48 @@ func (wt *WorkerTuner) ShouldAdjust() (newWorkers int, shouldChange bool) {
 		}
 	}
 
-	// Pas de changement mais ajouter le snapshot
+	// No change but add the snapshot
 	snapshot.Adjustment = "stable"
 	wt.addSnapshot(snapshot)
 	return wt.currentWorkers, false
 }
 
-// GetRecommendedWorkers calcule le nombre optimal de workers selon les ressources
-// AMÉLIORATION: Warm-up progressif au lieu de démarrage agressif
+// GetRecommendedWorkers computes the optimal number of workers based on resources
+// IMPROVEMENT: Progressive warm-up instead of aggressive startup
 func GetRecommendedWorkers() int {
 	numCPU := runtime.NumCPU()
 
-	// Lire les stats mémoire
+	// Read the memory stats
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
 	allocMB := m.Alloc / (1024 * 1024)
 	sysMB := m.Sys / (1024 * 1024)
 
-	// AMÉLIORATION: WARM-UP PROGRESSIF
-	// Démarrer avec un nombre raisonnable et laisser l'autotune augmenter progressivement
-	// Avantages:
-	// - Évite le spike de charge initial (rate-limiting, blacklist)
-	// - Détecte rapidement les limites réseau/système
-	// - Réduit le risque de crasher la cible
+	// IMPROVEMENT: PROGRESSIVE WARM-UP
+	// Start with a reasonable number and let autotune increase it progressively
+	// Benefits:
+	// - Avoids the initial load spike (rate-limiting, blacklist)
+	// - Quickly detects network/system limits
+	// - Reduces the risk of crashing the target
 	//
-	// Stratégie: min(numCPU * 10, 50) pour démarrer doucement
-	// L'autotune augmentera de +10/+20/+30 par cycle (10s) jusqu'au max
+	// Strategy: min(numCPU * 10, 50) to start gently
+	// Autotune will increase by +10/+20/+30 per cycle (10s) up to the max
 
-	recommended := numCPU * 10 // Ex: 8 cores = 80 workers au démarrage
+	recommended := numCPU * 10 // E.g.: 8 cores = 80 workers at startup
 	if recommended > 50 {
-		recommended = 50 // Plafonner à 50 pour warm-up
+		recommended = 50 // Cap at 50 for warm-up
 	}
 	if recommended < 20 {
 		recommended = 20 // Minimum 20 workers
 	}
 
-	// Seulement si système très puissant (16+ cores), démarrer plus haut
+	// Only if the system is very powerful (16+ cores), start higher
 	if numCPU >= 16 {
-		recommended = 100 // Systèmes puissants peuvent démarrer à 100
+		recommended = 100 // Powerful systems can start at 100
 	}
 
-	warmupTime := (300 - recommended) / 20 * 10 // Temps estimé pour atteindre max (300 workers)
+	warmupTime := (300 - recommended) / 20 * 10 // Estimated time to reach max (300 workers)
 	log.Info().
 		Int("workers", recommended).
 		Int("cpu", numCPU).
@@ -314,9 +314,9 @@ func GetRecommendedWorkers() int {
 	return recommended
 }
 
-// AdaptiveConfig ajuste les timeouts selon le type de service
+// AdaptiveConfig adjusts timeouts based on the service type
 type AdaptiveConfig struct {
-	// Timeouts adaptatifs par protocole
+	// Adaptive timeouts per protocol
 	FastServices   []string // HTTP, SSH: 5s
 	MediumServices []string // SMTP, MySQL: 10s
 	SlowServices   []string // Custom apps: 30s
@@ -327,7 +327,7 @@ type AdaptiveConfig struct {
 	SlowTimeout    time.Duration
 }
 
-// DefaultAdaptiveConfig retourne la config adaptative par défaut
+// DefaultAdaptiveConfig returns the default adaptive config
 func DefaultAdaptiveConfig() *AdaptiveConfig {
 	return &AdaptiveConfig{
 		FastServices:   []string{"http", "https", "ssh", "telnet"},
@@ -341,19 +341,19 @@ func DefaultAdaptiveConfig() *AdaptiveConfig {
 	}
 }
 
-// GetTimeoutForService retourne le timeout adapté au service détecté
+// GetTimeoutForService returns the timeout suited to the detected service
 func (ac *AdaptiveConfig) GetTimeoutForService(service string) time.Duration {
-	// Vérifier si c'est un service rapide
+	// Check whether it's a fast service
 	if slices.Contains(ac.FastServices, service) {
 		return ac.FastTimeout
 	}
 
-	// Vérifier si c'est un service moyen
+	// Check whether it's a medium service
 	if slices.Contains(ac.MediumServices, service) {
 		return ac.MediumTimeout
 	}
 
-	// Vérifier si c'est un service lent
+	// Check whether it's a slow service
 	if slices.Contains(ac.SlowServices, service) {
 		return ac.SlowTimeout
 	}
@@ -361,15 +361,15 @@ func (ac *AdaptiveConfig) GetTimeoutForService(service string) time.Duration {
 	return ac.DefaultTimeout
 }
 
-// VPSResourceMonitor surveille les ressources du VPS
+// VPSResourceMonitor monitors the VPS resources
 type VPSResourceMonitor struct {
 	highMemCount int
-	totalRAM     uint64 // RAM totale système (détectée au démarrage)
+	totalRAM     uint64 // Total system RAM (detected at startup)
 }
 
 // getTotalSystemRAM is defined in sysinfo_linux.go / sysinfo_other.go
 
-// NewVPSResourceMonitor crée un moniteur de ressources
+// NewVPSResourceMonitor creates a resource monitor
 func NewVPSResourceMonitor() *VPSResourceMonitor {
 	totalRAM := getTotalSystemRAM()
 	log.Info().Uint64("ram_mb", totalRAM).Msg("TUNE: Detected system RAM")
@@ -379,11 +379,11 @@ func NewVPSResourceMonitor() *VPSResourceMonitor {
 	}
 }
 
-// CheckResources vérifie l'utilisation des ressources (AMÉLIORATION: seuils adaptatifs)
+// CheckResources checks resource usage (IMPROVEMENT: adaptive thresholds)
 func (vrm *VPSResourceMonitor) CheckResources() (cpuOK, memOK bool, warnings []string) {
 	warnings = make([]string, 0)
 
-	// Vérifier la mémoire
+	// Check the memory
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
@@ -391,15 +391,15 @@ func (vrm *VPSResourceMonitor) CheckResources() (cpuOK, memOK bool, warnings []s
 	sysMB := m.Sys / (1024 * 1024)
 	gcPct := float64(m.GCCPUFraction) * 100
 
-	// AMÉLIORATION: Seuil adaptatif basé sur la RAM totale du système
+	// IMPROVEMENT: Adaptive threshold based on the total system RAM
 	memUsagePct := float64(m.Alloc) / float64(m.Sys) * 100
 
-	// Calculer le seuil: 85% de la RAM totale (au lieu de 4GB fixe)
+	// Compute the threshold: 85% of the total RAM (instead of a fixed 4GB)
 	memThresholdMB := uint64(float64(vrm.totalRAM) * 0.85)
 
-	// Warning si:
-	// 1. Plus de 95% de la mémoire allouée est utilisée (pression interne Go)
-	// 2. OU si on dépasse 85% de la RAM totale système
+	// Warning if:
+	// 1. More than 95% of allocated memory is in use (internal Go pressure)
+	// 2. OR if we exceed 85% of the total system RAM
 	if memUsagePct > 95 || sysMB > memThresholdMB {
 		vrm.highMemCount++
 		memOK = false
@@ -411,26 +411,26 @@ func (vrm *VPSResourceMonitor) CheckResources() (cpuOK, memOK bool, warnings []s
 		memOK = true
 	}
 
-	// Alerte si GC utilise > 10% du CPU
+	// Alert if GC uses > 10% of the CPU
 	if gcPct > 10 {
 		warnings = append(warnings,
 			fmt.Sprintf("High GC CPU usage: %.1f%%", gcPct))
 	}
 
-	// Alerte si beaucoup de goroutines
+	// Alert if there are many goroutines
 	numGoroutines := runtime.NumGoroutine()
 	if numGoroutines > 10000 {
 		warnings = append(warnings,
 			fmt.Sprintf("High goroutine count: %d", numGoroutines))
 	}
 
-	// CPU check (approximatif via nombre de goroutines runnable)
+	// CPU check (approximate via number of runnable goroutines)
 	cpuOK = numGoroutines < 5000
 
 	return cpuOK, memOK, warnings
 }
 
-// ShouldThrottle détermine si on doit throttler les scans
+// ShouldThrottle determines whether we should throttle the scans
 func (vrm *VPSResourceMonitor) ShouldThrottle() bool {
 	cpuOK, memOK, warnings := vrm.CheckResources()
 
@@ -440,7 +440,7 @@ func (vrm *VPSResourceMonitor) ShouldThrottle() bool {
 		}
 	}
 
-	// Throttler si CPU ou mémoire sont surchargés pendant 3 checks consécutifs
+	// Throttle if CPU or memory are overloaded for 3 consecutive checks
 	if !cpuOK || !memOK {
 		if vrm.highMemCount > 3 {
 			return true
@@ -450,7 +450,7 @@ func (vrm *VPSResourceMonitor) ShouldThrottle() bool {
 	return false
 }
 
-// PrintResourceStats affiche les stats des ressources
+// PrintResourceStats prints the resource stats
 func PrintResourceStats() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)

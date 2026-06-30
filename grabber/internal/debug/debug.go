@@ -12,7 +12,7 @@ import (
 	"meow/grabber/pkg/enrichment/modules"
 )
 
-// DebugConfig contient la configuration pour les tests en mode debug
+// DebugConfig contains the configuration for debug-mode tests
 type DebugConfig struct {
 	Host      string
 	Port      int
@@ -23,7 +23,7 @@ type DebugConfig struct {
 	Debug     bool
 }
 
-// DebugFingerprint teste le fingerprinting sans passer par NATS
+// DebugFingerprint tests fingerprinting without going through NATS
 func DebugFingerprint(cfg *DebugConfig) {
 	log.Info().
 		Str("host", cfg.Host).
@@ -32,7 +32,7 @@ func DebugFingerprint(cfg *DebugConfig) {
 		Bool("debug", cfg.Debug).
 		Msg("=== DEBUG FINGERPRINT ===")
 
-	// Lancer le fingerprinting
+	// Run fingerprinting
 	result, err := grab.GrabWithOptions(
 		cfg.Host,
 		cfg.Port,
@@ -54,12 +54,12 @@ func DebugFingerprint(cfg *DebugConfig) {
 		return
 	}
 
-	// Afficher les résultats
+	// Display the results
 	fmt.Printf("\n=== FINGERPRINT RESULT ===\n")
 	fmt.Printf("Host: %s\n", cfg.Host)
 	fmt.Printf("Port: %d\n", cfg.Port)
 
-	// Afficher le service avec ? si uncertain (comme nmap)
+	// Display the service with ? if uncertain (like nmap)
 	serviceDisplay := result.Service
 	if result.Uncertain {
 		serviceDisplay += "?"
@@ -94,10 +94,10 @@ func DebugFingerprint(cfg *DebugConfig) {
 		fmt.Printf("JARM Fingerprint: %s\n", result.JARMFingerprint)
 	}
 
-	// Toujours afficher la bannière si présente (c'est une commande debug après tout)
+	// Always display the banner if present (it's a debug command after all)
 	if result.RawResponse != "" {
 		fmt.Printf("\n=== RAW RESPONSE (Banner) ===\n")
-		// Limiter l'affichage pour éviter trop de sortie
+		// Limit the display to avoid too much output
 		raw := result.RawResponse
 		if len(raw) > 1000 {
 			raw = raw[:1000] + "..."
@@ -106,7 +106,7 @@ func DebugFingerprint(cfg *DebugConfig) {
 	}
 }
 
-// DebugEnrichment teste l'enrichment sans passer par NATS
+// DebugEnrichment tests enrichment without going through NATS
 func DebugEnrichment(cfg *DebugConfig) {
 	log.Info().
 		Str("host", cfg.Host).
@@ -115,14 +115,14 @@ func DebugEnrichment(cfg *DebugConfig) {
 		Str("domain", cfg.Domain).
 		Msg("=== DEBUG ENRICHMENT ===")
 
-	// Vérifier si le service est supporté
+	// Check whether the service is supported
 	module, ok := modules.Get(cfg.Service)
 	if !ok {
 		log.Error().
 			Str("service", cfg.Service).
 			Msg("Service not supported for enrichment")
 
-		// Lister les services disponibles
+		// List the available services
 		fmt.Printf("\nAvailable services:\n")
 		services := modules.ListServices()
 		for name := range services {
@@ -138,7 +138,7 @@ func DebugEnrichment(cfg *DebugConfig) {
 		return
 	}
 
-	// Lancer l'enrichment
+	// Run enrichment
 	var data interface{}
 	var err error
 
@@ -172,7 +172,7 @@ func DebugEnrichment(cfg *DebugConfig) {
 		return
 	}
 
-	// Afficher les résultats
+	// Display the results
 	fmt.Printf("\n=== ENRICHMENT RESULT ===\n")
 	fmt.Printf("Host: %s\n", cfg.Host)
 	fmt.Printf("Port: %d\n", cfg.Port)
@@ -182,7 +182,7 @@ func DebugEnrichment(cfg *DebugConfig) {
 	}
 	fmt.Printf("Duration: %v\n", duration)
 
-	// Afficher les données en JSON
+	// Display the data as JSON
 	fmt.Printf("\nData:\n")
 	jsonData, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
@@ -192,7 +192,7 @@ func DebugEnrichment(cfg *DebugConfig) {
 	}
 }
 
-// DebugFlags parse les arguments en ligne de commande pour le mode debug
+// ParseDebugFlags parses command-line arguments for debug mode
 func ParseDebugFlags() *DebugConfig {
 	cfg := &DebugConfig{
 		Timeout:   5 * time.Second,
@@ -213,7 +213,7 @@ func ParseDebugFlags() *DebugConfig {
 	return cfg
 }
 
-// DebugMain est le point d'entrée pour les commandes de debug
+// DebugMain is the entry point for debug commands
 func DebugMain(args []string) {
 	if len(args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: %s debug <finger|enrich|test> [options]\n", os.Args[0])
@@ -230,12 +230,12 @@ func DebugMain(args []string) {
 
 	switch command {
 	case "finger":
-		// Parser les flags après la commande
+		// Parse the flags after the command
 		os.Args = append([]string{os.Args[0]}, args[2:]...)
 		cfg := ParseDebugFlags()
 		DebugFingerprint(cfg)
 	case "enrich":
-		// Parser les flags après la commande
+		// Parse the flags after the command
 		os.Args = append([]string{os.Args[0]}, args[2:]...)
 		cfg := ParseDebugFlags()
 		if cfg.Service == "" {

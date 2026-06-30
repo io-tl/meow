@@ -175,8 +175,8 @@ func reorderCiphers(ciphers [][]byte, order string) [][]byte {
 		}
 		return result
 	case "TOP_HALF":
-		// Pour une liste impaire, la cipher du milieu vient en premier,
-		// puis le bottom-half du reverse (cf. salesforce/jarm cipher_mung).
+		// For an odd-length list, the middle cipher comes first,
+		// then the bottom-half of the reverse (cf. salesforce/jarm cipher_mung).
 		result := [][]byte{}
 		if n%2 == 1 {
 			result = append(result, ciphers[n/2])

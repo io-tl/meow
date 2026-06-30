@@ -2,7 +2,7 @@
 
 package grab
 
-// getTotalSystemRAM retourne la RAM totale du système en MB (fallback)
+// getTotalSystemRAM returns the total system RAM in MB (fallback)
 func getTotalSystemRAM() uint64 {
-	return 8192 // 8GB par defaut sur les plateformes non-Linux
+	return 8192 // 8GB by default on non-Linux platforms
 }

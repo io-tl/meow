@@ -6,11 +6,11 @@ import (
 	"strings"
 )
 
-// Embed des fichiers nmap directement dans le binaire
-// Cela évite la dépendance sur /usr/share/nmap/ et rend le binaire portable
+// Embed the nmap files directly into the binary
+// This avoids the dependency on /usr/share/nmap/ and makes the binary portable
 //
-// Les fichiers sont chargés au moment de la compilation avec la directive //go:embed
-// Taille totale: ~3.5MB (nmap-service-probes: 2.5MB, nmap-services: 1MB)
+// The files are loaded at compile time with the //go:embed directive
+// Total size: ~3.5MB (nmap-service-probes: 2.5MB, nmap-services: 1MB)
 
 //go:embed data/nmap-service-probes
 var nmapServiceProbes string
@@ -18,22 +18,22 @@ var nmapServiceProbes string
 //go:embed data/nmap-services
 var nmapServices string
 
-// GetEmbeddedProbesReader retourne un io.Reader pour nmap-service-probes
+// GetEmbeddedProbesReader returns an io.Reader for nmap-service-probes
 func GetEmbeddedProbesReader() io.Reader {
 	return strings.NewReader(nmapServiceProbes)
 }
 
-// GetEmbeddedServicesReader retourne un io.Reader pour nmap-services
+// GetEmbeddedServicesReader returns an io.Reader for nmap-services
 func GetEmbeddedServicesReader() io.Reader {
 	return strings.NewReader(nmapServices)
 }
 
-// GetEmbeddedProbesSize retourne la taille du fichier nmap-service-probes embarqué
+// GetEmbeddedProbesSize returns the size of the embedded nmap-service-probes file
 func GetEmbeddedProbesSize() int {
 	return len(nmapServiceProbes)
 }
 
-// GetEmbeddedServicesSize retourne la taille du fichier nmap-services embarqué
+// GetEmbeddedServicesSize returns the size of the embedded nmap-services file
 func GetEmbeddedServicesSize() int {
 	return len(nmapServices)
 }

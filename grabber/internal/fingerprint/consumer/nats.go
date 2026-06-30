@@ -11,7 +11,7 @@ import (
 	"meow/grabber/pkg/fingerprint/types"
 )
 
-// Consumer gère la consommation des événements NATS
+// Consumer handles consumption of NATS events
 type Consumer struct {
 	nc        *nats.Conn
 	sub       *nats.Subscription
@@ -25,7 +25,7 @@ type Consumer struct {
 	lastDropLog atomic.Int64 // unix nano
 }
 
-// NewConsumer crée un nouveau consumer NATS
+// NewConsumer creates a new NATS consumer
 func NewConsumer(nc *nats.Conn, subject string, bufferSize int) *Consumer {
 	return &Consumer{
 		nc:        nc,
@@ -36,7 +36,7 @@ func NewConsumer(nc *nats.Conn, subject string, bufferSize int) *Consumer {
 	}
 }
 
-// Start démarre la consommation des événements
+// Start begins consuming events
 func (c *Consumer) Start() error {
 	var err error
 	c.sub, err = c.nc.QueueSubscribe(c.subject, "fingerprint-workers", c.handleMessage)
@@ -54,7 +54,7 @@ func (c *Consumer) Start() error {
 	return nil
 }
 
-// handleMessage traite un message NATS entrant (blocking with timeout)
+// handleMessage processes an incoming NATS message (blocking with timeout)
 func (c *Consumer) handleMessage(msg *nats.Msg) {
 	var event types.OpenPortEvent
 	if err := json.Unmarshal(msg.Data, &event); err != nil {
@@ -110,12 +110,12 @@ func (c *Consumer) logDropOnce() {
 	}
 }
 
-// Events retourne le channel des événements
+// Events returns the events channel
 func (c *Consumer) Events() <-chan types.OpenPortEvent {
 	return c.eventChan
 }
 
-// Stop arrête le consumer
+// Stop stops the consumer
 func (c *Consumer) Stop() {
 	c.mu.Lock()
 	defer c.mu.Unlock()

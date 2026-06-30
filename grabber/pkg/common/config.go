@@ -7,7 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config est la configuration simplifiée
+// Config is the simplified configuration
 type Config struct {
 	NATS        NATSConfig        `yaml:"nats"`
 	Fingerprint FingerprintConfig `yaml:"fingerprint"`
@@ -15,53 +15,53 @@ type Config struct {
 	Logging     LoggingConfig     `yaml:"logging"`
 }
 
-// NATSConfig contient la configuration NATS
+// NATSConfig contains the NATS configuration
 type NATSConfig struct {
 	URL  string     `yaml:"url"`
 	Auth AuthConfig `yaml:"auth"`
 }
 
-// AuthConfig contient l'authentification NATS
+// AuthConfig contains the NATS authentication
 type AuthConfig struct {
 	Token string `yaml:"token"`
 }
 
-// FingerprintConfig contient la configuration pour le fingerprinting
+// FingerprintConfig contains the configuration for fingerprinting
 type FingerprintConfig struct {
 	Workers         int `yaml:"workers"`
 	ProbeTimeoutMS  int `yaml:"probe_timeout_ms"`
 	GlobalTimeoutMS int `yaml:"global_timeout_ms"`
 }
 
-// EnrichmentConfig contient la configuration pour l'enrichissement
+// EnrichmentConfig contains the configuration for enrichment
 type EnrichmentConfig struct {
 	Workers         int `yaml:"workers"`
 	EnrichTimeoutMS int `yaml:"enrich_timeout_ms"`
 	GlobalTimeoutMS int `yaml:"global_timeout_ms"`
 }
 
-// LoggingConfig contient la configuration du logging
+// LoggingConfig contains the logging configuration
 type LoggingConfig struct {
 	Level  string `yaml:"level"`
 	Format string `yaml:"format"`
 }
 
-// ProbeTimeout retourne le timeout par probe
+// ProbeTimeout returns the per-probe timeout
 func (c *FingerprintConfig) ProbeTimeout() time.Duration {
 	return time.Duration(c.ProbeTimeoutMS) * time.Millisecond
 }
 
-// GlobalTimeout retourne le timeout global
+// GlobalTimeout returns the global timeout
 func (c *FingerprintConfig) GlobalTimeout() time.Duration {
 	return time.Duration(c.GlobalTimeoutMS) * time.Millisecond
 }
 
-// EnrichTimeout retourne le timeout par module d'enrichissement (0 = utiliser le default du module)
+// EnrichTimeout returns the per-enrichment-module timeout (0 = use the module's default)
 func (c *EnrichmentConfig) EnrichTimeout() time.Duration {
 	return time.Duration(c.EnrichTimeoutMS) * time.Millisecond
 }
 
-// GlobalTimeout retourne le timeout global pour un job d'enrichissement (0 = pas de limite)
+// GlobalTimeout returns the global timeout for an enrichment job (0 = no limit)
 func (c *EnrichmentConfig) GlobalTimeout() time.Duration {
 	return time.Duration(c.GlobalTimeoutMS) * time.Millisecond
 }
@@ -112,7 +112,7 @@ func DefaultConfig() *Config {
 	return cfg
 }
 
-// LoadConfig charge la configuration depuis un fichier YAML
+// LoadConfig loads the configuration from a YAML file
 func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

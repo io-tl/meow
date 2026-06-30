@@ -8,7 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// getTotalSystemRAM retourne la RAM totale du système en MB
+// getTotalSystemRAM returns the total system RAM in MB
 func getTotalSystemRAM() uint64 {
 	var sysinfo syscall.Sysinfo_t
 	if err := syscall.Sysinfo(&sysinfo); err != nil {

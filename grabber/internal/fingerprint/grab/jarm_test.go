@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// salesforceMung réimplémente EXACTEMENT cipher_mung de salesforce/jarm (jarm.py).
-// Sert d'oracle de référence pour verrouiller reorderCiphers.
+// salesforceMung reimplements EXACTLY cipher_mung from salesforce/jarm (jarm.py).
+// Serves as a reference oracle to lock down reorderCiphers.
 func salesforceMung(ciphers [][]byte, request string) [][]byte {
 	n := len(ciphers)
 	switch request {
@@ -58,9 +58,9 @@ func equalCipherLists(a, b [][]byte) bool {
 	return true
 }
 
-// reorderCiphers doit être identique à cipher_mung pour toutes les stratégies,
-// sur des listes paires ET impaires. La liste JARM "ALL" fait 69 (impaire), ce
-// qui exerce le cas TOP_HALF/MIDDLE_OUT critique.
+// reorderCiphers must be identical to cipher_mung for all strategies,
+// on even AND odd lists. The JARM "ALL" list has 69 entries (odd), which
+// exercises the critical TOP_HALF/MIDDLE_OUT case.
 func TestReorderCiphersMatchesSalesforce(t *testing.T) {
 	strategies := []string{"FORWARD", "REVERSE", "TOP_HALF", "BOTTOM_HALF", "MIDDLE_OUT"}
 	for _, size := range []int{8, 9, 64, 69} {
@@ -72,7 +72,7 @@ func TestReorderCiphersMatchesSalesforce(t *testing.T) {
 			got := reorderCiphers(list, strat)
 			want := salesforceMung(list, strat)
 			if !equalCipherLists(got, want) {
-				t.Errorf("reorderCiphers(size=%d, %q) diverge de cipher_mush salesforce\n got=%v\nwant=%v",
+				t.Errorf("reorderCiphers(size=%d, %q) diverges from salesforce cipher mung\n got=%v\nwant=%v",
 					size, strat, flattenFirst(got, 6), flattenFirst(want, 6))
 			}
 		}
@@ -87,8 +87,8 @@ func flattenFirst(s [][]byte, n int) []int {
 	return out
 }
 
-// findExtension parcourt un bloc d'extensions (type(2)+len(2)+data) et renvoie
-// les données de la première extension du type demandé.
+// findExtension walks an extensions block (type(2)+len(2)+data) and returns
+// the data of the first extension of the requested type.
 func findExtension(body []byte, extType uint16) []byte {
 	for i := 0; i+4 <= len(body); {
 		t := uint16(body[i])<<8 | uint16(body[i+1])
@@ -104,8 +104,8 @@ func findExtension(body []byte, extType uint16) []byte {
 	return nil
 }
 
-// L'ALPN rare doit être réordonné comme l'ALPN normal selon extOrder.
-// Probe #5 = RARE_ALPN + REVERSE : le 1er protocole offert doit être "hq".
+// The rare ALPN must be reordered like the normal ALPN according to extOrder.
+// Probe #5 = RARE_ALPN + REVERSE: the 1st offered protocol must be "hq".
 func TestRareALPNIsReordered(t *testing.T) {
 	var probe5 probeConfig
 	found := false
@@ -116,18 +116,18 @@ func TestRareALPNIsReordered(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("aucun probe RARE_ALPN+REVERSE trouvé (probe #5 attendu)")
+		t.Fatal("no RARE_ALPN+REVERSE probe found (probe #5 expected)")
 	}
 	ext := getExtensions("example.com", probe5)
-	// ext[0:2] = longueur totale du bloc, puis les extensions.
+	// ext[0:2] = total length of the block, then the extensions.
 	alpn := findExtension(ext[2:], 0x0010)
 	if alpn == nil {
-		t.Fatal("extension ALPN absente du probe RARE_ALPN")
+		t.Fatal("ALPN extension missing from the RARE_ALPN probe")
 	}
-	// alpn = alpnListLen(2) + protocoles; 1er protocole = len(1) + nom.
+	// alpn = alpnListLen(2) + protocols; 1st protocol = len(1) + name.
 	first := alpn[2:]
 	name := string(first[1 : 1+int(first[0])])
 	if name != "hq" {
-		t.Errorf("RARE_ALPN+REVERSE: 1er protocole ALPN = %q, attendu \"hq\"", name)
+		t.Errorf("RARE_ALPN+REVERSE: 1st ALPN protocol = %q, expected \"hq\"", name)
 	}
 }

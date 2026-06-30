@@ -8,13 +8,13 @@ import (
 	"meow/grabber/pkg/fingerprint/types"
 )
 
-// Publisher gère la publication des résultats sur NATS
+// Publisher handles publishing results to NATS
 type Publisher struct {
 	nc      *nats.Conn
 	subject string
 }
 
-// NewPublisher crée un nouveau publisher NATS
+// NewPublisher creates a new NATS publisher
 func NewPublisher(nc *nats.Conn, subject string) *Publisher {
 	return &Publisher{
 		nc:      nc,
@@ -22,7 +22,7 @@ func NewPublisher(nc *nats.Conn, subject string) *Publisher {
 	}
 }
 
-// Publish publie un événement de fingerprint sur NATS
+// Publish publishes a fingerprint event to NATS
 func (p *Publisher) Publish(event types.FingerprintEvent) error {
 	data, err := json.Marshal(event)
 	if err != nil {

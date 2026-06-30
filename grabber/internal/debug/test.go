@@ -9,7 +9,7 @@ import (
 	"meow/grabber/pkg/enrichment/modules"
 )
 
-// TestFingerprintDirect teste le fingerprinting d'une cible spécifique
+// TestFingerprintDirect tests fingerprinting of a specific target
 func TestFingerprintDirect(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -63,7 +63,7 @@ func TestFingerprintDirect(t *testing.T) {
 			t.Logf("Version: %s", result.Version)
 			t.Logf("Info: %s", result.Info)
 
-			// Vérifications basiques
+			// Basic checks
 			if result.Service == "" {
 				t.Error("Service should not be empty when result is not nil")
 			}
@@ -71,7 +71,7 @@ func TestFingerprintDirect(t *testing.T) {
 	}
 }
 
-// TestEnrichmentDirect teste l'enrichment de services spécifiques
+// TestEnrichmentDirect tests enrichment of specific services
 func TestEnrichmentDirect(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -137,7 +137,7 @@ func TestEnrichmentDirect(t *testing.T) {
 			t.Logf("Enrichment completed in %v", duration)
 			t.Logf("Data: %+v", data)
 
-			// Vérifications basiques
+			// Basic checks
 			if data == nil {
 				t.Error("Data should not be nil when enrichment succeeds")
 			}
@@ -145,7 +145,7 @@ func TestEnrichmentDirect(t *testing.T) {
 	}
 }
 
-// BenchmarkFingerprint benchmark les performances de fingerprinting
+// BenchmarkFingerprint benchmarks fingerprinting performance
 func BenchmarkFingerprint(b *testing.B) {
 	host := "127.0.0.1"
 	port := 80
@@ -161,7 +161,7 @@ func BenchmarkFingerprint(b *testing.B) {
 	}
 }
 
-// BenchmarkEnrichment benchmark les performances d'enrichment
+// BenchmarkEnrichment benchmarks enrichment performance
 func BenchmarkEnrichment(b *testing.B) {
 	service := "http"
 	host := "httpbin.org"
@@ -182,7 +182,7 @@ func BenchmarkEnrichment(b *testing.B) {
 	}
 }
 
-// ListModules liste tous les modules disponibles avec leur état
+// ListModules lists all available modules with their state
 func ListModules() {
 	fmt.Println("=== Available Enrichment Modules ===")
 	services := modules.ListServices()
@@ -205,7 +205,7 @@ func ListModules() {
 	}
 }
 
-// QuickTest effectue un test rapide sur une cible
+// QuickTest performs a quick test on a target
 func QuickTest(host string, port int) {
 	fmt.Printf("=== Quick Test: %s:%d ===\n", host, port)
 
@@ -222,7 +222,7 @@ func QuickTest(host string, port int) {
 		fmt.Printf("   Version: %s\n", result.Version)
 		fmt.Printf("   Info: %s\n", result.Info)
 
-		// Test enrichment si service détecté
+		// Test enrichment if a service was detected
 		if result.Service != "" {
 			fmt.Printf("\n2. Enrichment (%s):\n", result.Service)
 			module, ok := modules.Get(result.Service)
@@ -246,7 +246,7 @@ func QuickTest(host string, port int) {
 	fmt.Println("\n=== Test Complete ===")
 }
 
-// RunTestsFromCLI exécute les tests depuis la ligne de commande
+// RunTestsFromCLI runs the tests from the command line
 func RunTestsFromCLI(args []string) {
 	if len(args) < 1 {
 		fmt.Println("Usage: grab debug test <command>")
@@ -340,7 +340,7 @@ func RunTestsFromCLI(args []string) {
 
 	case "benchmark":
 		fmt.Println("Running benchmarks...")
-		// Exécuter les benchmarks manuellement
+		// Run the benchmarks manually
 		fmt.Println("BenchmarkFingerprint:")
 		b := &testing.B{}
 		BenchmarkFingerprint(b)

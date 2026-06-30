@@ -11,8 +11,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// WorkerPool gère un pool de workers pour le scan de services
-// Architecture inspirée de zgrab2 avec optimisations pour réduire l'empreinte mémoire
+// WorkerPool manages a pool of workers for service scanning
+// Architecture inspired by zgrab2 with optimizations to reduce the memory footprint
 type WorkerPool struct {
 	numWorkers    int
 	inputQueue    chan ScanRequest
@@ -34,10 +34,10 @@ type WorkerPool struct {
 	// Dynamic worker management
 	workersMu      sync.RWMutex
 	activeWorkers  int
-	workerControls []chan struct{} // Un channel par worker pour l'arrêter
+	workerControls []chan struct{} // One channel per worker to stop it
 }
 
-// ScanRequest représente une demande de scan
+// ScanRequest represents a scan request
 type ScanRequest struct {
 	Host          string
 	Port          int
@@ -45,32 +45,32 @@ type ScanRequest struct {
 	Intensity     int
 	GlobalTimeout time.Duration
 	Debug         bool
-	ResultChan    chan<- ScanResult // Channel optionnel pour recevoir le résultat directement
+	ResultChan    chan<- ScanResult // Optional channel to receive the result directly
 }
 
-// ScanResult représente le résultat d'un scan
+// ScanResult represents the result of a scan
 type ScanResult struct {
 	Host        string
 	Port        int
 	Result      *ServiceResult
 	Error       error
-	TimeoutType string // "network", "global", "probe", "" (aucun timeout)
+	TimeoutType string // "network", "global", "probe", "" (no timeout)
 }
 
-// WorkerPoolConfig configure le pool de workers
+// WorkerPoolConfig configures the worker pool
 type WorkerPoolConfig struct {
-	NumWorkers    int           // Nombre de workers (défaut: CPU * 4)
-	QueueSize     int           // Taille des queues (défaut: NumWorkers * 4)
-	ProbeTimeout  time.Duration // Timeout par probe (défaut: 5s)
-	Intensity     int           // Intensité des scans (défaut: 7)
-	GlobalTimeout time.Duration // Timeout global par scan (défaut: 20s)
+	NumWorkers    int           // Number of workers (default: CPU * 4)
+	QueueSize     int           // Queue size (default: NumWorkers * 4)
+	ProbeTimeout  time.Duration // Timeout per probe (default: 5s)
+	Intensity     int           // Scan intensity (default: 7)
+	GlobalTimeout time.Duration // Global timeout per scan (default: 20s)
 	Debug         bool
-	AutoTune      bool // Activer l'auto-tuning (recommandé pour VPS)
+	AutoTune      bool // Enable auto-tuning (recommended for VPS)
 }
 
-// DefaultWorkerPoolConfig retourne une config par défaut
+// DefaultWorkerPoolConfig returns a default config
 func DefaultWorkerPoolConfig() *WorkerPoolConfig {
-	// Utiliser GetRecommendedWorkers() pour calculer selon les ressources
+	// Use GetRecommendedWorkers() to compute based on resources
 	numWorkers := GetRecommendedWorkers()
 
 	return &WorkerPoolConfig{
@@ -80,17 +80,17 @@ func DefaultWorkerPoolConfig() *WorkerPoolConfig {
 		Intensity:     7,
 		GlobalTimeout: 20 * time.Second,
 		Debug:         false,
-		AutoTune:      true, // Activé par défaut
+		AutoTune:      true, // Enabled by default
 	}
 }
 
-// NewWorkerPool crée un nouveau pool de workers
+// NewWorkerPool creates a new worker pool
 func NewWorkerPool(config *WorkerPoolConfig) (*WorkerPool, error) {
 	if config == nil {
 		config = DefaultWorkerPoolConfig()
 	}
 
-	// Charger la ProbeDB une seule fois (singleton déjà géré par getProbeDB)
+	// Load the ProbeDB only once (singleton already handled by getProbeDB)
 	db, err := getProbeDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load probes: %w", err)
@@ -110,10 +110,10 @@ func NewWorkerPool(config *WorkerPoolConfig) (*WorkerPool, error) {
 		workerControls:  make([]chan struct{}, 0, config.NumWorkers),
 	}
 
-	// Afficher les ressources initiales
+	// Print the initial resources
 	PrintResourceStats()
 
-	// Démarrer les workers
+	// Start the workers
 	pool.workerWg.Add(config.NumWorkers)
 	for i := 0; i < config.NumWorkers; i++ {
 		stopChan := make(chan struct{})
@@ -121,7 +121,7 @@ func NewWorkerPool(config *WorkerPoolConfig) (*WorkerPool, error) {
 		go pool.worker(i, stopChan)
 	}
 
-	// Démarrer le monitoring auto-tune si activé
+	// Start auto-tune monitoring if enabled
 	if pool.autoTune {
 		go pool.autoTuneLoop()
 	}
@@ -129,36 +129,36 @@ func NewWorkerPool(config *WorkerPoolConfig) (*WorkerPool, error) {
 	return pool, nil
 }
 
-// worker est la fonction exécutée par chaque worker
+// worker is the function executed by each worker
 func (p *WorkerPool) worker(id int, stopChan chan struct{}) {
 	defer p.workerWg.Done()
 
-	// Chaque worker réutilise le même context pour minimiser les allocations
+	// Each worker reuses the same context to minimize allocations
 	for {
 		select {
 		case <-p.done:
 			return
 		case <-stopChan:
-			// Ce worker spécifique doit s'arrêter
+			// This specific worker must stop
 			return
 		case req, ok := <-p.inputQueue:
 			if !ok {
-				return // Queue fermée
+				return // Queue closed
 			}
 
-			// AMÉLIORATION: Adapter le timeout selon le type de service (si déjà connu)
+			// IMPROVEMENT: Adapt the timeout based on the service type (if already known)
 			globalTimeout := req.GlobalTimeout
 			if globalTimeout == 0 {
-				globalTimeout = 20 * time.Second // Fallback par défaut
+				globalTimeout = 20 * time.Second // Default fallback
 			}
 
-			// Effectuer le scan avec timeout global
+			// Perform the scan with a global timeout
 			ctx, cancel := context.WithTimeout(context.Background(), globalTimeout)
 
-			// Channel pour recevoir le résultat
+			// Channel to receive the result
 			resultChan := make(chan ScanResult, 1)
 
-			// Lancer le scan dans une goroutine pour respecter le timeout global
+			// Run the scan in a goroutine to honor the global timeout
 			go func() {
 				result, err := p.probeDB.ScanPortAuto(req.Host, req.Port, req.ProbeTimeout, req.Intensity)
 
@@ -176,47 +176,47 @@ func (p *WorkerPool) worker(id int, stopChan chan struct{}) {
 				}
 			}()
 
-			// Attendre le résultat ou le timeout
+			// Wait for the result or the timeout
 			select {
 			case res := <-resultChan:
 				atomic.AddUint64(&p.totalScanned, 1)
 				isTimeout := false
 				isError := false
 
-				// AMÉLIORATION: Détecter le type de timeout/erreur
+				// IMPROVEMENT: Detect the timeout/error type
 				if res.Error == nil {
 					atomic.AddUint64(&p.totalSuccess, 1)
-					res.TimeoutType = "" // Pas de timeout
+					res.TimeoutType = "" // No timeout
 				} else {
 					atomic.AddUint64(&p.totalFailures, 1)
 					isError = true
 
-					// Classifier le type d'erreur
+					// Classify the error type
 					errMsg := res.Error.Error()
 					if strings.Contains(errMsg, "timeout") || strings.Contains(errMsg, "i/o timeout") {
-						res.TimeoutType = "network" // Timeout réseau (vraie saturation)
+						res.TimeoutType = "network" // Network timeout (real saturation)
 						isTimeout = true
 						atomic.AddUint64(&p.totalTimeouts, 1)
 					} else if strings.Contains(errMsg, "connection reset") {
-						res.TimeoutType = "" // Pas un timeout, juste une connexion fermée
+						res.TimeoutType = "" // Not a timeout, just a closed connection
 						// Blacklist disabled (scanmap/blacklist dependency removed)
 						// bl := blacklist.GetBlacklist()
 						// bl.RecordConnectionReset(req.Host, req.Port)
 					} else if strings.Contains(errMsg, "connection refused") {
-						res.TimeoutType = "" // Port fermé, pas un timeout
+						res.TimeoutType = "" // Port closed, not a timeout
 					} else {
-						res.TimeoutType = "" // Autre erreur
+						res.TimeoutType = "" // Other error
 					}
 				}
 
-				// AMÉLIORATION: Ne pénaliser l'autotune QUE pour les timeouts réseau
+				// IMPROVEMENT: Only penalize autotune for network timeouts
 				if p.autoTune {
 					p.tuner.RecordScan(isTimeout, isError)
 				}
 
-				// Envoyer le résultat au bon destinataire
+				// Send the result to the right recipient
 				if req.ResultChan != nil {
-					// Envoi direct sur le channel fourni
+					// Send directly on the provided channel
 					select {
 					case req.ResultChan <- res:
 					case <-p.done:
@@ -224,7 +224,7 @@ func (p *WorkerPool) worker(id int, stopChan chan struct{}) {
 						return
 					}
 				} else {
-					// Envoi sur la queue globale
+					// Send on the global queue
 					select {
 					case p.outputQueue <- res:
 					case <-p.done:
@@ -233,15 +233,15 @@ func (p *WorkerPool) worker(id int, stopChan chan struct{}) {
 					}
 				}
 			case <-ctx.Done():
-				// AMÉLIORATION: Timeout global (pas forcément un problème réseau)
+				// IMPROVEMENT: Global timeout (not necessarily a network problem)
 				atomic.AddUint64(&p.totalScanned, 1)
 				atomic.AddUint64(&p.totalFailures, 1)
 				atomic.AddUint64(&p.totalTimeouts, 1)
 
-				// Timeout global = scan trop lent, mais pas forcément saturation réseau
-				// Ne pas pénaliser autotune aussi fort qu'un vrai timeout réseau
+				// Global timeout = scan too slow, but not necessarily network saturation
+				// Do not penalize autotune as harshly as a real network timeout
 				if p.autoTune {
-					p.tuner.RecordScan(false, true) // Compter comme erreur, pas timeout
+					p.tuner.RecordScan(false, true) // Count as an error, not a timeout
 				}
 
 				timeoutResult := ScanResult{
@@ -249,10 +249,10 @@ func (p *WorkerPool) worker(id int, stopChan chan struct{}) {
 					Port:        req.Port,
 					Result:      nil,
 					Error:       fmt.Errorf("scan timeout after %v", req.GlobalTimeout),
-					TimeoutType: "global", // Timeout global (scan trop long)
+					TimeoutType: "global", // Global timeout (scan too long)
 				}
 
-				// Envoyer le résultat au bon destinataire
+				// Send the result to the right recipient
 				if req.ResultChan != nil {
 					select {
 					case req.ResultChan <- timeoutResult:
@@ -278,7 +278,7 @@ func (p *WorkerPool) worker(id int, stopChan chan struct{}) {
 	}
 }
 
-// Submit soumet une requête de scan au pool (blocking with timeout)
+// Submit submits a scan request to the pool (blocking with timeout)
 func (p *WorkerPool) Submit(req ScanRequest) error {
 	timer := time.NewTimer(30 * time.Second)
 	defer timer.Stop()
@@ -293,12 +293,12 @@ func (p *WorkerPool) Submit(req ScanRequest) error {
 	}
 }
 
-// Results retourne le channel de résultats (lecture seule)
+// Results returns the results channel (read-only)
 func (p *WorkerPool) Results() <-chan ScanResult {
 	return p.outputQueue
 }
 
-// Close arrête le pool de workers proprement
+// Close shuts down the worker pool cleanly
 func (p *WorkerPool) Close() {
 	close(p.done)
 	close(p.inputQueue)
@@ -310,14 +310,14 @@ func (p *WorkerPool) Close() {
 	// all references are released.
 }
 
-// Stats retourne les statistiques du pool
+// Stats returns the pool statistics
 func (p *WorkerPool) Stats() (scanned, success, failures uint64) {
 	return atomic.LoadUint64(&p.totalScanned),
 		atomic.LoadUint64(&p.totalSuccess),
 		atomic.LoadUint64(&p.totalFailures)
 }
 
-// DetailedStats retourne des statistiques détaillées
+// DetailedStats returns detailed statistics
 func (p *WorkerPool) DetailedStats() map[string]interface{} {
 	scanned := atomic.LoadUint64(&p.totalScanned)
 	success := atomic.LoadUint64(&p.totalSuccess)
@@ -353,7 +353,7 @@ func (p *WorkerPool) DetailedStats() map[string]interface{} {
 	}
 }
 
-// adjustWorkers ajuste dynamiquement le nombre de workers
+// adjustWorkers dynamically adjusts the number of workers
 func (p *WorkerPool) adjustWorkers(targetWorkers int) {
 	p.workersMu.Lock()
 	defer p.workersMu.Unlock()
@@ -365,7 +365,7 @@ func (p *WorkerPool) adjustWorkers(targetWorkers int) {
 	}
 
 	if targetWorkers > current {
-		// Ajouter des workers
+		// Add workers
 		numToAdd := targetWorkers - current
 		log.Info().
 			Int("adding", numToAdd).
@@ -382,7 +382,7 @@ func (p *WorkerPool) adjustWorkers(targetWorkers int) {
 
 		p.activeWorkers = targetWorkers
 	} else {
-		// Retirer des workers
+		// Remove workers
 		numToRemove := current - targetWorkers
 		log.Info().
 			Int("removing", numToRemove).
@@ -390,7 +390,7 @@ func (p *WorkerPool) adjustWorkers(targetWorkers int) {
 			Int("to", targetWorkers).
 			Msg("Removing workers")
 
-		// Fermer les channels de contrôle des derniers workers
+		// Close the control channels of the last workers
 		for i := 0; i < numToRemove && len(p.workerControls) > 0; i++ {
 			lastIdx := len(p.workerControls) - 1
 			close(p.workerControls[lastIdx])
@@ -403,24 +403,24 @@ func (p *WorkerPool) adjustWorkers(targetWorkers int) {
 
 var poolLog string
 
-// autoTuneLoop surveille et ajuste le nombre de workers
+// autoTuneLoop monitors and adjusts the number of workers
 func (p *WorkerPool) autoTuneLoop() {
-	ticker := time.NewTicker(10 * time.Second) // Check toutes les 10s pour réactivité
+	ticker := time.NewTicker(10 * time.Second) // Check every 10s for responsiveness
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			// AMÉLIORATION: Implémenter réellement le throttling
+			// IMPROVEMENT: Actually implement throttling
 			shouldThrottle := p.resourceMonitor.ShouldThrottle()
 			if shouldThrottle {
 				log.Warn().Msg("TUNE: Resource throttling active - Pausing submissions")
-				// Réduire agressivement les workers si throttle actif
+				// Aggressively reduce workers if throttling is active
 				p.workersMu.RLock()
 				currentWorkers := p.activeWorkers
 				p.workersMu.RUnlock()
 
-				targetWorkers := currentWorkers / 2 // Réduire de 50%
+				targetWorkers := currentWorkers / 2 // Reduce by 50%
 				if targetWorkers < p.tuner.minWorkers {
 					targetWorkers = p.tuner.minWorkers
 				}
@@ -433,12 +433,12 @@ func (p *WorkerPool) autoTuneLoop() {
 					p.adjustWorkers(targetWorkers)
 				}
 
-				// Pause pour laisser les ressources se libérer
+				// Pause to let resources free up
 				time.Sleep(2 * time.Second)
 				continue
 			}
 
-			// Afficher les stats avec goroutine count (enrichissement désactivé)
+			// Print the stats with goroutine count (enrichment disabled)
 			stats := p.DetailedStats()
 			poolTmp := fmt.Sprintf("POOL: Workers=%d Scanned=%d Success=%.1f%% Timeout=%.1f%% Queue=%d/%d",
 				stats["workers"], stats["scanned"], stats["success_rate"],
@@ -447,7 +447,7 @@ func (p *WorkerPool) autoTuneLoop() {
 				log.Print(poolTmp)
 				poolLog = poolTmp
 			}
-			// Ajuster dynamiquement le nombre de workers
+			// Dynamically adjust the number of workers
 			if newWorkers, shouldChange := p.tuner.ShouldAdjust(); shouldChange {
 				p.adjustWorkers(newWorkers)
 			}
@@ -458,7 +458,7 @@ func (p *WorkerPool) autoTuneLoop() {
 	}
 }
 
-// ScanBatch scanne un batch d'hôtes en parallèle et retourne tous les résultats.
+// ScanBatch scans a batch of hosts in parallel and returns all the results.
 // Uses per-request ResultChan to avoid reading from the shared outputQueue,
 // which prevents mixing results between concurrent batches and goroutine leaks.
 func (p *WorkerPool) ScanBatch(requests []ScanRequest) ([]ScanResult, error) {

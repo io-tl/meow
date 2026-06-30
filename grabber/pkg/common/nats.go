@@ -22,9 +22,9 @@ func peerName(serviceName string) string {
 	return fmt.Sprintf("%s-%s-%x", serviceName, host, b)
 }
 
-// ConnectNATS établit une connexion à NATS avec authentification.
-// Retourne la connexion et un channel qui sera fermé si la connexion
-// est définitivement perdue (auth violation, connection closed).
+// ConnectNATS establishes a connection to NATS with authentication.
+// Returns the connection and a channel that will be closed if the connection
+// is permanently lost (auth violation, connection closed).
 func ConnectNATS(cfg NATSConfig, serviceName string) (*nats.Conn, <-chan struct{}, error) {
 	closedCh := make(chan struct{})
 	closeOnce := sync.Once{}

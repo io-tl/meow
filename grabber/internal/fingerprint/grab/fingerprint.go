@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-// Probe représente un probe nmap
+// Probe represents an nmap probe
 type Probe struct {
 	Protocol       string
 	Name           string
@@ -27,10 +27,10 @@ type Probe struct {
 	TotalWaitMS    int
 	TCPWrappedMS   int
 	Fallbacks      []string
-	FallbackProbes []*Probe // Pointeurs précompilés vers les probes de fallback
+	FallbackProbes []*Probe // Precompiled pointers to the fallback probes
 }
 
-// Match représente une règle de matching
+// Match represents a matching rule
 type Match struct {
 	IsSoft      bool
 	Pattern     *Regexp
@@ -45,7 +45,7 @@ type Match struct {
 	VersionInfo map[string]string
 }
 
-// ServiceResult contient le résultat de la détection
+// ServiceResult contains the result of the detection
 type ServiceResult struct {
 	Service           string
 	Product           string
@@ -57,9 +57,9 @@ type ServiceResult struct {
 	CPE               []string
 	Probe             string
 	isSoft            bool
-	Uncertain         bool // Service deviné depuis nmap-services sans probe match
+	Uncertain         bool // Service guessed from nmap-services without a probe match
 	RawResponse       string
-	NullProbeResponse string             // Réponse brute du probe NULL (pour analyse)
+	NullProbeResponse string             // Raw response from the NULL probe (for analysis)
 	TLSVersion        uint16             // TLS version (ex: 0x0303 = TLS 1.2)
 	CipherSuite       uint16             // Cipher suite negotiated
 	ServerName        string             // SNI server name
@@ -69,7 +69,7 @@ type ServiceResult struct {
 }
 
 /**
-// String formate le résultat comme nmap
+// String formats the result like nmap
 func (r *ServiceResult) String() string {
 	var parts []string
 
@@ -82,7 +82,7 @@ func (r *ServiceResult) String() string {
 
 	result := strings.Join(parts, " ")
 
-	// Ajouter l'info entre parenthèses si présente
+	// Add the info in parentheses if present
 	if r.Info != "" {
 		if result != "" {
 			result += " (" + r.Info + ")"
@@ -94,7 +94,7 @@ func (r *ServiceResult) String() string {
 	return result
 }
 
-// FullString retourne le format complet incluant le service
+// FullString returns the full format including the service
 func (r *ServiceResult) FullString() string {
 	version := r.String()
 	if version != "" {
@@ -103,16 +103,16 @@ func (r *ServiceResult) FullString() string {
 	return r.Service
 }
 **/
-// ProbeDB contient tous les probes
+// ProbeDB contains all the probes
 type ProbeDB struct {
 	Probes       []*Probe
 	NullProbe    *Probe
 	ExcludePorts map[int]bool
-	PortServices map[int]string // Mapping port->service depuis nmap-services
-	Debug        bool           // Mode debug pour afficher les probes testés
+	PortServices map[int]string // port->service mapping from nmap-services
+	Debug        bool           // Debug mode to display the tested probes
 }
 
-// LoadProbes charge le fichier nmap-service-probes depuis un io.Reader
+// LoadProbes loads the nmap-service-probes file from an io.Reader
 func LoadProbes(reader io.Reader) (*ProbeDB, error) {
 	db := &ProbeDB{
 		ExcludePorts: make(map[int]bool),
@@ -158,7 +158,7 @@ func LoadProbes(reader io.Reader) (*ProbeDB, error) {
 				}
 			} else if strings.HasPrefix(line, "totalwaitms ") {
 				if t, err := strconv.Atoi(strings.TrimSpace(line[12:])); err == nil {
-					// Validation comme nmap : entre 100 et 300000 ms
+					// Validation like nmap: between 100 and 300000 ms
 					if t < 100 || t > 300000 {
 						log.Printf("Warning: totalwaitms must be between 100 and 300000, got %d (using default)\n", t)
 						currentProbe.TotalWaitMS = 5000
@@ -168,7 +168,7 @@ func LoadProbes(reader io.Reader) (*ProbeDB, error) {
 				}
 			} else if strings.HasPrefix(line, "tcpwrappedms ") {
 				if t, err := strconv.Atoi(strings.TrimSpace(line[13:])); err == nil {
-					// Validation comme nmap : entre 100 et 300000 ms
+					// Validation like nmap: between 100 and 300000 ms
 					if t < 100 || t > 300000 {
 						log.Printf("Warning: tcpwrappedms must be between 100 and 300000, got %d (using default)\n", t)
 						currentProbe.TCPWrappedMS = 2000
@@ -193,25 +193,25 @@ func LoadProbes(reader io.Reader) (*ProbeDB, error) {
 		}
 	}
 
-	// Compiler les fallbacks (comme nmap)
+	// Compile the fallbacks (like nmap)
 	db.compileFallbacks()
 
 	return db, scanner.Err()
 }
 
-// LoadServices charge le fichier nmap-services depuis un io.Reader pour le mapping port->service
+// LoadServices loads the nmap-services file from an io.Reader for the port->service mapping
 func (db *ProbeDB) LoadServices(reader io.Reader) error {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
-		// Ignorer les lignes vides et commentaires
+		// Ignore empty lines and comments
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
 
 		// Format: service_name port/protocol frequency [comment]
-		// Exemple: irc	6667/tcp	0.000652	# Internet Relay Chat
+		// Example: irc	6667/tcp	0.000652	# Internet Relay Chat
 		fields := strings.Fields(line)
 		if len(fields) < 2 {
 			continue
@@ -220,7 +220,7 @@ func (db *ProbeDB) LoadServices(reader io.Reader) error {
 		serviceName := fields[0]
 		portProto := fields[1]
 
-		// Parser port/protocol
+		// Parse port/protocol
 		parts := strings.Split(portProto, "/")
 		if len(parts) != 2 {
 			continue
@@ -233,9 +233,9 @@ func (db *ProbeDB) LoadServices(reader io.Reader) error {
 
 		protocol := parts[1]
 
-		// Ne garder que TCP pour l'instant
+		// Only keep TCP for now
 		if protocol == "tcp" {
-			// Si le port n'a pas déjà un service, l'ajouter
+			// If the port does not already have a service, add it
 			if _, exists := db.PortServices[port]; !exists {
 				db.PortServices[port] = serviceName
 			}
@@ -245,18 +245,18 @@ func (db *ProbeDB) LoadServices(reader io.Reader) error {
 	return scanner.Err()
 }
 
-// compileFallbacks précompile les fallbacks en pointeurs (comme nmap)
+// compileFallbacks precompiles the fallbacks into pointers (like nmap)
 func (db *ProbeDB) compileFallbacks() {
-	// Cas spécial : NULL probe
+	// Special case: NULL probe
 	if db.NullProbe != nil {
 		db.NullProbe.FallbackProbes = append(db.NullProbe.FallbackProbes, db.NullProbe)
 	}
 
 	for _, probe := range db.Probes {
-		// Toujours commencer par le probe lui-même
+		// Always start with the probe itself
 		probe.FallbackProbes = append(probe.FallbackProbes, probe)
 
-		// Ajouter les fallbacks spécifiés dans la directive
+		// Add the fallbacks specified in the directive
 		for _, fbName := range probe.Fallbacks {
 			fbProbe := db.getProbeByName(fbName)
 			if fbProbe != nil {
@@ -264,9 +264,9 @@ func (db *ProbeDB) compileFallbacks() {
 			}
 		}
 
-		// Pour TCP : ajouter NULL probe à la fin (automatique)
+		// For TCP: add the NULL probe at the end (automatic)
 		if probe.Protocol == "TCP" && db.NullProbe != nil {
-			// Éviter de dupliquer si le probe est lui-même NULL
+			// Avoid duplicating if the probe is itself NULL
 			if probe.Name != "NULL" {
 				probe.FallbackProbes = append(probe.FallbackProbes, db.NullProbe)
 			}
@@ -274,7 +274,7 @@ func (db *ProbeDB) compileFallbacks() {
 	}
 }
 
-// getProbeByName trouve un probe par son nom
+// getProbeByName finds a probe by its name
 func (db *ProbeDB) getProbeByName(name string) *Probe {
 	if db.NullProbe != nil && db.NullProbe.Name == name {
 		return db.NullProbe
@@ -329,15 +329,15 @@ func parseMatch(s string, isSoft bool) *Match {
 		return nil
 	}
 
-	// Validation stricte des flags (comme nmap : uniquement 'i' et 's')
+	// Strict flag validation (like nmap: only 'i' and 's')
 	for _, flag := range flags {
 		if flag != 'i' && flag != 's' {
-			// Nmap rejette les autres flags (notamment 'm')
+			// Nmap rejects the other flags (notably 'm')
 			return nil
 		}
 	}
 
-	// Construire les options PCRE en combinant les flags
+	// Build the PCRE options by combining the flags
 	opts := CompileOption(0)
 	if strings.Contains(flags, "i") {
 		opts |= Caseless
@@ -399,7 +399,7 @@ func parsePattern(s string) (pattern, flags, versionInfo string) {
 		versionInfo = strings.TrimSpace(s[i:])
 	}
 
-	// NE PAS unescape les patterns - ils sont déjà en format regex correct
+	// Do NOT unescape the patterns - they are already in correct regex format
 	return
 }
 
@@ -414,7 +414,7 @@ func parseVersionInfo(info string, m *Match) {
 		key := part[:2]
 		val := part[2:]
 
-		// Retirer le '/' final si présent
+		// Remove the trailing '/' if present
 		if len(val) > 0 && val[len(val)-1] == '/' {
 			val = val[:len(val)-1]
 		}
@@ -453,13 +453,13 @@ func splitVersionInfo(info string) []string {
 			escaped = true
 			current.WriteByte(info[i])
 		} else if info[i] == '/' && i+3 < len(info) && info[i+1] == ' ' {
-			// Terminer la partie actuelle avec le '/'
+			// Finish the current part with the '/'
 			current.WriteByte(info[i])
 			if s := current.String(); s != "" {
 				parts = append(parts, s)
 			}
 			current.Reset()
-			// Sauter l'espace
+			// Skip the space
 			i++
 		} else {
 			current.WriteByte(info[i])
@@ -532,13 +532,13 @@ func unescapePattern(s string) string {
 			case '\\':
 				result.WriteByte('\\')
 			default:
-				// Nmap rejette les séquences octales (nombres)
+				// Nmap rejects octal sequences (numbers)
 				if (s[i] >= '0' && s[i] <= '9') || (s[i] >= 'a' && s[i] <= 'z') || (s[i] >= 'A' && s[i] <= 'Z') {
-					// Caractère alphanumérique après '\' : invalide (comme nmap)
-					// On retourne la chaîne telle quelle en cas d'erreur
+					// Alphanumeric character after '\': invalid (like nmap)
+					// We return the string as-is in case of error
 					return s
 				}
-				// Autres caractères : copie tel quel (pour \", \|, etc.)
+				// Other characters: copy as-is (for \", \|, etc.)
 				result.WriteByte(s[i])
 			}
 		} else {
@@ -572,8 +572,8 @@ func parsePorts(s string) []int {
 	return ports
 }
 
-// buildProbeQueue construit la queue de probes selon l'algorithme nmap.
-// Suit les 3 etats stricts de nmap (service_scan.cc nextProbe()):
+// buildProbeQueue builds the probe queue following the nmap algorithm.
+// Follows nmap's 3 strict states (service_scan.cc nextProbe()):
 //  1. PROBESTATE_NULLPROBE: NULL probe (TCP only)
 //  2. PROBESTATE_MATCHINGPROBES: probes whose ports/sslports contain this port
 //  3. PROBESTATE_NONMATCHINGPROBES: remaining probes filtered by rarity <= intensity
@@ -675,19 +675,19 @@ func min(a, b int) int {
 }
 
 func extractHTTPHeaders(data []byte) string {
-	// Chercher la fin des headers HTTP (double CRLF)
+	// Find the end of the HTTP headers (double CRLF)
 	dataStr := string(data)
 
-	// HTTP utilise \r\n\r\n pour séparer headers et body
+	// HTTP uses \r\n\r\n to separate headers and body
 	if idx := strings.Index(dataStr, "\r\n\r\n"); idx != -1 {
-		return dataStr[:idx+4] // Inclure le double CRLF
+		return dataStr[:idx+4] // Include the double CRLF
 	}
-	// Fallback pour \n\n
+	// Fallback for \n\n
 	if idx := strings.Index(dataStr, "\n\n"); idx != -1 {
 		return dataStr[:idx+2]
 	}
 
-	// Si pas de séparateur trouvé, retourner tout (probablement juste les headers)
+	// If no separator found, return everything (probably just the headers)
 	return dataStr
 }
 
@@ -702,7 +702,7 @@ func readResponse(conn net.Conn, timeout time.Duration) []byte {
 		n, err := conn.Read(buf)
 		if n > 0 {
 			response = append(response, buf[:n]...)
-			// Après la première lecture, utiliser un timeout court pour les données additionnelles
+			// After the first read, use a short timeout for additional data
 			conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
 		}
 		if err != nil {
@@ -713,7 +713,7 @@ func readResponse(conn net.Conn, timeout time.Duration) []byte {
 	return response
 }
 
-// safeRegexMatch exécute un match regex avec timeout pour éviter les attaques ReDoS
+// safeRegexMatch executes a regex match with a timeout to avoid ReDoS attacks
 func safeRegexMatch(pattern *Regexp, data string, timeout time.Duration) (bool, []string) {
 	type matchResult struct {
 		matched bool
@@ -735,13 +735,13 @@ func safeRegexMatch(pattern *Regexp, data string, timeout time.Duration) (bool, 
 	case result := <-resultChan:
 		return result.matched, result.groups
 	case <-time.After(timeout):
-		// Timeout : possible attaque ReDoS
+		// Timeout: possible ReDoS attack
 		return false, nil
 	}
 }
 
 func (db *ProbeDB) testMatches(probe *Probe, response []byte, filterService string) *ServiceResult {
-	// Limiter la taille de la réponse pour éviter les regex trop longues
+	// Limit the response size to avoid overly long regexes
 	maxMatchSize := 16384
 	matchResponse := response
 	if len(response) > maxMatchSize {
@@ -749,21 +749,21 @@ func (db *ProbeDB) testMatches(probe *Probe, response []byte, filterService stri
 	}
 	responseStr := string(matchResponse)
 
-	// Comportement nmap: retourner le PREMIER match trouvé (first-match-wins)
-	// au lieu de collecter tous les matches et choisir le meilleur score
+	// nmap behavior: return the FIRST match found (first-match-wins)
+	// instead of collecting all matches and choosing the best score
 	for _, match := range probe.Matches {
-		// Si on filtre par service, vérifier la compatibilité
+		// If filtering by service, check compatibility
 		if filterService != "" && !match.serviceMatches(filterService) {
 			continue
 		}
 
-		// Utiliser safeRegexMatch avec timeout de 5 secondes (protection ReDoS)
+		// Use safeRegexMatch with a 5 second timeout (ReDoS protection)
 		matched, groups := safeRegexMatch(match.Pattern, responseStr, 5*time.Second)
 		if !matched {
 			continue
 		}
 
-		// Si pas de groupes capturés, utiliser le match complet
+		// If no captured groups, use the full match
 		if groups == nil {
 			groups = []string{responseStr}
 		}
@@ -780,32 +780,32 @@ func (db *ProbeDB) testMatches(probe *Probe, response []byte, filterService stri
 			isSoft:     match.IsSoft,
 		}
 
-		// Debug: afficher les détails du match
+		// Debug: display the match details
 		if db.Debug {
 			log.Printf("[DEBUG-MATCH] service=%s soft=%v product_tpl=%q product=%q version=%q",
 				result.Service, result.isSoft, match.Product, result.Product, result.Version)
 		}
 
-		// Fix: forcer soft match pour HTTP sans Product (comportement nmap)
-		// Un match HTTP sans Product est considéré comme générique/soft
+		// Fix: force soft match for HTTP without Product (nmap behavior)
+		// An HTTP match without Product is considered generic/soft
 		if !result.isSoft && result.Product == "" {
 			if result.Service == "http" || result.Service == "https" || result.Service == "ssl/http" {
 				result.isSoft = true
 			}
 		}
 
-		// FIRST-MATCH-WINS: retourner immédiatement le premier match trouvé
+		// FIRST-MATCH-WINS: return the first match found immediately
 		return result
 	}
 
-	// Aucun match trouvé
+	// No match found
 	return nil
 }
 
 func (db *ProbeDB) testFallbacks(probe *Probe, response []byte) *ServiceResult {
-	// Utiliser les fallbacks précompilés (plus rapide que la recherche par nom)
+	// Use the precompiled fallbacks (faster than searching by name)
 	for _, fbProbe := range probe.FallbackProbes {
-		// Ignorer le probe lui-même (déjà testé)
+		// Ignore the probe itself (already tested)
 		if fbProbe == probe {
 			continue
 		}
@@ -823,7 +823,7 @@ func (m *Match) serviceMatches(service string) bool {
 }
 
 func (r *ServiceResult) IsSoft() bool {
-	// Un résultat est considéré soft si peu d'infos
+	// A result is considered soft if it has little info
 	return r.Product == "" && r.Version == ""
 }
 
@@ -837,11 +837,11 @@ func expandRefs(s string, groups []string) string {
 
 	for i < len(s) {
 		if s[i] == '$' && i+1 < len(s) {
-			// Trouver la fin de la variable
+			// Find the end of the variable
 			varStart := i
 			i++
 
-			// Simple $N (un seul chiffre)
+			// Simple $N (a single digit)
 			if s[i] >= '1' && s[i] <= '9' {
 				num := int(s[i] - '0')
 				if num < len(groups) {
@@ -851,23 +851,23 @@ func expandRefs(s string, groups []string) string {
 				continue
 			}
 
-			// Commandes avancées : $P(), $SUBST(), $I()
+			// Advanced commands: $P(), $SUBST(), $I()
 			if s[i] >= 'A' && s[i] <= 'Z' {
 				cmdStart := i
-				// Trouver la fin du nom de commande
+				// Find the end of the command name
 				for i < len(s) && s[i] >= 'A' && s[i] <= 'Z' {
 					i++
 				}
 				cmdName := s[cmdStart:i]
 
-				// Doit être suivi de '('
+				// Must be followed by '('
 				if i >= len(s) || s[i] != '(' {
-					// Pas une commande valide, copier tel quel
+					// Not a valid command, copy as-is
 					result.WriteString(s[varStart:i])
 					continue
 				}
 
-				// Trouver la parenthèse fermante
+				// Find the closing parenthesis
 				parenStart := i
 				depth := 1
 				i++
@@ -883,19 +883,19 @@ func expandRefs(s string, groups []string) string {
 				}
 
 				if depth != 0 {
-					// Parenthèses non fermées
+					// Unclosed parentheses
 					result.WriteString(s[varStart:])
 					break
 				}
 
-				// Extraire les arguments
+				// Extract the arguments
 				argsStr := s[parenStart+1 : i-1]
 				expansion := processSubstCommand(cmdName, argsStr, groups)
 				result.WriteString(expansion)
 				continue
 			}
 
-			// Caractère invalide après $
+			// Invalid character after $
 			result.WriteByte('$')
 		} else {
 			result.WriteByte(s[i])
@@ -906,11 +906,11 @@ func expandRefs(s string, groups []string) string {
 	return result.String()
 }
 
-// processSubstCommand traite les commandes de substitution avancées
+// processSubstCommand handles the advanced substitution commands
 func processSubstCommand(cmd string, argsStr string, groups []string) string {
 	switch cmd {
 	case "P":
-		// $P(N) - filtre caractères imprimables
+		// $P(N) - filters printable characters
 		return substP(argsStr, groups)
 	case "SUBST":
 		// $SUBST(N,"find","replace")
@@ -923,7 +923,7 @@ func processSubstCommand(cmd string, argsStr string, groups []string) string {
 	}
 }
 
-// substP filtre les caractères imprimables
+// substP filters the printable characters
 func substP(argsStr string, groups []string) string {
 	num, err := strconv.Atoi(strings.TrimSpace(argsStr))
 	if err != nil || num < 1 || num > 9 || num >= len(groups) {
@@ -939,9 +939,9 @@ func substP(argsStr string, groups []string) string {
 	return result.String()
 }
 
-// substSUBST effectue un remplacement de chaîne
+// substSUBST performs a string replacement
 func substSUBST(argsStr string, groups []string) string {
-	// Parser: N,"find","replace"
+	// Parse: N,"find","replace"
 	args := parseSubstArgs(argsStr)
 	if len(args) != 3 {
 		return ""
@@ -958,9 +958,9 @@ func substSUBST(argsStr string, groups []string) string {
 	return strings.ReplaceAll(groups[num], find, replace)
 }
 
-// substI convertit des bytes binaires en entier
+// substI converts binary bytes to an integer
 func substI(argsStr string, groups []string) string {
-	// Parser: N,"<"|">"
+	// Parse: N,"<"|">"
 	args := parseSubstArgs(argsStr)
 	if len(args) != 2 {
 		return ""
@@ -998,7 +998,7 @@ func substI(argsStr string, groups []string) string {
 	return strconv.FormatUint(val, 10)
 }
 
-// parseSubstArgs parse les arguments séparés par des virgules, gérant les chaînes quotées
+// parseSubstArgs parses the comma-separated arguments, handling quoted strings
 func parseSubstArgs(s string) []string {
 	var args []string
 	var current strings.Builder
@@ -1025,7 +1025,7 @@ func parseSubstArgs(s string) []string {
 		}
 
 		if ch == ',' && !inQuotes {
-			// Ajouter même si vide (pour supporter les strings vides comme "")
+			// Add even if empty (to support empty strings like "")
 			args = append(args, strings.TrimSpace(current.String()))
 			current.Reset()
 			continue
@@ -1034,15 +1034,15 @@ func parseSubstArgs(s string) []string {
 		current.WriteByte(ch)
 	}
 
-	// Toujours ajouter le dernier argument, même s'il est vide
+	// Always add the last argument, even if it is empty
 	args = append(args, strings.TrimSpace(current.String()))
 
 	return args
 }
 
-// ScanPortAuto scanne un port avec détection SSL basée sur le numéro de port
+// ScanPortAuto scans a port with SSL detection based on the port number
 func (db *ProbeDB) ScanPortAuto(host string, port int, timeout time.Duration, intensity int) (*ServiceResult, error) {
-	// Ports SSL standards : essayer directement en SSL
+	// Standard SSL ports: try directly in SSL
 	sslPorts := map[int]bool{
 		443: true, 8443: true, 9443: true, 4443: true, // HTTPS
 		465: true, 587: true, 993: true, 995: true, // Email SSL
@@ -1051,30 +1051,30 @@ func (db *ProbeDB) ScanPortAuto(host string, port int, timeout time.Duration, in
 		5986: true, 8531: true, // WinRM HTTPS
 	}
 
-	// Si c'est un port SSL standard, essayer directement en SSL
+	// If it is a standard SSL port, try directly in SSL
 	if sslPorts[port] {
 		result, err := db.GrabPort(host, port, timeout, true, intensity)
-		// Si succès, retourner
+		// If successful, return
 		if err == nil && result != nil {
 			return result, nil
 		}
-		// Si échec sur port SSL standard, fallback en non-SSL
+		// If it fails on a standard SSL port, fall back to non-SSL
 		return db.GrabPort(host, port, timeout, false, intensity)
 	}
 
-	// Pour les autres ports : essayer d'abord sans SSL
+	// For the other ports: try first without SSL
 	result, err := db.GrabPort(host, port, timeout, false, intensity)
 
-	// Si le service détecté commence par "ssl/", cela signifie que le service nécessite SSL
+	// If the detected service starts with "ssl/", it means the service requires SSL
 	// (nmap-service-probes convention: ssl/http, ssl/imap, etc.)
-	// Dans ce cas, réessayer automatiquement en SSL
+	// In that case, automatically retry in SSL
 	if result != nil && strings.HasPrefix(result.Service, "ssl/") {
 		resultSSL, errSSL := db.GrabPort(host, port, timeout, true, intensity)
 		if errSSL == nil && resultSSL != nil {
 			return resultSSL, nil
 		}
-		// Si échec SSL, convertir quand même ssl/* en service SSL approprié
-		// pour assurer la cohérence dans la base de données
+		// If SSL fails, still convert ssl/* into the appropriate SSL service
+		// to ensure consistency in the database
 		switch result.Service {
 		case "ssl/http":
 			result.Service = "https"
@@ -1088,35 +1088,35 @@ func (db *ProbeDB) ScanPortAuto(host string, port int, timeout time.Duration, in
 		return result, nil
 	}
 
-	// Si succès avec un résultat hard et product, retourner
+	// If successful with a hard result and product, return
 	if result != nil && !result.isSoft && result.Product != "" {
 		return result, nil
 	}
 
-	// Si soft match HTTP sur port HTTP standard, ne pas retry SSL (optimisation nmap)
+	// If soft match HTTP on a standard HTTP port, do not retry SSL (nmap optimization)
 	if result != nil && result.isSoft &&
 		(result.Service == "http" || result.Service == "https") &&
 		(port == 80 || port == 8080 || port == 8000 || port == 8888) {
 		return result, nil
 	}
 
-	// Si pas de résultat ou résultat soft, réessayer en SSL
-	// Cela permet de détecter les services SSL sur ports non-standards
+	// If no result or soft result, retry in SSL
+	// This allows detecting SSL services on non-standard ports
 	resultSSL, errSSL := db.GrabPort(host, port, timeout, true, intensity)
 	if errSSL == nil && resultSSL != nil {
 		return resultSSL, nil
 	}
 
-	// Si scan SSL a échoué mais scan non-SSL a réussi, retourner le résultat non-SSL
+	// If the SSL scan failed but the non-SSL scan succeeded, return the non-SSL result
 	if result != nil {
 		return result, err
 	}
 
-	// Sinon retourner le résultat SSL
+	// Otherwise return the SSL result
 	return resultSSL, errSSL
 }
 
-// isPortClosedError détecte rapidement si un port est fermé/inaccessible
+// isPortClosedError quickly detects whether a port is closed/unreachable
 func isPortClosedError(err error) bool {
 	if err == nil {
 		return false
@@ -1128,7 +1128,7 @@ func isPortClosedError(err error) bool {
 		strings.Contains(errStr, "network is unreachable")
 }
 
-// TLSConnectionInfo contient les informations de la connexion TLS
+// TLSConnectionInfo contains the TLS connection information
 type TLSConnectionInfo struct {
 	Conn            net.Conn
 	TLSVersion      uint16
@@ -1137,8 +1137,8 @@ type TLSConnectionInfo struct {
 	CertificatesPEM []string
 }
 
-// connectToPort ouvre une connexion TCP ou TLS
-// Retourne (conn, tlsInfo, error)
+// connectToPort opens a TCP or TLS connection
+// Returns (conn, tlsInfo, error)
 func connectToPort(host string, port int, timeout time.Duration, useSSL bool) (net.Conn, *TLSConnectionInfo, error) {
 	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 
@@ -1153,7 +1153,7 @@ func connectToPort(host string, port int, timeout time.Duration, useSSL bool) (n
 			return nil, nil, fmt.Errorf("TLS connection failed: %w", err)
 		}
 
-		// Extraire les informations TLS
+		// Extract the TLS information
 		state := tlsConn.ConnectionState()
 		tlsInfo := &TLSConnectionInfo{
 			Conn:            tlsConn,
@@ -1163,7 +1163,7 @@ func connectToPort(host string, port int, timeout time.Duration, useSSL bool) (n
 			CertificatesPEM: make([]string, 0, len(state.PeerCertificates)),
 		}
 
-		// Convertir les certificats en PEM
+		// Convert the certificates to PEM
 		for _, cert := range state.PeerCertificates {
 			pem := EncodeCertToPEM(cert.Raw)
 			tlsInfo.CertificatesPEM = append(tlsInfo.CertificatesPEM, pem)
@@ -1179,11 +1179,11 @@ func connectToPort(host string, port int, timeout time.Duration, useSSL bool) (n
 	return conn, nil, nil
 }
 
-// EncodeCertToPEM encode un certificat DER en PEM
+// EncodeCertToPEM encodes a DER certificate to PEM
 func EncodeCertToPEM(derBytes []byte) string {
-	// Format PEM standard
+	// Standard PEM format
 	encoded := "-----BEGIN CERTIFICATE-----\n"
-	// Base64 encode avec wrapping à 64 caractères
+	// Base64 encode with wrapping at 64 characters
 	b64 := Base64Encode(derBytes)
 	for i := 0; i < len(b64); i += 64 {
 		end := i + 64
@@ -1196,14 +1196,14 @@ func EncodeCertToPEM(derBytes []byte) string {
 	return encoded
 }
 
-// Base64Encode encode en base64 standard
+// Base64Encode encodes to standard base64
 func Base64Encode(data []byte) string {
 	const base64Table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 	var result strings.Builder
 	n := len(data)
 
 	for i := 0; i < n; i += 3 {
-		// Lire jusqu'à 3 bytes
+		// Read up to 3 bytes
 		b1 := data[i]
 		var b2, b3 byte
 		if i+1 < n {
@@ -1213,7 +1213,7 @@ func Base64Encode(data []byte) string {
 			b3 = data[i+2]
 		}
 
-		// Convertir en 4 caractères base64
+		// Convert to 4 base64 characters
 		result.WriteByte(base64Table[b1>>2])
 		result.WriteByte(base64Table[((b1&0x03)<<4)|((b2&0xf0)>>4)])
 
@@ -1233,13 +1233,13 @@ func Base64Encode(data []byte) string {
 	return result.String()
 }
 
-// attachTLSInfo attache les informations TLS à un résultat et calcule JARM si TLS détecté
+// attachTLSInfo attaches the TLS information to a result and computes JARM if TLS is detected
 func attachTLSInfo(result *ServiceResult, tlsInfo *TLSConnectionInfo, host string, port int) {
 	if result == nil {
 		return
 	}
 
-	// Si on a déjà des infos TLS, les utiliser
+	// If we already have TLS info, use it
 	if tlsInfo != nil {
 		result.TLSVersion = tlsInfo.TLSVersion
 		result.CipherSuite = tlsInfo.CipherSuite
@@ -1255,9 +1255,9 @@ func attachTLSInfo(result *ServiceResult, tlsInfo *TLSConnectionInfo, host strin
 		return
 	}
 
-	// Si on n'a pas d'info TLS mais qu'un service SSL a été détecté
-	// (via un probe brut comme SSLSessionReq), faire une connexion TLS réelle
-	// pour extraire les certificats et calculer JARM
+	// If we have no TLS info but an SSL service was detected
+	// (via a raw probe like SSLSessionReq), make a real TLS connection
+	// to extract the certificates and compute JARM
 	if isSSLService(result.Service) && host != "" && port > 0 {
 		conn, extractedTLSInfo, err := connectToPort(host, port, 5*time.Second, true)
 		if err == nil && extractedTLSInfo != nil {
@@ -1277,9 +1277,9 @@ func attachTLSInfo(result *ServiceResult, tlsInfo *TLSConnectionInfo, host strin
 	}
 }
 
-// isSSLService détecte si un service utilise SSL/TLS
+// isSSLService detects whether a service uses SSL/TLS
 func isSSLService(service string) bool {
-	// Services SSL/TLS courants
+	// Common SSL/TLS services
 	sslServices := []string{
 		"ssl", "https", "imaps", "pop3s", "smtps", "ftps", "ldaps", "nrpe",
 		"ssl/http", "ssl/imap", "ssl/pop3", "ssl/smtp", "ssl/ftp",
@@ -1293,7 +1293,7 @@ func isSSLService(service string) bool {
 	return false
 }
 
-// ProbeServiceMultiConn teste plusieurs probes en ouvrant une connexion par probe
+// ProbeServiceMultiConn tests several probes by opening one connection per probe
 func (db *ProbeDB) ProbeServiceMultiConn(host string, port int, timeout time.Duration, useSSL bool, intensity int) (*ServiceResult, error) {
 
 	// Check excluded ports (nmap Exclude directive - e.g. printer ports 9100-9107)
@@ -1314,14 +1314,14 @@ func (db *ProbeDB) ProbeServiceMultiConn(host string, port int, timeout time.Dur
 	}
 
 	var bestResult *ServiceResult
-	var nullProbeResponse string        // Conserver la réponse du probe NULL
-	var firstTLSInfo *TLSConnectionInfo // Conserver les infos TLS de la première connexion réussie
+	var nullProbeResponse string        // Keep the NULL probe response
+	var firstTLSInfo *TLSConnectionInfo // Keep the TLS info from the first successful connection
 	probedCount := 0
 	consecutiveNullResults := 0
-	maxConsecutiveNullResults := 20 // Réduit : tester maximum 15 probes consécutifs sans match
+	maxConsecutiveNullResults := 20 // Reduced: test at most 15 consecutive probes without a match
 	consecutiveConnErrors := 0
-	maxConsecutiveConnErrors := 3 // Arrêter après 3 erreurs de connexion consécutives
-	probesAfterProduct := 0       // Compteur de probes testés après avoir trouvé un produit
+	maxConsecutiveConnErrors := 3 // Stop after 3 consecutive connection errors
+	probesAfterProduct := 0       // Counter of probes tested after finding a product
 
 	if db.Debug {
 		log.Printf("[DEBUG] Starting probe loop with %d probes", len(queue))
@@ -1330,7 +1330,7 @@ func (db *ProbeDB) ProbeServiceMultiConn(host string, port int, timeout time.Dur
 	// Track softmatch service for serviceIsPossible filtering (nmap DEV-2)
 	softMatchService := ""
 
-	// Tester chaque probe avec sa propre connexion
+	// Test each probe with its own connection
 	for _, probe := range queue {
 		// After a softmatch, only test probes that have a match pattern for the
 		// detected service (nmap's serviceIsPossible optimization).
@@ -1354,7 +1354,7 @@ func (db *ProbeDB) ProbeServiceMultiConn(host string, port int, timeout time.Dur
 				log.Printf("[DEBUG]   Connection failed: %v\n", err)
 			}
 
-			// Fail-fast: détecter immédiatement si le port est fermé (uniquement connection refused)
+			// Fail-fast: immediately detect whether the port is closed (only connection refused)
 			if isPortClosedError(err) {
 				consecutiveConnErrors++
 				if consecutiveConnErrors >= maxConsecutiveConnErrors {
@@ -1373,12 +1373,12 @@ func (db *ProbeDB) ProbeServiceMultiConn(host string, port int, timeout time.Dur
 
 			consecutiveNullResults++
 
-			// Si trop d'erreurs de connexion consécutives, le port est probablement fermé/filtré
+			// If too many consecutive connection errors, the port is probably closed/filtered
 			if consecutiveConnErrors >= maxConsecutiveConnErrors {
 				if db.Debug {
 					log.Printf("[DEBUG] Stopping: %d consecutive connection errors\n", consecutiveConnErrors)
 				}
-				// Si on a déjà un résultat, le retourner, sinon erreur
+				// If we already have a result, return it, otherwise error
 				if bestResult != nil {
 					attachTLSInfo(bestResult, firstTLSInfo, host, port)
 					return bestResult, nil
@@ -1392,10 +1392,10 @@ func (db *ProbeDB) ProbeServiceMultiConn(host string, port int, timeout time.Dur
 			continue
 		}
 
-		// Connexion réussie : réinitialiser le compteur d'erreurs de connexion
+		// Connection successful: reset the connection error counter
 		consecutiveConnErrors = 0
 
-		// Sauvegarder les infos TLS de la première connexion réussie
+		// Save the TLS info from the first successful connection
 		if tlsInfo != nil && firstTLSInfo == nil {
 			firstTLSInfo = tlsInfo
 			if db.Debug {
@@ -1406,7 +1406,7 @@ func (db *ProbeDB) ProbeServiceMultiConn(host string, port int, timeout time.Dur
 
 		result, rawResp := db.testSingleProbe(conn, probe, useSSL, host)
 
-		// Sauvegarder la réponse du probe NULL
+		// Save the NULL probe response
 		if probe.Name == "NULL" && rawResp != "" {
 			nullProbeResponse = rawResp
 		}
@@ -1424,59 +1424,59 @@ func (db *ProbeDB) ProbeServiceMultiConn(host string, port int, timeout time.Dur
 		}
 
 		if result != nil {
-			consecutiveNullResults = 0 // Réinitialiser le compteur
+			consecutiveNullResults = 0 // Reset the counter
 
 			// Track softmatch service for serviceIsPossible filtering
 			if result.isSoft && softMatchService == "" {
 				softMatchService = result.Service
 			}
 
-			// Hard match avec Product ET Version -> match parfait, on peut arrêter
+			// Hard match with Product AND Version -> perfect match, we can stop
 			if !result.isSoft && result.Product != "" && result.Version != "" {
 				result.NullProbeResponse = nullProbeResponse
 				attachTLSInfo(result, firstTLSInfo, host, port)
 				return result, nil
 			}
 
-			// Mémoriser le meilleur résultat
+			// Remember the best result
 			if bestResult == nil {
 				bestResult = result
 			} else if !result.isSoft && bestResult.isSoft {
-				// Hard match bat soft match
+				// Hard match beats soft match
 				bestResult = result
 			} else if !result.isSoft && !bestResult.isSoft {
-				// Entre deux hard matches, prendre celui avec le plus d'infos
+				// Between two hard matches, take the one with the most info
 				if result.Product != "" && bestResult.Product == "" {
-					// Nouveau résultat a un produit, l'ancien non
+					// New result has a product, the old one does not
 					bestResult = result
 				} else if result.Product != "" && result.Version != "" && bestResult.Version == "" {
-					// Nouveau résultat a produit + version, l'ancien juste produit
+					// New result has product + version, the old one just product
 					bestResult = result
 				}
 			}
 		} else {
 			consecutiveNullResults++
-			// Si trop de résultats nuls consécutifs, arrêter
+			// If too many consecutive null results, stop
 			if consecutiveNullResults >= maxConsecutiveNullResults {
 				break
 			}
 		}
 
-		// Vérifications d'arrêt anticipé (après mise à jour de bestResult)
+		// Early-stop checks (after updating bestResult)
 
-		// Si bestResult a déjà un hard match avec product, compter les probes suivants
-		// Exception: si le service est juste "ssl" sans produit, continuer pour trouver le service applicatif
+		// If bestResult already has a hard match with product, count the following probes
+		// Exception: if the service is just "ssl" without a product, continue to find the application service
 		if bestResult != nil && !bestResult.isSoft && bestResult.Product != "" {
 			probesAfterProduct++
-			// Retour rapide après 2 probes supplémentaires au lieu de 5
+			// Fast return after 2 additional probes instead of 5
 			if probesAfterProduct >= 2 {
 				bestResult.NullProbeResponse = nullProbeResponse
 				attachTLSInfo(bestResult, firstTLSInfo, host, port)
 				return bestResult, nil
 			}
 		} else if bestResult != nil && !bestResult.isSoft && bestResult.Service == "ssl" && bestResult.Product == "" {
-			// Service SSL générique détecté : continuer pour trouver le service applicatif (https, imaps, etc)
-			// Ne pas incrémenter probesAfterProduct pour laisser plus de chance aux probes suivants
+			// Generic SSL service detected: continue to find the application service (https, imaps, etc)
+			// Do not increment probesAfterProduct to give more chance to the following probes
 			if probedCount >= 10 {
 				bestResult.NullProbeResponse = nullProbeResponse
 				attachTLSInfo(bestResult, firstTLSInfo, host, port)
@@ -1484,8 +1484,8 @@ func (db *ProbeDB) ProbeServiceMultiConn(host string, port int, timeout time.Dur
 			}
 		}
 
-		// Si on a un soft match HTTP/HTTPS, retourner après quelques probes
-		// Note: On ne se base plus sur le port mais uniquement sur le service détecté
+		// If we have an HTTP/HTTPS soft match, return after a few probes
+		// Note: We no longer rely on the port but only on the detected service
 		if bestResult != nil && bestResult.isSoft &&
 			(bestResult.Service == "http" || bestResult.Service == "https" || bestResult.Service == "ssl/http") &&
 			probedCount >= 3 {
@@ -1494,29 +1494,29 @@ func (db *ProbeDB) ProbeServiceMultiConn(host string, port int, timeout time.Dur
 			return bestResult, nil
 		}
 
-		// Si on n'a qu'un soft match non-HTTP et qu'on a testé 3 probes minimum, arrêter
+		// If we only have a non-HTTP soft match and have tested at least 3 probes, stop
 		if bestResult != nil && bestResult.isSoft && probedCount >= 3 {
 			bestResult.NullProbeResponse = nullProbeResponse
 			attachTLSInfo(bestResult, firstTLSInfo, host, port)
 			return bestResult, nil
 		}
 
-		// Limite absolue : tester au maximum 30 probes
+		// Absolute limit: test at most 30 probes
 		if probedCount >= 30 {
 			break
 		}
 	}
 
-	// Retourner le meilleur résultat trouvé
+	// Return the best result found
 	if bestResult != nil {
 		bestResult.NullProbeResponse = nullProbeResponse
 		attachTLSInfo(bestResult, firstTLSInfo, host, port)
 		return bestResult, nil
 	}
 
-	// Fallback : utiliser nmap-services si le port est connu
-	// Cela simule le comportement de nmap qui retourne le service par défaut du port
-	// Marqué comme "uncertain" car basé uniquement sur le port, sans probe match
+	// Fallback: use nmap-services if the port is known
+	// This simulates nmap's behavior of returning the port's default service
+	// Marked as "uncertain" because based only on the port, without a probe match
 	if serviceName, exists := db.PortServices[port]; exists {
 		fallbackResult := &ServiceResult{
 			Service:           serviceName,
@@ -1525,7 +1525,7 @@ func (db *ProbeDB) ProbeServiceMultiConn(host string, port int, timeout time.Dur
 			Info:              "",
 			Probe:             "nmap-services",
 			isSoft:            true,
-			Uncertain:         true, // Marqueur d'incertitude (équivalent au "?" de nmap)
+			Uncertain:         true, // Uncertainty marker (equivalent to nmap's "?")
 			RawResponse:       "",
 			NullProbeResponse: nullProbeResponse,
 		}
@@ -1536,12 +1536,12 @@ func (db *ProbeDB) ProbeServiceMultiConn(host string, port int, timeout time.Dur
 	return nil, fmt.Errorf("no matching service found")
 }
 
-// testSingleProbe teste un seul probe sur une connexion
-// Retourne (result, rawResponse)
+// testSingleProbe tests a single probe on a connection
+// Returns (result, rawResponse)
 func (db *ProbeDB) testSingleProbe(conn net.Conn, probe *Probe, useSSL bool, host string) (*ServiceResult, string) {
 	var response []byte
 
-	// NULL probe : ne pas envoyer de données
+	// NULL probe: do not send any data
 	if probe.Name == "NULL" {
 		waitTime := time.Duration(probe.TotalWaitMS) * time.Millisecond
 		if waitTime == 0 {
@@ -1572,7 +1572,7 @@ func (db *ProbeDB) testSingleProbe(conn net.Conn, probe *Probe, useSSL bool, hos
 			}
 		}
 	} else {
-		// Envoyer le probe
+		// Send the probe
 		if len(probe.ProbeString) > 0 {
 			conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
 			if _, err := conn.Write(probe.ProbeString); err != nil {
@@ -1580,14 +1580,14 @@ func (db *ProbeDB) testSingleProbe(conn net.Conn, probe *Probe, useSSL bool, hos
 			}
 		}
 
-		// Lire la réponse avec timeout optimisé
+		// Read the response with an optimized timeout
 		waitTime := time.Duration(probe.TotalWaitMS) * time.Millisecond
 		if waitTime == 0 {
 			waitTime = 3 * time.Second
 		}
 
-		// Optimisation : réduire le timeout pour les probes rares en mode SSL
-		// Ces probes ont peu de chances de matcher sur des services SSL/TLS standards
+		// Optimization: reduce the timeout for rare probes in SSL mode
+		// These probes are unlikely to match on standard SSL/TLS services
 		if useSSL && probe.Rarity > 3 {
 			maxWait := 2 * time.Second
 			if waitTime > maxWait {
@@ -1604,16 +1604,16 @@ func (db *ProbeDB) testSingleProbe(conn net.Conn, probe *Probe, useSSL bool, hos
 		return nil, ""
 	}
 
-	// Debug: afficher la réponse brute si disponible
+	// Debug: display the raw response if available
 	if db.Debug && len(response) > 0 {
 		log.Printf("[DEBUG]   Raw response (%d bytes): %q\n", len(response), string(response[:min(len(response), 200)]))
 	}
 
-	// Tester les matches
+	// Test the matches
 	if result := db.testMatches(probe, response, ""); result != nil {
 		result.Probe = probe.Name
 
-		// Si on est en SSL, corriger le nom du service
+		// If in SSL, fix the service name
 		if useSSL {
 			switch result.Service {
 			case "http", "ssl/http":
@@ -1627,7 +1627,7 @@ func (db *ProbeDB) testSingleProbe(conn net.Conn, probe *Probe, useSSL bool, hos
 			}
 		}
 
-		// Pour HTTP/HTTPS, ne garder que les headers
+		// For HTTP/HTTPS, only keep the headers
 		// Note: Wappalyzer + favicon moved to enrichment for better performance
 		if result.Service == "http" || result.Service == "https" {
 			result.RawResponse = extractHTTPHeaders(response)
@@ -1637,11 +1637,11 @@ func (db *ProbeDB) testSingleProbe(conn net.Conn, probe *Probe, useSSL bool, hos
 		return result, rawResponse
 	}
 
-	// Tester les fallbacks
+	// Test the fallbacks
 	if result := db.testFallbacks(probe, response); result != nil {
 		result.Probe = probe.Name + " (fallback)"
 
-		// Si on est en SSL, corriger le nom du service
+		// If in SSL, fix the service name
 		if useSSL {
 			switch result.Service {
 			case "http", "ssl/http":
@@ -1663,7 +1663,7 @@ func (db *ProbeDB) testSingleProbe(conn net.Conn, probe *Probe, useSSL bool, hos
 		return result, rawResponse
 	}
 
-	// Fallback générique pour HTTP uniquement (comportement nmap standard)
+	// Generic fallback for HTTP only (standard nmap behavior)
 	responseStr := string(response)
 	if strings.HasPrefix(responseStr, "HTTP/") {
 		service := "http"
@@ -1671,13 +1671,13 @@ func (db *ProbeDB) testSingleProbe(conn net.Conn, probe *Probe, useSSL bool, hos
 			service = "https"
 		}
 
-		// Note: Une redirection HTTP→HTTPS (301/302 avec Location: https://) ne signifie PAS
-		// que le port utilise SSL/TLS. C'est juste un serveur HTTP normal qui redirige.
-		// La classification "ssl/http" est supprimée car elle causait des tentatives
-		// incorrectes de connexion TLS sur des ports HTTP standards.
+		// Note: An HTTP→HTTPS redirect (301/302 with Location: https://) does NOT mean
+		// that the port uses SSL/TLS. It is just a normal HTTP server that redirects.
+		// The "ssl/http" classification is removed because it caused incorrect
+		// TLS connection attempts on standard HTTP ports.
 
-		// Retourner un soft match sans produit
-		// Nmap fait pareil quand aucun pattern ne matche
+		// Return a soft match without product
+		// Nmap does the same when no pattern matches
 		return &ServiceResult{
 			Service:     service,
 			Product:     "",
@@ -1691,18 +1691,18 @@ func (db *ProbeDB) testSingleProbe(conn net.Conn, probe *Probe, useSSL bool, hos
 	return nil, rawResponse
 }
 
-// GrabPort est une fonction utilitaire pour scanner un port complet
+// GrabPort is a utility function to scan a full port
 func (db *ProbeDB) GrabPort(host string, port int, timeout time.Duration, useSSL bool, intensity int) (*ServiceResult, error) {
 	return db.ProbeServiceMultiConn(host, port, timeout, useSSL, intensity)
 }
 
-// Scan scanne un port avec auto-détection SSL et timeout global
+// Scan scans a port with SSL auto-detection and global timeout
 var (
 	probeDB     *ProbeDB
 	probeDBOnce sync.Once
 	probeDBErr  error
 
-	// Singleton WorkerPool global pour auto-tuning
+	// Global WorkerPool singleton for auto-tuning
 	globalPool     *WorkerPool
 	globalPoolOnce sync.Once
 	globalPoolErr  error
@@ -1711,17 +1711,17 @@ var (
 // getProbeDB returns a singleton ProbeDB instance using embedded nmap files
 func getProbeDB() (*ProbeDB, error) {
 	probeDBOnce.Do(func() {
-		// Utiliser les fichiers nmap embarqués dans le binaire
+		// Use the nmap files embedded in the binary
 		probeDB, probeDBErr = LoadProbes(GetEmbeddedProbesReader())
 		if probeDBErr == nil {
 			probeDB.LoadServices(GetEmbeddedServicesReader())
-			probeDB.Debug = false // Désactiver le debug
+			probeDB.Debug = false // Disable debug
 		}
 	})
 	return probeDB, probeDBErr
 }
 
-// getGlobalPool retourne le pool global singleton avec auto-tuning
+// getGlobalPool returns the global singleton pool with auto-tuning
 func getGlobalPool() (*WorkerPool, error) {
 	globalPoolOnce.Do(func() {
 		config := DefaultWorkerPoolConfig()
@@ -1731,25 +1731,25 @@ func getGlobalPool() (*WorkerPool, error) {
 	return globalPool, globalPoolErr
 }
 
-// Grab est la fonction principale pour effectuer un scan de service
-// C'est la fonction à utiliser depuis une autre librairie
+// Grab is the main function to perform a service scan
+// This is the function to use from another library
 func Grab(host string, port int) (*ServiceResult, error) {
-	// ProbeTimeout: 3s, Intensity: 5 (réduit de 7 pour éviter timeouts longs), GlobalTimeout: 30s
+	// ProbeTimeout: 3s, Intensity: 5 (reduced from 7 to avoid long timeouts), GlobalTimeout: 30s
 	return GrabWithOptions(host, port, 3*time.Second, 5, 30*time.Second, false)
 }
 
-// GrabWithOptions scanne un port avec des options personnalisées
+// GrabWithOptions scans a port with custom options
 func GrabWithOptions(host string, port int, probeTimeout time.Duration, intensity int, globalTimeout time.Duration, debug bool) (*ServiceResult, error) {
-	// Utiliser le pool global avec auto-tuning
+	// Use the global pool with auto-tuning
 	pool, err := getGlobalPool()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize worker pool: %w", err)
 	}
 
-	// Créer un channel pour recevoir le résultat
+	// Create a channel to receive the result
 	resultChan := make(chan ScanResult, 1)
 
-	// Créer une requête pour le pool
+	// Create a request for the pool
 	req := ScanRequest{
 		Host:          host,
 		Port:          port,
@@ -1760,21 +1760,21 @@ func GrabWithOptions(host string, port int, probeTimeout time.Duration, intensit
 		ResultChan:    resultChan,
 	}
 
-	// Soumettre au pool
+	// Submit to the pool
 	if err := pool.Submit(req); err != nil {
 		return nil, err
 	}
 
-	// Attendre le résultat sur notre channel dédié
+	// Wait for the result on our dedicated channel
 	select {
 	case result := <-resultChan:
 		return result.Result, result.Error
-	case <-time.After(globalTimeout + 5*time.Second): // +5s pour éviter race condition
+	case <-time.After(globalTimeout + 5*time.Second): // +5s to avoid race condition
 		return nil, fmt.Errorf("scan timeout after %v", globalTimeout)
 	}
 }
 
-// GetProbesByPort retourne les probes pertinents pour un port donné
+// GetProbesByPort returns the relevant probes for a given port
 func (db *ProbeDB) GetProbesByPort(port int, ssl bool) []*Probe {
 	var probes []*Probe
 
@@ -1789,7 +1789,7 @@ func (db *ProbeDB) GetProbesByPort(port int, ssl bool) []*Probe {
 		}
 	}
 
-	// Trier par rareté
+	// Sort by rarity
 	sort.Slice(probes, func(i, j int) bool {
 		return probes[i].Rarity < probes[j].Rarity
 	})
