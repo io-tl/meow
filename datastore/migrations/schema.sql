@@ -156,6 +156,11 @@ CREATE TABLE IF NOT EXISTS certificates (
   first_seen INTEGER NOT NULL DEFAULT (strftime('%s','now')),
   last_seen INTEGER NOT NULL DEFAULT (strftime('%s','now')),
 
+  -- Denormalized count of distinct hosts using this certificate.
+  -- Maintained incrementally by triggers (see migrateCertHostCount) to avoid a
+  -- COUNT(DISTINCT ip) aggregation over service_certificates on every listing.
+  host_count INTEGER NOT NULL DEFAULT 0,
+
   -- Tags (JSON array)
   tags TEXT
 );
@@ -414,7 +419,10 @@ CREATE INDEX IF NOT EXISTS idx_certs_last_seen ON certificates(last_seen DESC);
 -- ============================================================================
 -- SERVICE_CERTIFICATES INDEXES
 -- ============================================================================
-CREATE INDEX IF NOT EXISTS idx_service_certs_cert ON service_certificates(cert_fingerprint);
+-- Composite (cert_fingerprint, ip): serves cert-fingerprint lookups (prefix) AND
+-- lets the host_count triggers do a distinct-ip seek instead of a table scan.
+-- Supersedes the old idx_service_certs_cert (dropped in runMigrations).
+CREATE INDEX IF NOT EXISTS idx_service_certs_cert_ip ON service_certificates(cert_fingerprint, ip);
 CREATE INDEX IF NOT EXISTS idx_service_certs_jarm ON service_certificates(jarm) WHERE jarm IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_service_certs_chain ON service_certificates(chain_position);
 

@@ -55,10 +55,10 @@ func (h *mcpHandler) handleCerts(ctx context.Context, req mcp.CallToolRequest) (
 		       c.names, c.not_before, c.not_after, c.is_self_signed, c.is_ca,
 		       c.public_key_algorithm, c.public_key_bits, c.signature_algorithm,
 		       c.serial_number,
-		       (SELECT COUNT(DISTINCT ip) FROM service_certificates WHERE cert_fingerprint = c.fingerprint_sha256) as host_count
+		       c.host_count
 		FROM certificates c
 		%s
-		ORDER BY host_count DESC, c.not_after DESC
+		ORDER BY c.host_count DESC, c.not_after DESC
 		LIMIT ?`, whereClause), args...)
 	if err != nil {
 		return nil, fmt.Errorf("cert query failed: %w", err)

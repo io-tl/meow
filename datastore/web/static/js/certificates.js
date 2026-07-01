@@ -1,63 +1,79 @@
-// Certificates Page
+// Certificates Page — server-side pagination.
+// The list, counts and pagination come from /api/certificates (one page at a
+// time, with the true total); the stat cards and issuer/algorithm facets come
+// from /api/stats/certificates (whole-dataset aggregates). Nothing is capped
+// client-side, so the header total and page count reflect the full database.
 class CertificatesPage {
   constructor() {
     this.currentPage = 1;
     this.pageSize = 25;
     this.totalResults = 0;
-    this.allCertificates = [];
-    this.filteredCertificates = [];
+    this.totalPages = 1;
+    this.pageCertificates = [];       // certs currently rendered (for detail lookups)
+    this.certCache = new Map();       // fingerprint -> decorated cert (page + fetched singles)
+    // Filter state (source of truth; the DOM mirrors it for convenience).
+    this.search = '';
+    this.subject = '';
+    this.issuer = '';
+    this.status = '';
+    this.algo = '';
     this.sortColumn = 'host_count';
     this.sortDirection = 'desc';
     this.searchTimeout = null;
-    this.activeFacets = { issuer: null, algo: null };
-    this.activeStatFilter = null;
+    this.summaryTotal = 0;
     this.init();
   }
 
   init() {
     this.setupEventListeners();
-    this.loadAllCertificates();
+    this.loadSummary();
+
+    // Deep link: /certificates#<sha256> from a host page — search + open modal.
+    const hash = window.location.hash.substring(1);
+    if (hash) {
+      const search = document.getElementById('main-search');
+      if (search) search.value = hash;
+      this.search = hash;
+      this.loadCertificates().then(() => this.showCertificateDetails(hash));
+    } else {
+      this.loadCertificates();
+    }
   }
 
   setupEventListeners() {
     const searchBtn = document.getElementById('search-btn');
-    if (searchBtn) searchBtn.addEventListener('click', () => { this.currentPage = 1; this.filterCertificates(); });
+    if (searchBtn) searchBtn.addEventListener('click', () => { this.search = this.val('main-search'); this.reload(); });
 
     const mainSearch = document.getElementById('main-search');
     if (mainSearch) {
-      mainSearch.addEventListener('keypress', (e) => { if (e.key === 'Enter') { this.currentPage = 1; this.filterCertificates(); } });
-      mainSearch.addEventListener('input', () => {
-        clearTimeout(this.searchTimeout);
-        this.searchTimeout = setTimeout(() => { this.currentPage = 1; this.filterCertificates(); }, 400);
-      });
+      mainSearch.addEventListener('keypress', (e) => { if (e.key === 'Enter') { this.search = this.val('main-search'); this.reload(); } });
+      mainSearch.addEventListener('input', () => this.debounced(() => { this.search = this.val('main-search'); this.reload(); }));
     }
 
-    // Filter inputs trigger on change
-    ['subject-filter', 'issuer-filter', 'status-filter', 'algo-filter'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('change', () => { this.currentPage = 1; this.filterCertificates(); });
-    });
+    // Select filters trigger immediately.
+    const statusEl = document.getElementById('status-filter');
+    if (statusEl) statusEl.addEventListener('change', () => { this.status = statusEl.value; this.syncStatCards(); this.reload(); });
+    const algoEl = document.getElementById('algo-filter');
+    if (algoEl) algoEl.addEventListener('change', () => { this.algo = algoEl.value; this.reload(); });
 
-    // Text filter inputs also trigger on input with debounce
+    // Text filters debounce.
     ['subject-filter', 'issuer-filter'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.addEventListener('input', () => {
-        clearTimeout(this.searchTimeout);
-        this.searchTimeout = setTimeout(() => { this.currentPage = 1; this.filterCertificates(); }, 400);
-      });
+      if (!el) return;
+      const apply = () => { this.subject = this.val('subject-filter'); this.issuer = this.val('issuer-filter'); this.reload(); };
+      el.addEventListener('change', apply);
+      el.addEventListener('input', () => this.debounced(apply));
     });
 
-    // Clear filters
     const clearBtn = document.getElementById('clear-filters');
     if (clearBtn) clearBtn.addEventListener('click', () => this.clearFilters());
 
-    // Export buttons
     const exportJson = document.getElementById('export-json');
     if (exportJson) exportJson.addEventListener('click', () => this.exportCertificates('json'));
     const exportCsv = document.getElementById('export-csv');
     if (exportCsv) exportCsv.addEventListener('click', () => this.exportCertificates('csv'));
 
-    // Sortable columns
+    // Sortable columns.
     document.querySelectorAll('.certificates-table th.sortable').forEach(th => {
       th.addEventListener('click', () => {
         const col = th.dataset.sort;
@@ -67,31 +83,22 @@ class CertificatesPage {
           this.sortColumn = col;
           this.sortDirection = col === 'not_after' ? 'asc' : 'desc';
         }
-        this.updateSortHeaders();
-        this.currentPage = 1;
-        this.sortAndRender();
+        this.reload();
       });
     });
 
-    // Stat cards as quick filters
+    // Stat cards as quick status filters.
     document.querySelectorAll('.stat-card[data-filter]').forEach(card => {
       card.addEventListener('click', () => {
         const filter = card.dataset.filter;
-        if (this.activeStatFilter === filter) {
-          this.activeStatFilter = null;
-          card.classList.remove('active-filter');
-        } else {
-          document.querySelectorAll('.stat-card.active-filter').forEach(c => c.classList.remove('active-filter'));
-          this.activeStatFilter = filter;
-          card.classList.add('active-filter');
-        }
-        document.getElementById('status-filter').value = this.activeStatFilter || '';
-        this.currentPage = 1;
-        this.filterCertificates();
+        this.status = (this.status === filter) ? '' : filter;
+        const statusFilter = document.getElementById('status-filter');
+        if (statusFilter) statusFilter.value = this.status;
+        this.syncStatCards();
+        this.reload();
       });
     });
 
-    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
@@ -104,41 +111,134 @@ class CertificatesPage {
     });
   }
 
-  clearFilters() {
-    ['main-search', 'subject-filter', 'issuer-filter'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-    });
-    ['status-filter', 'algo-filter'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-    });
-    this.activeFacets = { issuer: null, algo: null };
-    this.activeStatFilter = null;
-    document.querySelectorAll('.stat-card.active-filter').forEach(c => c.classList.remove('active-filter'));
-    document.querySelectorAll('.facet-chip.active').forEach(c => c.classList.remove('active'));
-    this.currentPage = 1;
-    this.filterCertificates();
+  val(id) { return (document.getElementById(id)?.value || '').trim(); }
+
+  debounced(fn) {
+    clearTimeout(this.searchTimeout);
+    this.searchTimeout = setTimeout(fn, 400);
   }
 
-  async loadAllCertificates() {
+  // reload resets to page 1 and refetches the current filter set.
+  reload() {
+    this.currentPage = 1;
+    this.loadCertificates();
+  }
+
+  syncStatCards() {
+    document.querySelectorAll('.stat-card[data-filter]').forEach(card => {
+      card.classList.toggle('active-filter', card.dataset.filter === this.status && this.status !== '');
+    });
+  }
+
+  clearFilters() {
+    ['main-search', 'subject-filter', 'issuer-filter', 'status-filter', 'algo-filter'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    this.search = this.subject = this.issuer = this.status = this.algo = '';
+    document.querySelectorAll('.stat-card.active-filter').forEach(c => c.classList.remove('active-filter'));
+    document.querySelectorAll('.facet-chip.active').forEach(c => c.classList.remove('active'));
+    this.reload();
+  }
+
+  // decorate adds the computed fields the table/modal rely on.
+  decorate(cert) {
+    cert._sanNames = this.parseNames(cert.names);
+    cert._sanCount = cert._sanNames.length;
+    cert._status = this.computeStatus(cert);
+    cert._algoLabel = this.formatAlgo(cert.public_key_algorithm, cert.public_key_bits);
+    return cert;
+  }
+
+  async loadSummary() {
     try {
-      const response = await fetch('/api/certificates?limit=5000');
-      const data = await response.json();
-      this.allCertificates = (data.certificates || []).map(cert => {
-        // Pre-compute SAN count and parsed names
-        cert._sanNames = this.parseNames(cert.names);
-        cert._sanCount = cert._sanNames.length;
-        cert._status = this.computeStatus(cert);
-        cert._algoLabel = this.formatAlgo(cert.public_key_algorithm, cert.public_key_bits);
-        return cert;
+      const resp = await fetch('/api/stats/certificates');
+      const s = await resp.json();
+      this.summaryTotal = s.total || 0;
+      this.animateNumber('valid-certs', s.valid || 0);
+      this.animateNumber('expired-certs', s.expired || 0);
+      this.animateNumber('selfsigned-certs', s.self_signed || 0);
+      this.animateNumber('ca-certs', s.ca || 0);
+      this.animateNumber('total-certs', s.total || 0);
+      const topCount = document.getElementById('top-results-count');
+      if (topCount) topCount.textContent = (s.total || 0).toLocaleString();
+      this.renderIssuerFacets(s.top_issuers || []);
+      this.renderAlgoFacets(s.top_algorithms || []);
+    } catch (error) {
+      console.error('Error loading certificate summary:', error);
+    }
+  }
+
+  renderIssuerFacets(issuers) {
+    const container = document.getElementById('facet-issuer-chips');
+    if (!container) return;
+    container.innerHTML = '';
+    issuers.forEach(({ name, count }) => {
+      const chip = this.facetChip(name, count, () => {
+        const active = this.issuer === name;
+        this.issuer = active ? '' : name;
+        const el = document.getElementById('issuer-filter');
+        if (el) el.value = this.issuer;
+        container.querySelectorAll('.facet-chip.active').forEach(c => c.classList.remove('active'));
+        if (!active) chip.classList.add('active');
+        this.reload();
       });
-      this.filteredCertificates = [...this.allCertificates];
-      this.totalResults = this.filteredCertificates.length;
-      this.calculateStats();
-      this.computeFacets();
-      this.sortAndRender();
-      this.checkUrlHash();
+      container.appendChild(chip);
+    });
+  }
+
+  renderAlgoFacets(algos) {
+    const container = document.getElementById('facet-algo-chips');
+    if (!container) return;
+    container.innerHTML = '';
+    algos.forEach(({ name, algo, count }) => {
+      const chip = this.facetChip(name, count, () => {
+        const active = this.algo === algo;
+        this.algo = active ? '' : algo;
+        const el = document.getElementById('algo-filter');
+        if (el) el.value = this.algo; // best-effort; state is authoritative
+        container.querySelectorAll('.facet-chip.active').forEach(c => c.classList.remove('active'));
+        if (!active) chip.classList.add('active');
+        this.reload();
+      });
+      container.appendChild(chip);
+    });
+  }
+
+  facetChip(label, count, onClick) {
+    const chip = document.createElement('span');
+    chip.className = 'facet-chip';
+    chip.innerHTML = `${this.escapeHtml(this.truncate(String(label), 22))} <span class="facet-chip-count">${count}</span>`;
+    chip.title = label;
+    chip.addEventListener('click', onClick);
+    return chip;
+  }
+
+  // buildParams assembles the shared filter/sort query string.
+  buildParams(extra) {
+    const params = new URLSearchParams({ sort: this.sortColumn, order: this.sortDirection, ...extra });
+    if (this.search) params.set('q', this.search);
+    if (this.subject) params.set('subject', this.subject);
+    if (this.issuer) params.set('issuer', this.issuer);
+    if (this.status) params.set('status', this.status);
+    if (this.algo) params.set('algo', this.algo);
+    return params;
+  }
+
+  async loadCertificates() {
+    const params = this.buildParams({ page: this.currentPage, limit: this.pageSize });
+    try {
+      const response = await fetch(`/api/certificates?${params}`);
+      const data = await response.json();
+      this.pageCertificates = (data.certificates || []).map(cert => this.decorate(cert));
+      this.pageCertificates.forEach(c => { if (c.fingerprint_sha256) this.certCache.set(c.fingerprint_sha256, c); });
+      this.totalResults = data.total || 0;
+      this.totalPages = data.total_pages || 1;
+      this.currentPage = data.page || this.currentPage;
+      this.renderCertificates(this.pageCertificates);
+      this.updatePagination();
+      this.updateSortHeaders();
+      this.updateResultsCount();
     } catch (error) {
       console.error('Error loading certificates:', error);
       this.showError('Failed to load certificates');
@@ -174,138 +274,6 @@ class CertificatesPage {
     return label;
   }
 
-  calculateStats() {
-    let valid = 0, expired = 0, selfSigned = 0, ca = 0;
-    const now = Math.floor(Date.now() / 1000);
-    this.allCertificates.forEach(cert => {
-      if (cert.is_ca) ca++;
-      if (cert.is_self_signed) selfSigned++;
-      if (cert.not_after && cert.not_after < now) expired++;
-      else if (!cert.is_self_signed) valid++;
-    });
-    this.animateNumber('valid-certs', valid);
-    this.animateNumber('expired-certs', expired);
-    this.animateNumber('selfsigned-certs', selfSigned);
-    this.animateNumber('ca-certs', ca);
-    this.animateNumber('total-certs', this.allCertificates.length);
-    const topCount = document.getElementById('top-results-count');
-    if (topCount) topCount.textContent = this.allCertificates.length.toLocaleString();
-  }
-
-  computeFacets() {
-    const issuerCounts = {};
-    const algoCounts = {};
-    this.allCertificates.forEach(cert => {
-      const issuer = cert.issuer_cn || 'Unknown';
-      issuerCounts[issuer] = (issuerCounts[issuer] || 0) + 1;
-      const algo = this.formatAlgo(cert.public_key_algorithm, cert.public_key_bits);
-      if (algo !== '-') algoCounts[algo] = (algoCounts[algo] || 0) + 1;
-    });
-    this.renderFacetChips('facet-issuer-chips', issuerCounts, 'issuer', 6);
-    this.renderFacetChips('facet-algo-chips', algoCounts, 'algo', 5);
-    const bar = document.getElementById('facets-bar');
-    if (bar && this.allCertificates.length === 0) bar.classList.add('hidden');
-    else if (bar) bar.classList.remove('hidden');
-  }
-
-  renderFacetChips(containerId, counts, facetType, maxItems) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.innerHTML = '';
-    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, maxItems);
-    sorted.forEach(([name, count]) => {
-      const chip = document.createElement('span');
-      chip.className = 'facet-chip';
-      if (this.activeFacets[facetType] === name) chip.classList.add('active');
-      chip.innerHTML = `${this.escapeHtml(this.truncate(name, 22))} <span class="facet-chip-count">${count}</span>`;
-      chip.title = name;
-      chip.addEventListener('click', () => this.toggleFacet(facetType, name, chip));
-      container.appendChild(chip);
-    });
-  }
-
-  toggleFacet(type, value, chipEl) {
-    if (this.activeFacets[type] === value) {
-      this.activeFacets[type] = null;
-      chipEl.classList.remove('active');
-    } else {
-      // Deactivate sibling chips
-      chipEl.parentElement.querySelectorAll('.facet-chip.active').forEach(c => c.classList.remove('active'));
-      this.activeFacets[type] = value;
-      chipEl.classList.add('active');
-    }
-    this.currentPage = 1;
-    this.filterCertificates();
-  }
-
-  filterCertificates() {
-    const search = (document.getElementById('main-search')?.value || '').trim().toLowerCase();
-    const subject = (document.getElementById('subject-filter')?.value || '').trim().toLowerCase();
-    const issuer = (document.getElementById('issuer-filter')?.value || '').trim().toLowerCase();
-    const status = document.getElementById('status-filter')?.value || '';
-    const algo = document.getElementById('algo-filter')?.value || '';
-    const now = Math.floor(Date.now() / 1000);
-
-    this.filteredCertificates = this.allCertificates.filter(cert => {
-      // Full text search
-      if (search) {
-        const fp = cert.fingerprint_sha256 || '';
-        const searchText = [fp, cert.subject_cn, cert.subject_org, cert.issuer_cn, cert.issuer_org, cert.serial_number, cert.names].filter(Boolean).join(' ').toLowerCase();
-        if (!searchText.includes(search)) return false;
-      }
-      // Subject filter
-      if (subject && (!cert.subject_cn || !cert.subject_cn.toLowerCase().includes(subject))) return false;
-      // Issuer filter
-      if (issuer) {
-        const issuerText = [cert.issuer_cn, cert.issuer_org].filter(Boolean).join(' ').toLowerCase();
-        if (!issuerText.includes(issuer)) return false;
-      }
-      // Status filter
-      if (status) {
-        if (status === 'expired' && cert._status !== 'expired') return false;
-        if (status === 'valid' && cert._status !== 'valid' && cert._status !== 'expiring-soon') return false;
-        if (status === 'expiring-soon' && cert._status !== 'expiring-soon') return false;
-        if (status === 'self-signed' && !cert.is_self_signed) return false;
-        if (status === 'ca' && !cert.is_ca) return false;
-      }
-      // Algorithm filter
-      if (algo) {
-        const certAlgo = (cert.public_key_algorithm || '').toUpperCase();
-        if (!certAlgo.includes(algo.toUpperCase())) return false;
-      }
-      // Facet filters
-      if (this.activeFacets.issuer) {
-        const certIssuer = cert.issuer_cn || 'Unknown';
-        if (certIssuer !== this.activeFacets.issuer) return false;
-      }
-      if (this.activeFacets.algo) {
-        if (cert._algoLabel !== this.activeFacets.algo) return false;
-      }
-      return true;
-    });
-
-    this.totalResults = this.filteredCertificates.length;
-    this.sortAndRender();
-  }
-
-  sortAndRender() {
-    const col = this.sortColumn;
-    const dir = this.sortDirection === 'asc' ? 1 : -1;
-    this.filteredCertificates.sort((a, b) => {
-      let va, vb;
-      if (col === 'san_count') { va = a._sanCount; vb = b._sanCount; }
-      else if (col === 'host_count') { va = a.host_count || 0; vb = b.host_count || 0; }
-      else if (col === 'not_after') { va = a.not_after || 0; vb = b.not_after || 0; }
-      else if (col === 'public_key_algorithm') { va = a._algoLabel || ''; vb = b._algoLabel || ''; }
-      else { va = (a[col] || '').toString().toLowerCase(); vb = (b[col] || '').toString().toLowerCase(); }
-      if (typeof va === 'string') return va.localeCompare(vb) * dir;
-      return ((va || 0) - (vb || 0)) * dir;
-    });
-    this.renderCurrentPage();
-    this.updatePagination();
-    this.updateResultsCount();
-  }
-
   updateSortHeaders() {
     document.querySelectorAll('.certificates-table th.sortable').forEach(th => {
       th.classList.remove('active', 'asc', 'desc');
@@ -313,12 +281,6 @@ class CertificatesPage {
         th.classList.add('active', this.sortDirection);
       }
     });
-  }
-
-  renderCurrentPage() {
-    const start = (this.currentPage - 1) * this.pageSize;
-    const end = start + this.pageSize;
-    this.renderCertificates(this.filteredCertificates.slice(start, end));
   }
 
   renderCertificates(certificates) {
@@ -351,7 +313,6 @@ class CertificatesPage {
       const daysLeft = cert.not_after ? Math.floor((cert.not_after - now) / 86400) : null;
       const expiryDate = cert.not_after ? this.formatDate(cert.not_after) : '-';
 
-      // Expiry bar: percentage of lifetime elapsed
       let expiryPct = 0, expiryClass = 'ok';
       if (cert.not_before && cert.not_after) {
         const total = cert.not_after - cert.not_before;
@@ -367,7 +328,6 @@ class CertificatesPage {
         daysLeft < 0 ? `${Math.abs(daysLeft)}d ago` :
         daysLeft === 0 ? 'today' : `${daysLeft}d`;
 
-      // Status badges
       let badges = '';
       if (cert._status === 'expired') badges += '<span class="status-badge expired"><span class="status-dot"></span>expired</span>';
       else if (cert._status === 'self-signed') badges += '<span class="status-badge self-signed"><span class="status-dot"></span>self-signed</span>';
@@ -407,8 +367,27 @@ class CertificatesPage {
     });
   }
 
+  // Ensures a certificate is available client-side. Certs not on the current page
+  // (e.g. a deep-linked fingerprint) are fetched individually and cached, so the
+  // detail modal always resolves.
+  async ensureCertificateLoaded(fingerprint) {
+    let cert = this.certCache.get(fingerprint);
+    if (cert) return cert;
+    try {
+      const resp = await fetch(`/api/certificates/${fingerprint}`);
+      if (!resp.ok) return null;
+      cert = await resp.json();
+    } catch { return null; }
+    if (!cert || !cert.fingerprint_sha256) return null;
+    this.decorate(cert);
+    cert._pemLoaded = true; // the detail endpoint already returns the PEM
+    if (cert.host_count == null) cert.host_count = 0;
+    this.certCache.set(fingerprint, cert);
+    return cert;
+  }
+
   async showCertificateDetails(fingerprint) {
-    const cert = this.allCertificates.find(c => c.fingerprint_sha256 === fingerprint);
+    const cert = await this.ensureCertificateLoaded(fingerprint);
     if (!cert) return;
 
     // Load PEM on demand if not already cached
@@ -430,7 +409,6 @@ class CertificatesPage {
 
     modalTitle.textContent = cert.subject_cn || 'Unknown Certificate';
 
-    // Badges in header
     let badgesHtml = '';
     if (cert._status === 'expired') badgesHtml += '<span class="status-badge expired"><span class="status-dot"></span>expired</span>';
     else if (cert._status === 'self-signed') badgesHtml += '<span class="status-badge self-signed"><span class="status-dot"></span>self-signed</span>';
@@ -440,11 +418,9 @@ class CertificatesPage {
     badgesHtml += `<span class="status-badge" style="background:var(--bg-tertiary);color:var(--text-secondary);border:1px solid var(--border-primary)">${cert._algoLabel}</span>`;
     modalBadges.innerHTML = badgesHtml;
 
-    // Build sections
     const now = Math.floor(Date.now() / 1000);
     const daysLeft = cert.not_after ? Math.floor((cert.not_after - now) / 86400) : null;
 
-    // Validity bar
     let vPct = 0, vClass = 'ok';
     if (cert.not_before && cert.not_after) {
       const total = cert.not_after - cert.not_before;
@@ -459,7 +435,6 @@ class CertificatesPage {
       daysLeft === 0 ? 'Expires today' :
       daysLeft <= 30 ? `${daysLeft} days remaining` : `${daysLeft} days remaining`;
 
-    // SANs
     const sanTags = cert._sanNames.map(name => {
       const isWild = name.startsWith('*.');
       return `<span class="san-tag ${isWild ? 'wildcard' : ''}" onclick="event.stopPropagation(); certificatesPage.pivotSearch('search', '${this.escapeHtml(name)}')" title="Search for ${this.escapeHtml(name)}">${this.escapeHtml(name)}</span>`;
@@ -467,7 +442,6 @@ class CertificatesPage {
 
     let html = '';
 
-    // Identity section
     html += this.buildSection('identity', 'Identity', `
       <svg viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2"/></svg>
     `, `<table class="detail-table">
@@ -478,7 +452,6 @@ class CertificatesPage {
       ${cert.issuer_org ? this.detailRow('Issuer Org', cert.issuer_org, false, false, 'issuer') : ''}
     </table>`);
 
-    // Validity section
     html += this.buildSection('validity', 'Validity', `
       <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
     `, `<table class="detail-table">
@@ -497,7 +470,6 @@ class CertificatesPage {
       ${cert.last_seen ? this.detailRow('Last Seen', this.formatDateFull(cert.last_seen)) : ''}
     </table>`);
 
-    // Fingerprints section
     html += this.buildSection('fingerprints', 'Fingerprints', `
       <svg viewBox="0 0 24 24" fill="none"><path d="M12 10V2M18.4 6.6L22 3M21.96 12.04H14M18.4 17.4L22 21M12 14V22M5.6 17.4L2 21M2.04 12.04H10M5.6 6.6L2 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
     `, `<table class="detail-table">
@@ -507,7 +479,6 @@ class CertificatesPage {
       ${cert.serial_number ? this.detailRow('Serial Number', cert.serial_number, true) : ''}
     </table>`);
 
-    // Cryptography section
     html += this.buildSection('crypto', 'Cryptography', `
       <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="2"/></svg>
     `, `<table class="detail-table">
@@ -518,19 +489,16 @@ class CertificatesPage {
       ${this.detailRow('CA Certificate', cert.is_ca ? 'Yes' : 'No')}
     </table>`);
 
-    // SANs section
     if (cert._sanNames.length > 0) {
       html += this.buildSection('sans', `Names (${cert._sanNames.length} SANs)`, `
         <svg viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12h16M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z" stroke="currentColor" stroke-width="2"/></svg>
       `, `<div class="san-tags">${sanTags}</div>`);
     }
 
-    // Hosts section (loaded async)
     html += this.buildSection('hosts', `Hosts (${cert.host_count || 0})`, `
       <svg viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="8" rx="2" stroke="currentColor" stroke-width="2"/><rect x="2" y="14" width="20" height="8" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="6" r="1" fill="currentColor"/><circle cx="6" cy="18" r="1" fill="currentColor"/></svg>
     `, `<div id="detail-hosts-container" class="detail-hosts-list"><div style="padding:12px;color:var(--text-dim);text-align:center">Loading hosts...</div></div>`);
 
-    // PEM section
     if (cert.pem) {
       html += this.buildSection('pem', 'PEM Certificate', `
         <svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="2"/><polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/></svg>
@@ -552,10 +520,8 @@ class CertificatesPage {
     modalBody.innerHTML = html;
     modal.style.display = 'flex';
 
-    // Load hosts async
     this.loadDetailHosts(fingerprint);
 
-    // Setup collapsible sections
     modalBody.querySelectorAll('.cert-section-header').forEach(header => {
       header.addEventListener('click', () => {
         header.closest('.cert-section').classList.toggle('collapsed');
@@ -617,7 +583,7 @@ class CertificatesPage {
         </div>
       `).join('');
     } catch {
-      const cert = this.allCertificates.find(c => c.fingerprint_sha256 === fingerprint);
+      const cert = this.certCache.get(fingerprint);
       container.innerHTML = `<div style="padding:12px;color:var(--text-dim);text-align:center">${cert?.host_count || 0} hosts (details unavailable)</div>`;
     }
   }
@@ -627,13 +593,14 @@ class CertificatesPage {
     if (type === 'issuer') {
       const el = document.getElementById('issuer-filter');
       if (el) el.value = value;
+      this.issuer = value;
     } else if (type === 'search') {
       const el = document.getElementById('main-search');
       if (el) el.value = value;
+      this.search = value;
     }
     this.closeCertModal();
-    this.currentPage = 1;
-    this.filterCertificates();
+    this.reload();
   }
 
   copyToClipboard(text, message) {
@@ -679,10 +646,21 @@ class CertificatesPage {
   }
 
   closeCertModal() { document.getElementById('cert-modal').style.display = 'none'; }
-  closeHostsModal() { document.getElementById('hosts-modal').style.display = 'none'; }
+  closeHostsModal() { const m = document.getElementById('hosts-modal'); if (m) m.style.display = 'none'; }
 
+  // Export the full filtered result set (server-side), not just the current page.
   async exportCertificates(format) {
-    const data = this.filteredCertificates;
+    let data = [];
+    try {
+      const params = this.buildParams({ page: 1, limit: 100000 });
+      const resp = await fetch(`/api/certificates?${params}`);
+      const json = await resp.json();
+      data = (json.certificates || []).map(c => this.decorate(c));
+    } catch {
+      this.showToast('Export failed');
+      return;
+    }
+
     if (format === 'csv') {
       const headers = ['fingerprint_sha256','subject_cn','subject_org','issuer_cn','issuer_org','public_key_algorithm','public_key_bits','not_before','not_after','is_self_signed','is_ca','host_count','serial_number','names'];
       const rows = data.map(cert => headers.map(h => {
@@ -696,7 +674,7 @@ class CertificatesPage {
       this.downloadBlob(csv, `certificates_${this.dateStamp()}.csv`, 'text/csv');
     } else {
       const json = JSON.stringify(data.map(c => {
-        const { _sanNames, _sanCount, _status, _algoLabel, ...rest } = c;
+        const { _sanNames, _sanCount, _status, _algoLabel, _pemLoaded, ...rest } = c;
         return rest;
       }), null, 2);
       this.downloadBlob(json, `certificates_${this.dateStamp()}.json`, 'application/json');
@@ -719,22 +697,24 @@ class CertificatesPage {
 
   // Pagination
   updatePagination() {
-    const totalPages = Math.ceil(this.totalResults / this.pageSize);
+    const totalPages = this.totalPages;
     const from = this.totalResults > 0 ? (this.currentPage - 1) * this.pageSize + 1 : 0;
     const to = Math.min(this.currentPage * this.pageSize, this.totalResults);
-    document.getElementById('showing-from').textContent = from;
-    document.getElementById('showing-to').textContent = to;
-    document.getElementById('total-results').textContent = this.totalResults;
-    document.getElementById('current-page').textContent = this.currentPage;
-    document.getElementById('total-pages').textContent = totalPages || 1;
+    this.setText('showing-from', from);
+    this.setText('showing-to', to);
+    this.setText('total-results', this.totalResults.toLocaleString());
+    this.setText('current-page', this.currentPage);
+    this.setText('total-pages', totalPages || 1);
     this.renderPaginationControls('pagination-top');
     this.renderPaginationControls('pagination-bottom');
   }
 
+  setText(id, value) { const el = document.getElementById(id); if (el) el.textContent = value; }
+
   renderPaginationControls(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
-    const totalPages = Math.ceil(this.totalResults / this.pageSize);
+    const totalPages = this.totalPages;
     container.innerHTML = '';
 
     const prevBtn = document.createElement('button');
@@ -783,9 +763,10 @@ class CertificatesPage {
   }
 
   goToPage(page) {
+    if (page < 1 || page > this.totalPages || page === this.currentPage) return;
     this.currentPage = page;
-    this.renderCurrentPage();
-    this.updatePagination();
+    this.loadCertificates();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   updateResultsCount() {
@@ -815,19 +796,6 @@ class CertificatesPage {
         <div class="no-results-text">${message}</div>
       </div>
     </td></tr>`;
-  }
-
-  checkUrlHash() {
-    const hash = window.location.hash.substring(1);
-    if (hash) {
-      setTimeout(() => {
-        const search = document.getElementById('main-search');
-        if (search) search.value = hash;
-        this.currentPage = 1;
-        this.filterCertificates();
-        setTimeout(() => this.showCertificateDetails(hash), 300);
-      }, 200);
-    }
   }
 
   formatDate(ts) {
@@ -862,4 +830,3 @@ class CertificatesPage {
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => { window.certificatesPage = new CertificatesPage(); }, 100);
 });
-

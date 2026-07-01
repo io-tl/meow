@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -194,8 +195,10 @@ func (api *API) searchCertificates(c *gin.Context) {
 	query := c.DefaultQuery("q", "")
 	subject := c.DefaultQuery("subject", "")
 	issuer := c.DefaultQuery("issuer", "")
+	status := c.DefaultQuery("status", "")
+	algo := c.DefaultQuery("algo", "")
 
-	limitInt, _, _ := parsePagination(c, 50)
+	limitInt, offset, page := parsePagination(c, 50)
 
 	whereClause := "WHERE 1=1"
 	args := []any{}
@@ -218,6 +221,55 @@ func (api *API) searchCertificates(c *gin.Context) {
 		args = append(args, "%"+issuer+"%", "%"+issuer+"%")
 	}
 
+	// Status filter — semantics mirror the client's computeStatus so the stat-card
+	// quick filters and the dropdown agree with the summary counts.
+	now := time.Now().Unix()
+	switch status {
+	case "expired":
+		whereClause += " AND c.not_after IS NOT NULL AND c.not_after < ?"
+		args = append(args, now)
+	case "valid":
+		whereClause += " AND (c.not_after IS NULL OR c.not_after >= ?) AND c.is_self_signed = 0"
+		args = append(args, now)
+	case "expiring-soon":
+		whereClause += " AND c.not_after >= ? AND c.not_after <= ? AND c.is_self_signed = 0"
+		args = append(args, now, now+30*86400)
+	case "self-signed":
+		whereClause += " AND c.is_self_signed = 1"
+	case "ca":
+		whereClause += " AND c.is_ca = 1"
+	}
+
+	if algo != "" {
+		whereClause += " AND c.public_key_algorithm LIKE ?"
+		args = append(args, "%"+algo+"%")
+	}
+
+	var total int
+	countSQL := "SELECT COUNT(*) FROM certificates c " + whereClause
+	if err := api.db.QueryRowLogged(countSQL, args...).Scan(&total); err != nil {
+		total = 0
+	}
+
+	// Sort — whitelist maps the client column keys to safe SQL expressions.
+	sortExpr := map[string]string{
+		"subject_cn":           "c.subject_cn",
+		"issuer_cn":            "c.issuer_cn",
+		"public_key_algorithm": "c.public_key_algorithm",
+		"not_after":            "c.not_after",
+		"host_count":           "c.host_count",
+		"san_count":            "CASE WHEN json_valid(c.names) THEN json_array_length(c.names) ELSE 0 END",
+	}[c.DefaultQuery("sort", "host_count")]
+	if sortExpr == "" {
+		sortExpr = "c.host_count"
+	}
+	order := "DESC"
+	if strings.EqualFold(c.DefaultQuery("order", "desc"), "asc") {
+		order = "ASC"
+	}
+	// c.fingerprint_sha256 as final tiebreaker keeps pagination deterministic.
+	orderBy := fmt.Sprintf("ORDER BY %s %s, c.not_after DESC, c.fingerprint_sha256", sortExpr, order)
+
 	querySQL := fmt.Sprintf(`
 		SELECT c.fingerprint_sha256, c.fingerprint_sha1, c.fingerprint_md5,
 		       c.subject_cn, c.subject_org, c.subject_country,
@@ -225,18 +277,13 @@ func (api *API) searchCertificates(c *gin.Context) {
 		       c.not_before, c.not_after, c.serial_number,
 		       c.public_key_bits, c.public_key_algorithm, c.signature_algorithm,
 		       c.is_self_signed, c.is_ca, c.first_seen, c.last_seen,
-		       COALESCE(sc_counts.host_count, 0) as host_count
+		       c.host_count
 		FROM certificates c
-		LEFT JOIN (
-		    SELECT cert_fingerprint, COUNT(DISTINCT ip) as host_count
-		    FROM service_certificates
-		    GROUP BY cert_fingerprint
-		) sc_counts ON sc_counts.cert_fingerprint = c.fingerprint_sha256
 		%s
-		ORDER BY host_count DESC, c.not_after DESC
-		LIMIT ?`, whereClause)
+		%s
+		LIMIT ? OFFSET ?`, whereClause, orderBy)
 
-	args = append(args, limitInt)
+	args = append(args, limitInt, offset)
 
 	rows, err := api.db.Query(querySQL, args...)
 	if err != nil {
@@ -300,7 +347,97 @@ func (api *API) searchCertificates(c *gin.Context) {
 		log.Warn().Err(err).Msg("Error iterating certificates rows")
 	}
 
-	c.JSON(200, gin.H{"certificates": certificates})
+	totalPages := max((total+limitInt-1)/limitInt, 1)
+	c.JSON(200, gin.H{
+		"certificates": certificates,
+		"total":        total,
+		"page":         page,
+		"total_pages":  totalPages,
+	})
+}
+
+// getCertificatesSummary returns whole-dataset certificate stats and facets.
+// The certificates page uses this for its stat cards and issuer/algorithm chips,
+// so the numbers reflect the full database (not just the current page). Counts
+// mirror the client's calculateStats semantics.
+func (api *API) getCertificatesSummary(c *gin.Context) {
+	now := time.Now().Unix()
+
+	var total, valid, expired, selfSigned, ca int
+	// COALESCE guards the empty-table case where SUM() returns NULL.
+	err := api.db.QueryRowLogged(`
+		SELECT
+			COUNT(*),
+			COALESCE(SUM(CASE WHEN (not_after IS NULL OR not_after >= ?) AND is_self_signed = 0 THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN not_after IS NOT NULL AND not_after < ? THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN is_self_signed = 1 THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN is_ca = 1 THEN 1 ELSE 0 END), 0)
+		FROM certificates`, now, now).Scan(&total, &valid, &expired, &selfSigned, &ca)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	topIssuers := api.certFacet(`
+		SELECT CASE WHEN issuer_cn IS NULL OR issuer_cn = '' THEN 'Unknown' ELSE issuer_cn END AS name,
+		       COUNT(*) AS cnt
+		FROM certificates
+		GROUP BY name ORDER BY cnt DESC LIMIT 8`)
+
+	// Algorithm facets keep the bits breakdown for display (e.g. "RSA 2048");
+	// clicking one filters by the algorithm family via the algo param.
+	topAlgos := []gin.H{}
+	rows, err := api.db.Query(`
+		SELECT public_key_algorithm, public_key_bits, COUNT(*) AS cnt
+		FROM certificates
+		WHERE public_key_algorithm IS NOT NULL AND public_key_algorithm != ''
+		GROUP BY public_key_algorithm, public_key_bits
+		ORDER BY cnt DESC LIMIT 6`)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var algo sql.NullString
+			var bits sql.NullInt64
+			var cnt int
+			if err := rows.Scan(&algo, &bits, &cnt); err != nil {
+				continue
+			}
+			name := algo.String
+			if bits.Valid && bits.Int64 > 0 {
+				name = fmt.Sprintf("%s %d", algo.String, bits.Int64)
+			}
+			topAlgos = append(topAlgos, gin.H{"name": name, "algo": algo.String, "count": cnt})
+		}
+	}
+
+	c.JSON(200, gin.H{
+		"total":          total,
+		"valid":          valid,
+		"expired":        expired,
+		"self_signed":    selfSigned,
+		"ca":             ca,
+		"top_issuers":    topIssuers,
+		"top_algorithms": topAlgos,
+	})
+}
+
+// certFacet runs a "SELECT name, cnt" grouping query and returns [{name,count}].
+func (api *API) certFacet(query string) []gin.H {
+	out := []gin.H{}
+	rows, err := api.db.Query(query)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name sql.NullString
+		var cnt int
+		if err := rows.Scan(&name, &cnt); err != nil {
+			continue
+		}
+		out = append(out, gin.H{"name": nullStr(name), "count": cnt})
+	}
+	return out
 }
 
 // getCertificateHosts gets all hosts using a specific certificate

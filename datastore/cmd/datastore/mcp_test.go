@@ -57,12 +57,18 @@ func setupTestMCP(t *testing.T) *mcpHandler {
 	if _, err := db.Exec(datastore.SchemaSQL); err != nil {
 		t.Fatalf("schema: %v", err)
 	}
+	wdb := &DB{DB: db}
+	// Install the host_count triggers so seeded service_certificates maintain
+	// certificates.host_count exactly as production does.
+	if err := migrateCertHostCount(wdb); err != nil {
+		t.Fatalf("cert host_count migration: %v", err)
+	}
 
 	seedTestData(t, db)
 
 	t.Cleanup(func() { db.Close() })
 	return &mcpHandler{
-		db:          &DB{DB: db},
+		db:          wdb,
 		nc:          &mockPublisher{},
 		scanTracker: NewScannerTracker(),
 	}

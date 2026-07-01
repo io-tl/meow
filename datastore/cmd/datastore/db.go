@@ -232,12 +232,91 @@ func runMigrations(db *DB) error {
 		log.Warn().Err(err).Msg("Failed to run enrichment fields migration (non-fatal)")
 	}
 
-	// Drop redundant indexes (covered by primary keys)
-	for _, idx := range []string{"idx_http_ip", "idx_service_enrichments_ip_port"} {
+	if err := migrateCertHostCount(db); err != nil {
+		log.Warn().Err(err).Msg("Failed to run certificate host_count migration (non-fatal)")
+	}
+
+	// Drop redundant indexes (covered by primary keys or superseded by composites)
+	for _, idx := range []string{"idx_http_ip", "idx_service_enrichments_ip_port", "idx_service_certs_cert"} {
 		db.Exec("DROP INDEX IF EXISTS " + idx)
 	}
 
 	return nil
+}
+
+// certHostCountDDL creates the index and incremental triggers that maintain
+// certificates.host_count (distinct hosts per certificate). Shared by the
+// migration and test harnesses so the column stays accurate everywhere.
+//
+// The triggers count DISTINCT ip: a certificate seen on several ports of the
+// same host counts once. INSERT increments only when this (cert, ip) pair is new;
+// DELETE decrements only when the last port for that (cert, ip) is gone. The
+// idx_service_certs_cert_ip composite makes both WHEN checks index seeks.
+var certHostCountDDL = []string{
+	`CREATE INDEX IF NOT EXISTS idx_certs_host_count ON certificates(host_count DESC, not_after DESC)`,
+	`CREATE TRIGGER IF NOT EXISTS update_cert_host_count_on_insert
+	AFTER INSERT ON service_certificates
+	FOR EACH ROW
+	WHEN NOT EXISTS (
+	  SELECT 1 FROM service_certificates
+	  WHERE cert_fingerprint = NEW.cert_fingerprint AND ip = NEW.ip AND port <> NEW.port
+	)
+	BEGIN
+	  UPDATE certificates SET host_count = host_count + 1
+	  WHERE fingerprint_sha256 = NEW.cert_fingerprint;
+	END`,
+	`CREATE TRIGGER IF NOT EXISTS update_cert_host_count_on_delete
+	AFTER DELETE ON service_certificates
+	FOR EACH ROW
+	WHEN NOT EXISTS (
+	  SELECT 1 FROM service_certificates
+	  WHERE cert_fingerprint = OLD.cert_fingerprint AND ip = OLD.ip
+	)
+	BEGIN
+	  UPDATE certificates SET host_count = MAX(0, host_count - 1)
+	  WHERE fingerprint_sha256 = OLD.cert_fingerprint;
+	END`,
+}
+
+// applyCertHostCountDDL creates the host_count index and triggers (idempotent).
+func applyCertHostCountDDL(db *DB) error {
+	for _, stmt := range certHostCountDDL {
+		if _, err := db.Exec(stmt); err != nil {
+			return fmt.Errorf("failed to apply cert host_count DDL: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateCertHostCount adds the denormalized host_count column to certificates
+// (for pre-existing databases), backfills it once, then installs the index and
+// triggers that keep it current. Fresh databases already have the column from
+// schema.sql, so only the index/triggers are created.
+func migrateCertHostCount(db *DB) error {
+	has, err := tableHasColumn(db, "certificates", "host_count")
+	if err != nil {
+		return fmt.Errorf("failed to check certificates columns: %w", err)
+	}
+
+	if !has {
+		if _, err := db.Exec("ALTER TABLE certificates ADD COLUMN host_count INTEGER NOT NULL DEFAULT 0"); err != nil {
+			return fmt.Errorf("failed to add host_count column: %w", err)
+		}
+		// One-time backfill from the existing links; triggers keep it current after this.
+		result, err := db.Exec(`
+			UPDATE certificates SET host_count = (
+				SELECT COUNT(DISTINCT ip) FROM service_certificates
+				WHERE cert_fingerprint = certificates.fingerprint_sha256
+			)`)
+		if err != nil {
+			return fmt.Errorf("failed to backfill host_count: %w", err)
+		}
+		if affected, _ := result.RowsAffected(); affected > 0 {
+			log.Info().Int64("rows", affected).Msg("Backfilled certificates.host_count")
+		}
+	}
+
+	return applyCertHostCountDDL(db)
 }
 
 // migrateEnrichmentFields adds protocol/version/banner columns to service_enrichments
@@ -314,6 +393,7 @@ func migrateEnrichmentFields(db *DB) error {
 // This prevents SQL injection via the table parameter in PRAGMA table_info().
 var allowedMigrationTables = map[string]bool{
 	"service_enrichments": true,
+	"certificates":        true,
 }
 
 // tableHasColumn checks if a table has a specific column using PRAGMA table_info.
