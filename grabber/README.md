@@ -1,23 +1,23 @@
-# 🐱 Meow Grabber
+# 🐈‍⬛ Grab
 
-**Fingerprinting** and **enrichment** module for the [Meow](../) pipeline. Identifies services using nmap probes, then extracts protocol-specific data through **60 built-in modules**.
+Fingerprinting and enrichment modules for the **Meow** pipeline. Identifies services using nmap probes, then extracts protocol-specific data through built-in modules.
 
 ```
 scan.port.open ──> [ Fingerprint ] ──> scan.port.fingerprinted ──> [ Enrichment ] ──> scan.port.enriched
-                    nmap probes           identified service           60 modules        extracted data
-                    JARM TLS              version, banner             protocol            metadata, certs
+                    nmap probes           identified service          modules            enrichment data,
+                 protocol discovery        version, banner      protocol enrichment      metadata,certs ...
 ```
 
 ## Build
 
 ```bash
 # Standard
-go build -o grab ./cmd/grab/
-
-# Static (no CGO)
 CGO_ENABLED=0 go build -o grab ./cmd/grab/
 
-# Cross-compile Windows (requires mingw-w64)
+# Makefile
+make
+
+# Be careful with Windows cross-compilation
 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc GOOS=windows GOARCH=amd64 go build -o grab.exe ./cmd/grab/
 ```
 
@@ -54,21 +54,24 @@ CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc GOOS=windows GOARCH=amd64 go build -o gr
 ./grab finger --nats-url nats://10.0.0.1:4222 --nats-token SECRET
 ```
 
-### Debug mode (no NATS)
+### Enrichment development using debug mode 
 
 Test fingerprinting or enrichment against a specific target without any NATS infrastructure:
 
 ```bash
 # Fingerprint a service
 ./grab debug finger -host 192.168.1.1 -port 22
+
+# Fingerprint a service with verbose output
 ./grab debug finger -host 192.168.1.1 -port 443 -debug
 
-# Enrich an identified service
+# Enrich a service
 ./grab debug enrich -host 192.168.1.1 -port 22 -service ssh
-./grab debug enrich -host 10.0.0.1 -port 443 -service https -domain example.com
-./grab debug enrich -host 10.0.0.1 -port 3306 -service mysql
 
-# Verbose debug output
+# Enrich a service with sni support
+./grab debug enrich -host 10.0.0.1 -port 443 -service https -domain example.com
+
+# Enrich a service with verbose output
 ./grab debug enrich -host 10.0.0.1 -port 6379 -service redis -debug
 ```
 
@@ -123,6 +126,10 @@ enrichment:
 logging:
   level: "info"            # debug, info, warn, error
   format: "console"        # console, json
+```
+
+```
+./grab local -c config.yaml
 ```
 
 ## Enrichment modules
@@ -201,7 +208,6 @@ scan.port.open ─────> [Fingerprint] ──> scan.port.fingerprinted �
 
 ## Requirements
 
-- **Go 1.24+**
 - **Linux** recommended (native pure-Go PCRE2 support via `go.elara.ws/pcre`)
-- **Windows**: requires `mingw-w64` for cross-compilation (CGO + embedded PCRE2)
-- **NATS**: provided by the [Datastore](../datastore/) module (embedded server)
+- **Windows** requires `mingw-w64` for cross-compilation (CGO + embedded PCRE2)
+- **NATS** provided by the Datastore module (embedded server)
