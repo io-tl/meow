@@ -4,8 +4,6 @@ class DomainsPage {
         this.currentPage = 1;
         this.limit = 50;
         this.searchQuery = '';
-        this.protocolFilter = '';
-        this.statusCodeFilter = '';
         this.expandedDomains = {};  // domain -> { page, total, totalPages }
         this.domainsCache = new Map();
         this.servicesCache = new Map();
@@ -21,9 +19,6 @@ class DomainsPage {
             if (e.key === 'Enter') this.loadDomains();
         });
         document.getElementById('search-btn').addEventListener('click', () => this.loadDomains());
-        document.getElementById('protocol-filter').addEventListener('change', () => this.onFilterChange());
-        document.getElementById('status-code-filter').addEventListener('change', () => this.onFilterChange());
-        document.getElementById('clear-filters').addEventListener('click', () => this.clearFilters());
 
         const exportBtn = document.getElementById('export-json');
         if (exportBtn) exportBtn.addEventListener('click', () => this.exportJSON());
@@ -52,22 +47,6 @@ class DomainsPage {
         }, 300);
     }
 
-    onFilterChange() {
-        this.currentPage = 1;
-        this.loadDomains();
-    }
-
-    clearFilters() {
-        document.getElementById('main-search').value = '';
-        document.getElementById('protocol-filter').value = '';
-        document.getElementById('status-code-filter').value = '';
-        this.searchQuery = '';
-        this.protocolFilter = '';
-        this.statusCodeFilter = '';
-        this.currentPage = 1;
-        this.loadDomains();
-    }
-
     async loadStats() {
         try {
             const resp = await fetch('/api/domains/stats');
@@ -83,13 +62,9 @@ class DomainsPage {
 
     async loadDomains() {
         this.searchQuery = document.getElementById('main-search').value.trim();
-        this.protocolFilter = document.getElementById('protocol-filter').value;
-        this.statusCodeFilter = document.getElementById('status-code-filter').value;
 
         const params = new URLSearchParams({ page: this.currentPage, limit: this.limit });
         if (this.searchQuery) params.set('q', this.searchQuery);
-        if (this.protocolFilter) params.set('protocol', this.protocolFilter);
-        if (this.statusCodeFilter) params.set('status_code', this.statusCodeFilter);
         const cacheKey = params.toString();
 
         try {
@@ -642,8 +617,6 @@ class DomainsPage {
     exportJSON() {
         const params = new URLSearchParams({ limit: 10000 });
         if (this.searchQuery) params.set('q', this.searchQuery);
-        if (this.protocolFilter) params.set('protocol', this.protocolFilter);
-        if (this.statusCodeFilter) params.set('status_code', this.statusCodeFilter);
         const apiKey = localStorage.getItem('meow_api_key');
         if (apiKey) params.set('key', apiKey);
         window.open(`/api/domains?${params}`, '_blank');

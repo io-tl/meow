@@ -166,41 +166,15 @@ func startAPI(cfg *Config, db *DB, nc *nats.Conn, ns *natsserver.Server, scanTra
 		})
 	})
 
+	// Mobile single-page app: one self-contained template covering the full API.
 	r.GET("/mobile", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "mobile.html", gin.H{
-			"PageTitle":   "Mobile Dashboard",
-			"ActivePage":  "mobile",
-			"HeadScripts": []string{"/static/vendor/chart.min.js"},
-			"FootScripts": []string{"/static/js/mobile.js"},
-		})
+		c.HTML(http.StatusOK, "mobile.html", gin.H{})
 	})
 
-	r.GET("/mobile/hosts", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "mobile_hosts.html", gin.H{
-			"PageTitle":   "Hosts",
-			"ActivePage":  "mobile_hosts",
-			"ExtraCSS":    []string{"/static/css/mobile_hosts.css"},
-			"FootScripts": []string{"/static/js/mobile_hosts.js"},
-		})
-	})
-
-	r.GET("/mobile/query", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "mobile_query.html", gin.H{
-			"PageTitle":   "Query",
-			"ActivePage":  "mobile_query",
-			"ExtraCSS":    []string{"/static/css/mobile_query.css"},
-			"FootScripts": []string{"/static/js/mobile_query.js"},
-		})
-	})
-
-	r.GET("/mobile/scan", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "mobile_scan.html", gin.H{
-			"PageTitle":   "Scan",
-			"ActivePage":  "mobile_scan",
-			"ExtraCSS":    []string{"/static/css/mobile_scan.css"},
-			"FootScripts": []string{"/static/js/mobile_scan.js"},
-		})
-	})
+	// Legacy per-page mobile routes now live as views inside the SPA.
+	r.GET("/mobile/hosts", func(c *gin.Context) { c.Redirect(http.StatusMovedPermanently, "/mobile#explore") })
+	r.GET("/mobile/query", func(c *gin.Context) { c.Redirect(http.StatusMovedPermanently, "/mobile#query") })
+	r.GET("/mobile/scan", func(c *gin.Context) { c.Redirect(http.StatusMovedPermanently, "/mobile#scan") })
 
 	// Shell RC (no auth — bootstrap script only, no data)
 	r.GET("/api/rc", api.getShellRC)
@@ -220,6 +194,7 @@ func startAPI(cfg *Config, db *DB, nc *nats.Conn, ns *natsserver.Server, scanTra
 	apiGroup.GET("/hosts/:ip", api.getHostDetails)
 	apiGroup.GET("/services", api.searchServices)
 	apiGroup.GET("/certificates", api.searchCertificates)
+	apiGroup.GET("/stats/certificates", api.getCertificatesSummary)
 	apiGroup.GET("/certificates/:fingerprint", api.getCertificateDetail)
 	apiGroup.GET("/certificates/:fingerprint/hosts", api.getCertificateHosts)
 	apiGroup.GET("/stats/dashboard", api.getDashboardStats)

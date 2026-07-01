@@ -1,151 +1,362 @@
-{{template "mobile_head" .}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0e1a">
+    <title>Meow — Mobile</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link href="/static/vendor/fonts/fonts.css" rel="stylesheet">
+    <link href="/static/css/mobile.css" rel="stylesheet">
+    <script src="/static/js/auth.js"></script>
+</head>
+<body>
 
-    <!-- Pull to refresh indicator -->
-    <div class="pull-indicator" id="pull-indicator">
-        <div class="pull-spinner"></div>
-        <span>Refreshing...</span>
+<!-- Pull-to-refresh indicator -->
+<div class="pull-indicator" id="pull-indicator">
+    <div class="pull-spinner"></div>
+    <span>Refreshing…</span>
+</div>
+
+<!-- ===================== Header ===================== -->
+<header class="app-header">
+    <a class="header-left" href="#dashboard" id="header-home">
+        <svg class="header-logo" width="26" height="26" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <radialGradient id="mhBodyGrad" cx="88.59" cy="129.81" r="67.73" gradientTransform="scale(1.129,0.886)" fx="88.59" fy="129.81" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#1a6fd4"/><stop offset="100%" stop-color="#0a1f6b"/>
+                </radialGradient>
+                <radialGradient id="mhEyeL" cx="69.98" cy="101.98" r="29.5" gradientTransform="scale(1.042,0.96)" fx="69.98" fy="101.98" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#ffe94d"/><stop offset="70%" stop-color="#f0a500"/><stop offset="100%" stop-color="#c47800"/>
+                </radialGradient>
+                <radialGradient id="mhEyeR" cx="112.22" cy="101.98" r="29.5" gradientTransform="scale(1.042,0.96)" fx="112.22" fy="101.98" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#ffe94d"/><stop offset="70%" stop-color="#f0a500"/><stop offset="100%" stop-color="#c47800"/>
+                </radialGradient>
+            </defs>
+            <ellipse cx="100" cy="115" rx="55" ry="50" fill="url(#mhBodyGrad)" stroke="#00eeff" stroke-width="1.5"/>
+            <g transform="rotate(-6.28,90.45,82.01)"><polygon points="40,45 75,68 55,80" fill="#0a2a8a" stroke="#00eeff" stroke-width="1.5"/><polygon points="46,52 72,70 57,76" fill="#1a3fcc" opacity="0.6"/></g>
+            <g transform="matrix(-0.994,-0.109,-0.109,0.994,209.37,11.67)"><polygon points="40,45 75,68 55,80" fill="#0a2a8a" stroke="#00eeff" stroke-width="1.5"/><polygon points="46,52 72,70 57,76" fill="#1a3fcc" opacity="0.6"/></g>
+            <ellipse cx="78" cy="105" rx="16" ry="14" fill="url(#mhEyeL)"/>
+            <ellipse cx="122" cy="105" rx="16" ry="14" fill="url(#mhEyeR)"/>
+            <ellipse cx="78" cy="105" rx="5" ry="12" fill="#0a0a0a"/>
+            <ellipse cx="122" cy="105" rx="5" ry="12" fill="#0a0a0a"/>
+            <ellipse cx="74" cy="101" rx="3" ry="2" fill="#fff" opacity="0.8"/>
+            <ellipse cx="118" cy="101" rx="3" ry="2" fill="#fff" opacity="0.8"/>
+            <polygon points="93.7,131.9 103.7,131.9 98.7,125.9" fill="#00eeff" opacity="0.9"/>
+        </svg>
+        <span class="header-title">MEOW</span>
+        <span class="view-label" id="view-label">Dashboard</span>
+    </a>
+    <div class="header-right">
+        <span class="last-update" id="last-update">--:--</span>
+        <button class="icon-btn" id="menu-btn" aria-label="Menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="5" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="19" r="1.6" fill="currentColor"/></svg>
+        </button>
     </div>
+</header>
 
-    <!-- Header -->
-    <header class="mobile-header">
-        <div class="header-left">
-            <svg class="header-logo" width="28" height="28" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <radialGradient id="mhBodyGrad" cx="88.59" cy="129.81" r="67.73" gradientTransform="scale(1.129,0.886)" fx="88.59" fy="129.81" gradientUnits="userSpaceOnUse">
-                        <stop offset="0%" stop-color="#1a6fd4"/><stop offset="100%" stop-color="#0a1f6b"/>
-                    </radialGradient>
-                    <radialGradient id="mhEyeL" cx="69.98" cy="101.98" r="29.5" gradientTransform="scale(1.042,0.96)" fx="69.98" fy="101.98" gradientUnits="userSpaceOnUse">
-                        <stop offset="0%" stop-color="#ffe94d"/><stop offset="70%" stop-color="#f0a500"/><stop offset="100%" stop-color="#c47800"/>
-                    </radialGradient>
-                    <radialGradient id="mhEyeR" cx="112.22" cy="101.98" r="29.5" gradientTransform="scale(1.042,0.96)" fx="112.22" fy="101.98" gradientUnits="userSpaceOnUse">
-                        <stop offset="0%" stop-color="#ffe94d"/><stop offset="70%" stop-color="#f0a500"/><stop offset="100%" stop-color="#c47800"/>
-                    </radialGradient>
-                </defs>
-                <ellipse cx="100" cy="115" rx="55" ry="50" fill="url(#mhBodyGrad)" stroke="#00eeff" stroke-width="1.5"/>
-                <g transform="rotate(-6.28,90.45,82.01)"><polygon points="40,45 75,68 55,80" fill="#0a2a8a" stroke="#00eeff" stroke-width="1.5"/><polygon points="46,52 72,70 57,76" fill="#1a3fcc" opacity="0.6"/></g>
-                <g transform="matrix(-0.994,-0.109,-0.109,0.994,209.37,11.67)"><polygon points="40,45 75,68 55,80" fill="#0a2a8a" stroke="#00eeff" stroke-width="1.5"/><polygon points="46,52 72,70 57,76" fill="#1a3fcc" opacity="0.6"/></g>
-                <ellipse cx="78" cy="105" rx="16" ry="14" fill="url(#mhEyeL)"/>
-                <ellipse cx="122" cy="105" rx="16" ry="14" fill="url(#mhEyeR)"/>
-                <ellipse cx="78" cy="105" rx="5" ry="12" fill="#0a0a0a"/>
-                <ellipse cx="122" cy="105" rx="5" ry="12" fill="#0a0a0a"/>
-                <ellipse cx="74" cy="101" rx="3" ry="2" fill="#fff" opacity="0.8"/>
-                <ellipse cx="118" cy="101" rx="3" ry="2" fill="#fff" opacity="0.8"/>
-                <polygon points="93.7,131.9 103.7,131.9 98.7,125.9" fill="#00eeff" opacity="0.9"/>
-            </svg>
-            <span class="header-title">MEOW</span>
+<!-- ===================== Main ===================== -->
+<main class="app-main" id="app-main">
+
+    <!-- ===== Dashboard ===== -->
+    <section class="view" id="view-dashboard">
+        <div class="cards-scroll" id="dash-cards"></div>
+        <div class="section-block">
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-head"><h3>Top Countries</h3></div>
+                    <div class="chart-wrap"><canvas id="chart-countries"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-head"><h3>Top Services</h3></div>
+                    <div class="chart-wrap"><canvas id="chart-services"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-head"><h3>Port Distribution</h3></div>
+                    <div class="chart-wrap"><canvas id="chart-ports"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-head"><h3>Technologies</h3></div>
+                    <div class="chart-wrap"><canvas id="chart-tech"></canvas></div>
+                </div>
+            </div>
+            <div class="mini-card">
+                <div class="mini-head"><h3>Top Products</h3></div>
+                <div class="rank-list" id="dash-products"></div>
+            </div>
         </div>
-        <div class="header-right">
-            <span class="last-update" id="last-update">--:--</span>
+    </section>
+
+    <!-- ===== Explore ===== -->
+    <section class="view" id="view-explore" hidden>
+        <div class="segmented" id="explore-seg">
+            <button class="seg active" data-pane="hosts">Hosts</button>
+            <button class="seg" data-pane="services">Services</button>
+            <button class="seg" data-pane="certs">Certs</button>
+            <button class="seg" data-pane="domains">Domains</button>
         </div>
-    </header>
 
-    <!-- Scrollable Content -->
-    <main class="mobile-content" id="mobile-content">
+        <!-- Hosts pane -->
+        <div class="pane active" id="pane-hosts">
+            <div class="toolbar">
+                <div class="search-box">
+                    <svg class="s-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <input id="hosts-search" type="text" inputmode="search" placeholder="Search hosts (MeowQL supported)…" autocomplete="off" autocapitalize="off" spellcheck="false">
+                    <button class="s-clear" id="hosts-clear" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+                </div>
+                <button class="tool-btn" id="hosts-filter-btn" aria-label="Filters"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+                <button class="tool-btn" id="hosts-export-btn" aria-label="Export"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+            <div class="chips-row" id="hosts-chips" hidden><div class="chips-scroll" id="hosts-chips-scroll"></div><button class="chips-clear" id="hosts-chips-clear"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+            <div class="result-bar"><span id="hosts-count">0</span> hosts</div>
+            <div class="list" id="hosts-list"></div>
+            <div class="list-loading" id="hosts-loading" hidden><div class="pull-spinner"></div></div>
+            <div class="empty" id="hosts-empty" hidden><svg width="40" height="40" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><p>No hosts found</p></div>
+            <div class="pager" id="hosts-pager" hidden>
+                <button class="page-btn" id="hosts-prev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <span class="page-info" id="hosts-pageinfo">1 / 1</span>
+                <button class="page-btn" id="hosts-next"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+        </div>
 
-        <!-- Summary Cards (horizontal scroll) -->
-        <section class="cards-scroll">
-            <div class="stat-card primary">
-                <div class="stat-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
-                        <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
+        <!-- Services pane -->
+        <div class="pane" id="pane-services" hidden>
+            <div class="toolbar">
+                <div class="search-box">
+                    <svg class="s-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <input id="services-search" type="text" inputmode="search" placeholder="Search services (product, banner…)" autocomplete="off" autocapitalize="off" spellcheck="false">
+                    <button class="s-clear" id="services-clear" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
                 </div>
-                <div class="stat-value" id="total-hosts">-</div>
-                <div class="stat-label">Hosts</div>
+                <button class="tool-btn" id="services-export-btn" aria-label="Export"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             </div>
-            <div class="stat-card secondary">
-                <div class="stat-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                        <rect x="3" y="9" width="18" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
-                        <path d="M8 9V7a4 4 0 018 0v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                        <circle cx="12" cy="14" r="1" fill="currentColor"/>
-                    </svg>
-                </div>
-                <div class="stat-value" id="total-services">-</div>
-                <div class="stat-label">Services</div>
+            <div class="filter-scroll" id="services-quick"></div>
+            <div class="list" id="services-list"></div>
+            <div class="list-loading" id="services-loading" hidden><div class="pull-spinner"></div></div>
+            <div class="empty" id="services-empty" hidden><svg width="40" height="40" viewBox="0 0 24 24" fill="none"><rect x="3" y="9" width="18" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 9V7a4 4 0 018 0v2" stroke="currentColor" stroke-width="2"/></svg><p>No services found</p></div>
+            <div class="pager" id="services-pager" hidden>
+                <button class="page-btn" id="services-prev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <span class="page-info" id="services-pageinfo">1</span>
+                <button class="page-btn" id="services-next"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             </div>
-            <div class="stat-card accent">
-                <div class="stat-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                        <path d="M12 2l8 5v9c0 3.866-3.582 7-8 7s-8-3.134-8-7V7l8-5z" stroke="currentColor" stroke-width="2"/>
-                        <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                </div>
-                <div class="stat-value" id="total-certs">-</div>
-                <div class="stat-label">Certs</div>
-            </div>
-            <div class="stat-card info">
-                <div class="stat-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2"/>
-                        <path d="M20 10c0 4.418-4 8-8 8s-8-3.582-8-8 4-8 8-8 8 3.582 8 8z" stroke="currentColor" stroke-width="2"/>
-                    </svg>
-                </div>
-                <div class="stat-value" id="total-countries">-</div>
-                <div class="stat-label">Countries</div>
-            </div>
-        </section>
+        </div>
 
-        <!-- Charts (stacked) -->
-        <section class="charts-section">
-            <div class="mobile-chart-card">
-                <div class="chart-title">
-                    <h3>Top Countries</h3>
-                    <button class="chart-refresh" onclick="mobileDashboard.loadCountriesChart()">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </button>
+        <!-- Certs pane -->
+        <div class="pane" id="pane-certs" hidden>
+            <div class="toolbar">
+                <div class="search-box">
+                    <svg class="s-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <input id="certs-search" type="text" inputmode="search" placeholder="Search certificates (CN, issuer, SAN…)" autocomplete="off" autocapitalize="off" spellcheck="false">
+                    <button class="s-clear" id="certs-clear" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
                 </div>
-                <div class="chart-wrap">
-                    <canvas id="countriesChart"></canvas>
+                <button class="tool-btn" id="certs-export-btn" aria-label="Export"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+            <div class="filter-scroll" id="certs-quick"></div>
+            <div class="result-bar"><span id="certs-count">0</span> certificates</div>
+            <div class="list" id="certs-list"></div>
+            <div class="list-loading" id="certs-loading" hidden><div class="pull-spinner"></div></div>
+            <div class="empty" id="certs-empty" hidden><svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M12 2l8 5v9c0 3.9-3.6 7-8 7s-8-3.1-8-7V7l8-5z" stroke="currentColor" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2"/></svg><p>No certificates found</p></div>
+            <div class="pager" id="certs-pager" hidden>
+                <button class="page-btn" id="certs-prev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <span class="page-info" id="certs-pageinfo">1 / 1</span>
+                <button class="page-btn" id="certs-next"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+        </div>
+
+        <!-- Domains pane -->
+        <div class="pane" id="pane-domains" hidden>
+            <div class="stat-strip" id="domains-stats"></div>
+            <div class="toolbar">
+                <div class="search-box">
+                    <svg class="s-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <input id="domains-search" type="text" inputmode="search" placeholder="Search domains…" autocomplete="off" autocapitalize="off" spellcheck="false">
+                    <button class="s-clear" id="domains-clear" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
                 </div>
+                <button class="tool-btn" id="domains-export-btn" aria-label="Export"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+            <div class="result-bar"><span id="domains-count">0</span> domains</div>
+            <div class="list" id="domains-list"></div>
+            <div class="list-loading" id="domains-loading" hidden><div class="pull-spinner"></div></div>
+            <div class="empty" id="domains-empty" hidden><svg width="40" height="40" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" stroke="currentColor" stroke-width="2"/></svg><p>No domains found</p></div>
+            <div class="pager" id="domains-pager" hidden>
+                <button class="page-btn" id="domains-prev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <span class="page-info" id="domains-pageinfo">1 / 1</span>
+                <button class="page-btn" id="domains-next"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== Query ===== -->
+    <section class="view" id="view-query" hidden>
+        <div class="query-bar">
+            <div class="query-input-wrap">
+                <div class="query-ghost" id="query-ghost"></div>
+                <input id="query-input" type="text" inputmode="search" placeholder="port:443 country:US" autocomplete="off" autocapitalize="off" spellcheck="false">
+            </div>
+            <button class="query-go" id="query-go"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button class="tool-btn" id="query-help-btn" aria-label="Help"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M9.5 9a2.5 2.5 0 015 0c0 1.7-2.5 2-2.5 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.5" r="0.5" fill="currentColor" stroke="currentColor"/></svg></button>
+        </div>
+        <div class="ac-dropdown" id="ac-dropdown"></div>
+        <div class="query-error" id="query-error" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span id="query-error-msg"></span></div>
+        <div class="query-stats" id="query-stats" hidden><span id="query-stats-text"></span><span class="query-time" id="query-stats-time"></span></div>
+        <div class="query-welcome" id="query-welcome">
+            <div class="welcome-title">MeowQL Search</div>
+            <p>Query hosts &amp; services with a Shodan-style language. Tap an example to start.</p>
+            <div class="example-chips">
+                <button class="ex-chip" data-query="port:443 country:US">port:443 country:US</button>
+                <button class="ex-chip" data-query="service:ssh">service:ssh</button>
+                <button class="ex-chip" data-query='http.title:"login"'>http.title:"login"</button>
+                <button class="ex-chip" data-query="protocol:smb">protocol:smb</button>
+                <button class="ex-chip" data-query="-cloud:* and country:FR">-cloud:* country:FR</button>
+                <button class="ex-chip" data-query='tls.cert.cn:"*.example.com"'>tls.cert.cn:"*.example.com"</button>
+            </div>
+        </div>
+        <div class="list" id="query-list"></div>
+        <div class="pager" id="query-pager" hidden>
+            <button class="page-btn" id="query-prev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <span class="page-info" id="query-pageinfo">1 / 1</span>
+            <button class="page-btn" id="query-next"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+    </section>
+
+    <!-- ===== Scan ===== -->
+    <section class="view" id="view-scan" hidden>
+        <div class="section-block">
+            <div class="mini-card">
+                <div class="mini-head"><h3>Scanners</h3><span class="pill" id="scan-node-count">0 nodes</span></div>
+                <div class="scanner-chips" id="scanner-chips"></div>
+                <div class="scan-empty" id="scan-empty" hidden>No scanners connected. Start a <code>synscan</code> node to enable scans.</div>
             </div>
 
-            <div class="mobile-chart-card">
-                <div class="chart-title">
-                    <h3>Top Services</h3>
-                    <button class="chart-refresh" onclick="mobileDashboard.loadServicesChart()">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="chart-wrap">
-                    <canvas id="servicesChart"></canvas>
-                </div>
+            <div class="mini-card" id="scan-form-card">
+                <div class="mini-head"><h3>New Scan</h3></div>
+                <form id="scan-form" class="scan-form">
+                    <label class="field-label">Target</label>
+                    <input id="scan-target" class="field-input" type="text" placeholder="192.168.1.0/24, 10.0.0.1" autocomplete="off" autocapitalize="off" spellcheck="false">
+                    <label class="field-label">Ports</label>
+                    <input id="scan-ports" class="field-input" type="text" placeholder="1-1000 or 22,80,443" autocomplete="off">
+                    <div class="preset-row">
+                        <button type="button" class="preset" data-preset="top20">Top 20</button>
+                        <button type="button" class="preset" data-preset="top50">Top 50</button>
+                        <button type="button" class="preset" data-preset="top100">Top 100</button>
+                        <button type="button" class="preset" data-preset="clear">Clear</button>
+                    </div>
+                    <label class="field-label">Rate limit <span class="field-hint">(pps, optional)</span></label>
+                    <input id="scan-rate" class="field-input" type="number" inputmode="numeric" placeholder="e.g. 10000">
+                    <button type="submit" class="btn-full" id="scan-submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M2 12h4l3-9 6 18 3-9h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Launch scan</button>
+                </form>
             </div>
 
-            <div class="mobile-chart-card">
-                <div class="chart-title">
-                    <h3>Port Distribution</h3>
-                    <button class="chart-refresh" onclick="mobileDashboard.loadPortsChart()">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </button>
+            <div class="mini-card">
+                <div class="mini-head"><h3>DNS Lookup</h3></div>
+                <div class="dns-bar">
+                    <input id="dns-input" class="field-input" type="text" placeholder="domain or IP" autocomplete="off" autocapitalize="off" spellcheck="false">
+                    <button class="tool-btn" id="dns-go"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                 </div>
-                <div class="chart-wrap">
-                    <canvas id="portsChart"></canvas>
-                </div>
+                <div class="dns-results" id="dns-results"></div>
             </div>
 
-            <div class="mobile-chart-card">
-                <div class="chart-title">
-                    <h3>Technologies</h3>
-                    <button class="chart-refresh" onclick="mobileDashboard.loadTechnologiesChart()">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="chart-wrap">
-                    <canvas id="techChart"></canvas>
-                </div>
+            <div class="mini-card">
+                <div class="mini-head"><h3>Live Feed</h3><span class="pill" id="feed-count"></span></div>
+                <div class="feed-list" id="feed-list"></div>
             </div>
-        </section>
+        </div>
+    </section>
 
-    </main>
+    <!-- ===== Status ===== -->
+    <section class="view" id="view-status" hidden>
+        <div class="section-block" id="status-body">
+            <div class="list-loading" id="status-loading"><div class="pull-spinner"></div></div>
+        </div>
+    </section>
 
-    {{template "mobile_nav" .}}
+</main>
+
+<!-- ===================== Bottom nav ===================== -->
+<nav class="bottom-nav">
+    <a class="nav-tab active" href="#dashboard" data-view="dashboard">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Dashboard</span>
+    </a>
+    <a class="nav-tab" href="#explore" data-view="explore">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="5" rx="8" ry="3" stroke="currentColor" stroke-width="2"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Explore</span>
+    </a>
+    <a class="nav-tab" href="#query" data-view="query">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 17l6-5-6-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 19h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Query</span>
+    </a>
+    <a class="nav-tab" href="#scan" data-view="scan">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M2 12h4l3-9 6 18 3-9h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Scan</span>
+    </a>
+    <a class="nav-tab" href="#status" data-view="status">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="7" rx="2" stroke="currentColor" stroke-width="2"/><rect x="3" y="13" width="18" height="7" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="7" cy="7.5" r="1" fill="currentColor"/><circle cx="7" cy="16.5" r="1" fill="currentColor"/></svg>
+        <span>Status</span>
+    </a>
+</nav>
+
+<!-- ===================== Overlays ===================== -->
+<!-- Generic detail bottom-sheet -->
+<div class="sheet-backdrop" id="detail-backdrop"></div>
+<div class="bottom-sheet" id="detail-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+        <h3 id="detail-title">Detail</h3>
+        <button class="sheet-close" id="detail-close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+    </div>
+    <div class="sheet-body" id="detail-body"></div>
+</div>
+
+<!-- Hosts filter drawer -->
+<div class="drawer-backdrop" id="drawer-backdrop"></div>
+<aside class="filter-drawer" id="filter-drawer">
+    <div class="drawer-header"><h3>Filters</h3><button class="drawer-close" id="drawer-close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+    <div class="drawer-body">
+        <div class="drawer-field"><label>Country</label><select id="flt-country"><option value="">All</option></select></div>
+        <div class="drawer-field"><label>Port</label><input id="flt-port" type="text" inputmode="numeric" placeholder="e.g. 443"></div>
+        <div class="drawer-field"><label>Service</label><input id="flt-service" type="text" placeholder="e.g. ssh"></div>
+        <div class="drawer-field"><label>Technology</label><input id="flt-tech" type="text" placeholder="e.g. nginx"></div>
+        <div class="drawer-field"><label>Cloud provider</label><input id="flt-cloud" type="text" placeholder="e.g. aws"></div>
+        <div class="drawer-field"><label>ASN</label><input id="flt-asn" type="text" inputmode="numeric" placeholder="e.g. 13335"></div>
+        <div class="drawer-toggle"><label class="toggle-label"><input type="checkbox" id="flt-verified"><span class="toggle-switch"></span>Identified services only</label></div>
+        <div class="drawer-section">
+            <h4>Popular ports</h4>
+            <div class="facet-chips" id="flt-port-facets"></div>
+        </div>
+    </div>
+    <div class="drawer-actions">
+        <button class="btn-apply" id="flt-apply">Apply</button>
+        <button class="btn-clear" id="flt-clear">Clear</button>
+    </div>
+</aside>
+
+<!-- Query help sheet -->
+<div class="sheet-backdrop" id="help-backdrop"></div>
+<div class="bottom-sheet" id="help-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header"><h3>MeowQL Help</h3><button class="sheet-close" id="help-close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+    <div class="sheet-body" id="help-body"></div>
+</div>
+
+<!-- Overflow menu sheet -->
+<div class="sheet-backdrop" id="menu-backdrop"></div>
+<div class="bottom-sheet menu-sheet" id="menu-sheet">
+    <div class="sheet-handle"></div>
+    <div class="menu-list">
+        <button class="menu-item" id="menu-refresh"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M23 4v6h-6M1 20v-6h6M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Refresh</span></button>
+        <button class="menu-item" id="menu-apikey"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 2l-2 2m-7.6 7.6a5 5 0 11-7 7 5 5 0 017-7zm0 0L15 8m0 0l3 3 3-3-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Set API key</span></button>
+        <a class="menu-item" href="/dashboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Switch to Desktop</span></a>
+        <div class="menu-about" id="menu-about"></div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="/static/vendor/chart.min.js"></script>
+<script src="/static/js/mobile.js"></script>
+</body>
+</html>
