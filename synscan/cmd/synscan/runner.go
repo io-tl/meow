@@ -67,6 +67,10 @@ func prepareScanConfig(config *YAMLConfig, target, targetFile, ports string, deb
 		return nil, nil, nil, err
 	}
 
+	if config.Synscan.Network.Interface == "" {
+		log.Printf("WARNING: no interface specified (-i) AF_PACKET unavailable, falling back to a slower transport")
+	}
+
 	scanConfig := buildScanConfig(config, targetIPs, parsedPorts, sourceIP)
 	return scanConfig, targetIPs, parsedPorts, nil
 }
