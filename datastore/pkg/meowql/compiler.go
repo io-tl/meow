@@ -242,7 +242,9 @@ func (c *compiler) compileComparison(cond *Condition, field FieldInfo) string {
 			return c.compileBooleanMatch(cond.Value, col)
 		}
 		if field.CaseInsens {
-			return "LOWER(" + col + ") = LOWER(" + c.addArg(cond.Value) + ")"
+			// COLLATE NOCASE (not LOWER()) keeps the comparison case-insensitive
+			// AND lets it use a NOCASE index (LOWER(col) is non-sargable).
+			return col + " = " + c.addArg(cond.Value) + " COLLATE NOCASE"
 		}
 		return col + " = " + c.addArg(cond.Value)
 
@@ -253,7 +255,7 @@ func (c *compiler) compileComparison(cond *Condition, field FieldInfo) string {
 			}
 		}
 		if field.CaseInsens {
-			return "(" + col + " IS NULL OR LOWER(" + col + ") != LOWER(" + c.addArg(cond.Value) + "))"
+			return "(" + col + " IS NULL OR " + col + " != " + c.addArg(cond.Value) + " COLLATE NOCASE)"
 		}
 		return "(" + col + " IS NULL OR " + col + " != " + c.addArg(cond.Value) + ")"
 

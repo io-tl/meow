@@ -281,6 +281,36 @@ func TestSearchServicesMode(t *testing.T) {
 	}
 }
 
+// TestSearchExactMatchCaseInsensitive guards that the '=' operator stays
+// case-insensitive after switching from LOWER() to COLLATE NOCASE. The host is
+// seeded with country_code 'US'; a lowercase literal must still match.
+func TestSearchExactMatchCaseInsensitive(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleSearch(context.Background(), callTool(map[string]any{
+		"query": `country="us"`,
+	}))
+	assertNoError(t, result, err)
+
+	if got := envCount(t, result); got != 1 {
+		t.Errorf("expected 1 US host via case-insensitive exact match, got %d", got)
+	}
+}
+
+// TestSearchServicesExactMatchCaseInsensitive is the services-table counterpart:
+// product is seeded as 'OpenSSH', an uppercase exact match must still match.
+func TestSearchServicesExactMatchCaseInsensitive(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleSearch(context.Background(), callTool(map[string]any{
+		"query": `product="OPENSSH"`,
+		"mode":  "services",
+	}))
+	assertNoError(t, result, err)
+
+	if got := envCount(t, result); got != 2 {
+		t.Errorf("expected 2 OpenSSH services via case-insensitive exact match, got %d", got)
+	}
+}
+
 func TestSearchCompoundQuery(t *testing.T) {
 	h := setupTestMCP(t)
 	result, err := h.handleSearch(context.Background(), callTool(map[string]any{

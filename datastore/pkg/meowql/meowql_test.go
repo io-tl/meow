@@ -276,8 +276,13 @@ func TestCompileExactMatch(t *testing.T) {
 	if r.Err != nil {
 		t.Fatal(r.Err)
 	}
-	if !strings.Contains(r.Where, "LOWER") {
-		t.Errorf("expected case-insensitive comparison, got: %s", r.Where)
+	// Case-insensitive exact match must use COLLATE NOCASE (index-friendly),
+	// never LOWER() (which forces a full scan).
+	if !strings.Contains(r.Where, "COLLATE NOCASE") {
+		t.Errorf("expected COLLATE NOCASE comparison, got: %s", r.Where)
+	}
+	if strings.Contains(r.Where, "LOWER") {
+		t.Errorf("exact match must not use non-sargable LOWER(), got: %s", r.Where)
 	}
 }
 

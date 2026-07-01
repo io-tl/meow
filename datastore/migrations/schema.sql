@@ -469,6 +469,24 @@ CREATE INDEX IF NOT EXISTS idx_service_enrichments_worker_queue
 CREATE INDEX IF NOT EXISTS idx_domains_last_updated ON domains(last_updated DESC);
 
 -- ============================================================================
+-- CASE-INSENSITIVE EXACT-MATCH INDEXES (MeowQL '=' operator)
+-- ============================================================================
+-- MeowQL compiles `field="value"` on text fields to `col = ? COLLATE NOCASE`.
+-- A NOCASE index on the column lets that comparison do an index SEEK instead of
+-- a full scan (the plain BINARY indexes above cannot serve a NOCASE comparison).
+-- Kept as partial indexes (WHERE col IS NOT NULL) to stay small.
+CREATE INDEX IF NOT EXISTS idx_services_product_nc ON services(product COLLATE NOCASE) WHERE product IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_services_service_nc ON services(service COLLATE NOCASE) WHERE service IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_services_version_nc ON services(version COLLATE NOCASE) WHERE version IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_hosts_country_nc ON hosts(country_code COLLATE NOCASE) WHERE country_code IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_hosts_city_nc ON hosts(city COLLATE NOCASE) WHERE city IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_hosts_as_org_nc ON hosts(as_org COLLATE NOCASE) WHERE as_org IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_http_title_nc ON http_data(title COLLATE NOCASE) WHERE title IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_http_server_nc ON http_data(server COLLATE NOCASE) WHERE server IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_certs_subject_cn_nc ON certificates(subject_cn COLLATE NOCASE) WHERE subject_cn IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_certs_issuer_cn_nc ON certificates(issuer_cn COLLATE NOCASE) WHERE issuer_cn IS NOT NULL;
+
+-- ============================================================================
 -- TRIGGERS FOR AUTO-UPDATING HOST COUNTS (INCREMENTAL)
 -- ============================================================================
 
