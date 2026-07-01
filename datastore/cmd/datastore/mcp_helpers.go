@@ -35,6 +35,22 @@ func mcpEnvelope(tool string, results []map[string]any, truncated bool) (*mcp.Ca
 	return mcpJSON(map[string]any{"tool": tool, "count": len(results), "truncated": truncated, "results": results})
 }
 
+// mcpEnvelopeWithTotal is like mcpEnvelope but also reports total, the number of
+// matches across all pages (before LIMIT/OFFSET). Paginated search tools use it
+// so callers know the full result size without a second meow_count round-trip.
+func mcpEnvelopeWithTotal(tool string, results []map[string]any, truncated bool, total int) (*mcp.CallToolResult, error) {
+	if results == nil {
+		results = []map[string]any{}
+	}
+	return mcpJSON(map[string]any{
+		"tool":      tool,
+		"count":     len(results),
+		"total":     total,
+		"truncated": truncated,
+		"results":   results,
+	})
+}
+
 // setNullStr sets key in the map if the NullString is valid and non-empty.
 // Unlike setIfValid, this also filters out empty strings.
 func setNullStr(m map[string]any, key string, ns sql.NullString) {

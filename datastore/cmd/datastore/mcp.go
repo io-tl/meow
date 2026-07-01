@@ -60,7 +60,7 @@ func (h *mcpHandler) registerTools(s *server.MCPServer) {
 		mcp.WithNumber("limit", mcp.Description("Results per page (default 50, max 500)")),
 		mcp.WithNumber("page", mcp.Description("Page number, starts at 1")),
 		mcp.WithString("fields",
-			mcp.Description("Comma-separated fields to return. Services default: ip,port,service,product,version,country,cloud,org,enrichment_keys. Use enrichment.* for enrichment values")),
+			mcp.Description("Comma-separated fields to return (services mode). Default: ip,port,service,product,version,country,cloud,org,enrichment_keys. Also available: city, banner, http.status, http.title, http.server, http.favicon, and enrichment.<key> for enrichment values. banner and enrichment_data are only read from disk when requested.")),
 	), h.handleSearch)
 
 	s.AddTool(mcp.NewTool("meow_stats",

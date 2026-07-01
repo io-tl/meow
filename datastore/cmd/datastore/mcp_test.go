@@ -1339,6 +1339,91 @@ func TestSearchServicesFieldsCustom(t *testing.T) {
 	}
 }
 
+// TestSearchServicesHTTPTitleProjection guards the fields projection bug: the
+// public dotted name http.title must be returnable (the row key used to be the
+// underscore http_title, which filterRow could never match).
+func TestSearchServicesHTTPTitleProjection(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleSearch(context.Background(), callTool(map[string]any{
+		"query":  "port:443",
+		"mode":   "services",
+		"fields": "ip,port,http.title",
+	}))
+	assertNoError(t, result, err)
+
+	services := envResults(t, result)
+	if len(services) == 0 {
+		t.Fatal("expected services")
+	}
+	svc := services[0].(map[string]any)
+	if svc["http.title"] != "Welcome" {
+		t.Errorf("expected http.title=Welcome, got %v", svc["http.title"])
+	}
+	// service was not requested → must be pruned.
+	if svc["service"] != nil {
+		t.Error("service should be filtered out when not in fields")
+	}
+}
+
+// TestSearchServicesTotal verifies the envelope reports the full match count
+// across all pages, not just the current page length.
+func TestSearchServicesTotal(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleSearch(context.Background(), callTool(map[string]any{
+		"query": "service:ssh",
+		"mode":  "services",
+		"limit": float64(1),
+	}))
+	assertNoError(t, result, err)
+
+	data := parseResult(t, result)
+	total, ok := data["total"].(float64)
+	if !ok {
+		t.Fatalf("envelope missing total field: %v", data)
+	}
+	if int(total) != 2 {
+		t.Errorf("expected total=2 SSH services, got %v", total)
+	}
+	if got := envCount(t, result); got != 1 {
+		t.Errorf("expected count=1 (limited to 1), got %d", got)
+	}
+	if !envTruncated(t, result) {
+		t.Error("expected truncated=true (1 returned of 2 total)")
+	}
+}
+
+// TestSearchServicesEnrichmentOptIn verifies the enrichment_data JSON is not
+// surfaced when the caller requests only cheap columns (the dynamic SELECT skips
+// reading it entirely).
+func TestSearchServicesEnrichmentOptIn(t *testing.T) {
+	h := setupTestMCP(t)
+	result, err := h.handleSearch(context.Background(), callTool(map[string]any{
+		"query":  "port:22",
+		"mode":   "services",
+		"fields": "ip,port",
+	}))
+	assertNoError(t, result, err)
+
+	for _, s := range envResults(t, result) {
+		svc := s.(map[string]any)
+		if svc["enrichment_keys"] != nil {
+			t.Error("enrichment_keys should be absent when fields=ip,port")
+		}
+		if hasEnrichmentKey(svc) {
+			t.Error("no enrichment.* values should appear when fields=ip,port")
+		}
+	}
+}
+
+func hasEnrichmentKey(m map[string]any) bool {
+	for k := range m {
+		if len(k) > len("enrichment.") && k[:len("enrichment.")] == "enrichment." {
+			return true
+		}
+	}
+	return false
+}
+
 func TestSearchServicesEnrichmentKeys(t *testing.T) {
 	h := setupTestMCP(t)
 	result, err := h.handleSearch(context.Background(), callTool(map[string]any{
