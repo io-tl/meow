@@ -162,19 +162,16 @@ func resolveDNS(query string) map[string]any {
 }
 
 // parsePagination parses limit and page query parameters with validation.
-// The limit is clamped to [1, 500] to prevent resource exhaustion.
+// The requested limit is honored as-is (no hard cap); only invalid or
+// non-positive values fall back to defaultLimit. A caller that wants 10_000_000
+// rows gets them.
 func parsePagination(c *gin.Context, defaultLimit int) (limit, offset, page int) {
-	const maxLimit = 500
-
 	limitStr := c.DefaultQuery("limit", strconv.Itoa(defaultLimit))
 	pageStr := c.DefaultQuery("page", "1")
 
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit <= 0 {
 		limit = defaultLimit
-	}
-	if limit > maxLimit {
-		limit = maxLimit
 	}
 	page, err = strconv.Atoi(pageStr)
 	if err != nil || page <= 0 {

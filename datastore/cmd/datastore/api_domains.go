@@ -283,7 +283,7 @@ func (api *API) getDomainStats(c *gin.Context) {
 // getDomainServices returns the services detail for a specific domain with pagination.
 func (api *API) getDomainServices(c *gin.Context) {
 	domain := c.Param("domain")
-	limitInt, offset, page := parsePagination(c, 25)
+	limitInt, offset, page := parsePagination(c, 50)
 	hideEmpty := c.DefaultQuery("hide_empty", "") == "1"
 
 	whereClause := "WHERE se.domain = ? AND se.status = 'enriched'"

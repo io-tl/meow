@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"meow/datastore/pkg/meowql"
 
@@ -116,16 +117,63 @@ func (h *mcpHandler) handleExport(ctx context.Context, req mcp.CallToolRequest) 
 				continue
 			}
 			entry := map[string]any{"ip": ip}
-			setNullStr(entry, "country", countryCode)
+			setNullStr(entry, "country_code", countryCode)
 			setNullStr(entry, "city", city)
 			setIfValidInt(entry, "asn", asn)
-			setNullStr(entry, "org", asOrg)
-			setNullStr(entry, "cloud", cloudProvider)
+			setNullStr(entry, "as_org", asOrg)
+			setNullStr(entry, "cloud_provider", cloudProvider)
 			setNullStr(entry, "cloud_type", cloudType)
-			setIfValidInt(entry, "open_ports", openPorts)
+			setIfValidInt(entry, "open_ports_count", openPorts)
 			hosts = append(hosts, entry)
 		}
 		return mcpEnvelope("meow_export", hosts, len(hosts) >= limit)
+
+	case "domains":
+		// Domains are host-centric: compile the query against the hosts table.
+		var hostWhere string
+		var hostArgs []any
+		if query != "" {
+			result := meowql.Compile(query)
+			if result.Err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("MeowQL error: %v", result.Err)), nil
+			}
+			hostWhere = result.Where
+			hostArgs = result.Args
+		} else {
+			hostWhere = "1=1"
+		}
+		hostArgs = append(hostArgs, limit)
+
+		rows, err := h.db.QueryContext(ctx, fmt.Sprintf(`
+			SELECT hd.domain,
+			       GROUP_CONCAT(DISTINCT hd.ip) AS ips,
+			       GROUP_CONCAT(DISTINCT hd.source) AS sources,
+			       COUNT(DISTINCT hd.ip) AS ip_count
+			FROM host_domains hd INNER JOIN hosts h ON h.ip = hd.ip
+			WHERE %s
+			GROUP BY hd.domain
+			ORDER BY ip_count DESC, hd.domain ASC LIMIT ?`, hostWhere), hostArgs...)
+		if err != nil {
+			return nil, fmt.Errorf("export query failed: %w", err)
+		}
+		defer rows.Close()
+
+		var domains []map[string]any
+		for rows.Next() {
+			var domain string
+			var ips, sources sql.NullString
+			var ipCount int
+			if rows.Scan(&domain, &ips, &sources, &ipCount) != nil {
+				continue
+			}
+			entry := map[string]any{"domain": domain, "ip_count": ipCount}
+			if ips.Valid && ips.String != "" {
+				entry["ips"] = strings.Split(ips.String, ",")
+			}
+			setNullStr(entry, "source", sources)
+			domains = append(domains, entry)
+		}
+		return mcpEnvelope("meow_export", domains, len(domains) >= limit)
 
 	default:
 		return mcp.NewToolResultError(fmt.Sprintf("unknown export type: %s", exportType)), nil

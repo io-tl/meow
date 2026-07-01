@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/csv"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,16 +13,23 @@ import (
 	"meow/datastore/pkg/meowql"
 )
 
-// parseLimit parses a limit string and returns a safe int value (default 1000, max 10000)
-func parseLimit(s string, defaultLimit, maxLimit int) int {
+// parseLimit parses a limit string and returns a safe int value. The requested
+// value is honored as-is (no hard cap); only invalid or non-positive input falls
+// back to defaultLimit.
+func parseLimit(s string, defaultLimit int) int {
 	n, err := strconv.Atoi(s)
 	if err != nil || n <= 0 {
 		return defaultLimit
 	}
-	if n > maxLimit {
-		return maxLimit
-	}
 	return n
+}
+
+// parseExportPage parses the page query parameter (1-based), defaulting to 1.
+func parseExportPage(c *gin.Context) int {
+	if p, err := strconv.Atoi(c.DefaultQuery("page", "1")); err == nil && p > 0 {
+		return p
+	}
+	return 1
 }
 
 // buildExportFilters builds WHERE clause fragments from export query parameters.
@@ -165,7 +173,17 @@ func (api *API) buildExportFilters(c *gin.Context) (hostWhere string, hostArgs [
 	return
 }
 
-// exportData exports data in various formats
+// exportableTypes lists the data types supported by the export endpoint.
+var exportableTypes = map[string]bool{
+	"hosts":        true,
+	"services":     true,
+	"certificates": true,
+	"domains":      true,
+}
+
+// exportData exports data in various formats (json, csv, txt) and types
+// (hosts, services, certificates, domains). The type is validated for every
+// format, including txt.
 func (api *API) exportData(c *gin.Context) {
 	format := c.DefaultQuery("format", "json")
 	dataType := c.DefaultQuery("type", "hosts")
@@ -175,33 +193,39 @@ func (api *API) exportData(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "Unsupported format. Use 'json', 'csv', or 'txt'"})
 		return
 	}
+	if !exportableTypes[dataType] {
+		c.JSON(400, gin.H{"error": "Invalid type. Use 'hosts', 'services', 'certificates', or 'domains'"})
+		return
+	}
 
-	limitInt := parseLimit(limitStr, 1000, 10000)
+	limitInt := parseLimit(limitStr, 1000)
+	offset := (parseExportPage(c) - 1) * limitInt
 
-	// TXT format: always export ip:port from services
+	// TXT format: type-aware plain-text list, streamed one entry per line.
 	if format == "txt" {
-		api.exportServicesTxt(c, limitInt)
+		api.exportTxt(c, dataType, limitInt, offset)
 		return
 	}
 
 	var data []gin.H
 	var err error
-
 	switch dataType {
 	case "hosts":
-		data, err = api.exportHosts(c, limitInt)
+		data, err = api.exportHosts(c, limitInt, offset)
 	case "services":
-		data, err = api.exportServices(c, limitInt)
+		data, err = api.exportServices(c, limitInt, offset)
 	case "certificates":
-		data, err = api.exportCertificates(limitInt)
-	default:
-		c.JSON(400, gin.H{"error": "Invalid type. Use 'hosts', 'services', or 'certificates'"})
-		return
+		data, err = api.exportCertificates(c, limitInt, offset)
+	case "domains":
+		data, err = api.exportDomains(c, limitInt, offset)
 	}
 
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
+	}
+	if data == nil {
+		data = []gin.H{}
 	}
 
 	switch format {
@@ -212,19 +236,53 @@ func (api *API) exportData(c *gin.Context) {
 	}
 }
 
-// exportServicesTxt returns plain text with ip:port per line
-func (api *API) exportServicesTxt(c *gin.Context, limit int) {
+// exportTxt streams a plain-text list, one entry per line, scoped to the data type:
+//
+//	hosts        -> ip
+//	services     -> ip:port
+//	certificates -> fingerprint_sha256
+//	domains      -> domain
+//
+// Rows are written directly to the response writer (streamed), not buffered.
+func (api *API) exportTxt(c *gin.Context, dataType string, limit, offset int) {
 	hostWhere, hostArgs, svcWhere, svcArgs := api.buildExportFilters(c)
 
-	query := fmt.Sprintf(`
-		SELECT s.ip, s.port FROM services s
-		INNER JOIN hosts h ON s.ip = h.ip
-		WHERE %s AND %s
-		ORDER BY s.detected_at DESC
-		LIMIT ?`, hostWhere, svcWhere)
-
-	args := append(hostArgs, svcArgs...)
-	args = append(args, limit)
+	var query string
+	var args []any
+	switch dataType {
+	case "hosts":
+		query = fmt.Sprintf(`
+			SELECT h.ip FROM hosts h
+			WHERE %s
+			ORDER BY h.last_scan DESC
+			LIMIT ? OFFSET ?`, hostWhere)
+		args = append(append([]any{}, hostArgs...), limit, offset)
+	case "services":
+		query = fmt.Sprintf(`
+			SELECT s.ip, s.port FROM services s
+			INNER JOIN hosts h ON s.ip = h.ip
+			WHERE %s AND %s
+			ORDER BY s.detected_at DESC
+			LIMIT ? OFFSET ?`, hostWhere, svcWhere)
+		args = append(append(append([]any{}, hostArgs...), svcArgs...), limit, offset)
+	case "certificates":
+		certWhere, certArgs := api.certExportWhere(c)
+		query = fmt.Sprintf(`
+			SELECT c.fingerprint_sha256 FROM certificates c
+			WHERE %s
+			ORDER BY c.last_seen DESC
+			LIMIT ? OFFSET ?`, certWhere)
+		args = append(append([]any{}, certArgs...), limit, offset)
+	case "domains":
+		query = fmt.Sprintf(`
+			SELECT hd.domain FROM host_domains hd
+			INNER JOIN hosts h ON h.ip = hd.ip
+			WHERE %s
+			GROUP BY hd.domain
+			ORDER BY hd.domain ASC
+			LIMIT ? OFFSET ?`, hostWhere)
+		args = append(append([]any{}, hostArgs...), limit, offset)
+	}
 
 	rows, err := api.db.Query(query, args...)
 	if err != nil {
@@ -234,74 +292,108 @@ func (api *API) exportServicesTxt(c *gin.Context, limit int) {
 	defer rows.Close()
 
 	c.Header("Content-Type", "text/plain; charset=utf-8")
-	var sb strings.Builder
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.txt", dataType))
+	c.Status(200)
+	w := c.Writer
+
 	for rows.Next() {
-		var ip string
-		var port int
-		if err := rows.Scan(&ip, &port); err != nil {
+		if dataType == "services" {
+			var ip string
+			var port int
+			if err := rows.Scan(&ip, &port); err != nil {
+				continue
+			}
+			fmt.Fprintf(w, "%s:%d\n", ip, port)
 			continue
 		}
-		fmt.Fprintf(&sb, "%s:%d\n", ip, port)
+		var val sql.NullString
+		if err := rows.Scan(&val); err != nil {
+			continue
+		}
+		if val.Valid && val.String != "" {
+			fmt.Fprintf(w, "%s\n", val.String)
+		}
 	}
-	c.String(200, sb.String())
 }
 
-// writeCSV writes data as CSV response
+// writeCSV writes data as a CSV response using encoding/csv, which handles
+// header rows and field quoting/escaping (commas, quotes, newlines) per RFC 4180.
+// Rows are flushed to the response writer as they are written.
 func (api *API) writeCSV(c *gin.Context, dataType string, data []gin.H) {
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.csv", dataType))
+	c.Status(200)
 
-	var sb strings.Builder
+	w := csv.NewWriter(c.Writer)
+	defer w.Flush()
 
 	switch dataType {
 	case "hosts":
-		sb.WriteString("ip,country_code,city,asn,as_org,cloud_provider,cloud_type,ports\n")
+		_ = w.Write([]string{"ip", "country_code", "city", "asn", "as_org", "cloud_provider", "cloud_type", "ports"})
 		for _, h := range data {
-			// Build ports string from services
 			var ports []string
 			if svcs, ok := h["services"].([]gin.H); ok {
 				for _, svc := range svcs {
-					ports = append(ports, fmt.Sprintf("%v", svc["port"]))
+					ports = append(ports, csvStr(svc["port"]))
 				}
 			}
-			fmt.Fprintf(&sb, "%s,%s,%s,%s,%s,%s,%s,%s\n",
-				csvEscape(h["ip"]), csvEscape(h["country_code"]), csvEscape(h["city"]),
-				csvEscape(h["asn"]), csvEscape(h["as_org"]),
-				csvEscape(h["cloud_provider"]), csvEscape(h["cloud_type"]),
-				csvEscape(strings.Join(ports, " ")))
+			_ = w.Write([]string{
+				csvStr(h["ip"]), csvStr(h["country_code"]), csvStr(h["city"]),
+				csvStr(h["asn"]), csvStr(h["as_org"]),
+				csvStr(h["cloud_provider"]), csvStr(h["cloud_type"]),
+				strings.Join(ports, " "),
+			})
 		}
 	case "services":
-		sb.WriteString("ip,port,service,product,version\n")
+		_ = w.Write([]string{"ip", "port", "service", "product", "version", "banner", "country_code", "cloud_provider"})
 		for _, s := range data {
-			fmt.Fprintf(&sb, "%s,%s,%s,%s,%s\n",
-				csvEscape(s["ip"]), csvEscape(s["port"]),
-				csvEscape(s["service"]), csvEscape(s["product"]), csvEscape(s["version"]))
+			_ = w.Write([]string{
+				csvStr(s["ip"]), csvStr(s["port"]), csvStr(s["service"]),
+				csvStr(s["product"]), csvStr(s["version"]), csvStr(s["banner"]),
+				csvStr(s["country_code"]), csvStr(s["cloud_provider"]),
+			})
 		}
 	case "certificates":
-		sb.WriteString("fingerprint,subject_cn,issuer_cn,not_after\n")
+		_ = w.Write([]string{"fingerprint_sha256", "subject_cn", "subject_org", "issuer_cn", "issuer_org", "names", "not_before", "not_after", "serial_number", "is_self_signed", "is_ca", "host_count"})
 		for _, cert := range data {
-			fmt.Fprintf(&sb, "%s,%s,%s,%s\n",
-				csvEscape(cert["fingerprint"]), csvEscape(cert["subject_cn"]),
-				csvEscape(cert["issuer_cn"]), csvEscape(cert["not_after"]))
+			_ = w.Write([]string{
+				csvStr(cert["fingerprint_sha256"]), csvStr(cert["subject_cn"]), csvStr(cert["subject_org"]),
+				csvStr(cert["issuer_cn"]), csvStr(cert["issuer_org"]), csvStr(cert["names"]),
+				csvStr(cert["not_before"]), csvStr(cert["not_after"]), csvStr(cert["serial_number"]),
+				csvStr(cert["is_self_signed"]), csvStr(cert["is_ca"]), csvStr(cert["host_count"]),
+			})
+		}
+	case "domains":
+		_ = w.Write([]string{"domain", "ips", "source", "ip_count"})
+		for _, d := range data {
+			_ = w.Write([]string{
+				csvStr(d["domain"]), csvStr(d["ips"]), csvStr(d["source"]), csvStr(d["ip_count"]),
+			})
 		}
 	}
-
-	c.String(200, sb.String())
 }
 
-// csvEscape formats a value for CSV output, quoting if necessary
-func csvEscape(v any) string {
-	if v == nil {
+// csvStr converts an arbitrary cell value to its CSV string form. Slices are
+// space-joined; nil becomes empty. Quoting/escaping is handled by encoding/csv.
+func csvStr(v any) string {
+	switch x := v.(type) {
+	case nil:
 		return ""
+	case string:
+		return x
+	case []string:
+		return strings.Join(x, " ")
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	default:
+		return fmt.Sprintf("%v", x)
 	}
-	s := fmt.Sprintf("%v", v)
-	if strings.ContainsAny(s, ",\"\n\r") {
-		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
-	}
-	return s
 }
 
-func (api *API) exportHosts(c *gin.Context, limit int) ([]gin.H, error) {
+func (api *API) exportHosts(c *gin.Context, limit, offset int) ([]gin.H, error) {
 	hostWhere, hostArgs, svcWhere, svcArgs := api.buildExportFilters(c)
 
 	query := fmt.Sprintf(`
@@ -309,9 +401,9 @@ func (api *API) exportHosts(c *gin.Context, limit int) ([]gin.H, error) {
 		FROM hosts h
 		WHERE %s
 		ORDER BY h.last_scan DESC
-		LIMIT ?`, hostWhere)
+		LIMIT ? OFFSET ?`, hostWhere)
 
-	rows, err := api.db.Query(query, append(hostArgs, limit)...)
+	rows, err := api.db.Query(query, append(append([]any{}, hostArgs...), limit, offset)...)
 	if err != nil {
 		return nil, err
 	}
@@ -363,14 +455,19 @@ func (api *API) exportHosts(c *gin.Context, limit int) ([]gin.H, error) {
 	}
 	svcQueryArgs = append(svcQueryArgs, svcArgs...)
 
+	// Join hosts so a host-level svcWhere (e.g. from a MeowQL query like
+	// "country:GB", compiled service-centric to reference alias h) resolves.
+	// Without the join the query errors and every host loses its ports.
 	svcQuery := fmt.Sprintf(`
 		SELECT s.ip, s.port, s.service, s.product, s.version
 		FROM services s
+		INNER JOIN hosts h ON h.ip = s.ip
 		WHERE s.ip IN (%s) AND %s
 		ORDER BY s.port ASC`, strings.Join(placeholders, ","), svcWhere)
 
 	svcRows, err := api.db.Query(svcQuery, svcQueryArgs...)
 	if err != nil {
+		log.Warn().Err(err).Msg("exportHosts: services sub-fetch failed; hosts returned without ports")
 		return hosts, nil
 	}
 	defer svcRows.Close()
@@ -396,19 +493,20 @@ func (api *API) exportHosts(c *gin.Context, limit int) ([]gin.H, error) {
 	return hosts, nil
 }
 
-func (api *API) exportServices(c *gin.Context, limit int) ([]gin.H, error) {
+func (api *API) exportServices(c *gin.Context, limit, offset int) ([]gin.H, error) {
 	hostWhere, hostArgs, svcWhere, svcArgs := api.buildExportFilters(c)
 
 	query := fmt.Sprintf(`
-		SELECT s.ip, s.port, s.service, s.product, s.version
+		SELECT s.ip, s.port, s.service, s.product, s.version, s.banner,
+		       h.country_code, h.cloud_provider
 		FROM services s
 		INNER JOIN hosts h ON s.ip = h.ip
 		WHERE %s AND %s
 		ORDER BY s.detected_at DESC
-		LIMIT ?`, hostWhere, svcWhere)
+		LIMIT ? OFFSET ?`, hostWhere, svcWhere)
 
-	args := append(hostArgs, svcArgs...)
-	args = append(args, limit)
+	args := append(append([]any{}, hostArgs...), svcArgs...)
+	args = append(args, limit, offset)
 
 	rows, err := api.db.Query(query, args...)
 	if err != nil {
@@ -420,9 +518,9 @@ func (api *API) exportServices(c *gin.Context, limit int) ([]gin.H, error) {
 	for rows.Next() {
 		var ip string
 		var port int
-		var service, product, version sql.NullString
+		var service, product, version, banner, countryCode, cloudProvider sql.NullString
 
-		if err := rows.Scan(&ip, &port, &service, &product, &version); err != nil {
+		if err := rows.Scan(&ip, &port, &service, &product, &version, &banner, &countryCode, &cloudProvider); err != nil {
 			continue
 		}
 
@@ -430,6 +528,9 @@ func (api *API) exportServices(c *gin.Context, limit int) ([]gin.H, error) {
 		setIfValid(svc, "service", service)
 		setIfValid(svc, "product", product)
 		setIfValid(svc, "version", version)
+		setIfValid(svc, "banner", banner)
+		setIfValid(svc, "country_code", countryCode)
+		setIfValid(svc, "cloud_provider", cloudProvider)
 
 		services = append(services, svc)
 	}
@@ -440,12 +541,40 @@ func (api *API) exportServices(c *gin.Context, limit int) ([]gin.H, error) {
 	return services, nil
 }
 
-func (api *API) exportCertificates(limit int) ([]gin.H, error) {
-	rows, err := api.db.Query(`
-		SELECT fingerprint_sha256, subject_cn, issuer_cn, not_after
-		FROM certificates
-		ORDER BY last_seen DESC
-		LIMIT ?`, limit)
+// certExportWhere returns a WHERE fragment (and args) scoping certificates to
+// hosts matching the export filters. When no host-level filter is present it
+// returns "1=1" (all certificates). The fragment references the certificate
+// alias `c`.
+func (api *API) certExportWhere(c *gin.Context) (string, []any) {
+	hostWhere, hostArgs, _, _ := api.buildExportFilters(c)
+	if hostWhere == "1=1" {
+		return "1=1", nil
+	}
+	where := `EXISTS (
+		SELECT 1 FROM service_certificates sc
+		INNER JOIN hosts h ON h.ip = sc.ip
+		WHERE sc.cert_fingerprint = c.fingerprint_sha256 AND ` + hostWhere + `)`
+	return where, hostArgs
+}
+
+func (api *API) exportCertificates(c *gin.Context, limit, offset int) ([]gin.H, error) {
+	certWhere, certArgs := api.certExportWhere(c)
+
+	query := fmt.Sprintf(`
+		SELECT c.fingerprint_sha256, c.subject_cn, c.subject_org,
+		       c.issuer_cn, c.issuer_org, c.names,
+		       c.not_before, c.not_after, c.serial_number,
+		       c.is_self_signed, c.is_ca,
+		       c.public_key_bits, c.public_key_algorithm, c.signature_algorithm,
+		       c.host_count
+		FROM certificates c
+		WHERE %s
+		ORDER BY c.host_count DESC, c.not_after DESC
+		LIMIT ? OFFSET ?`, certWhere)
+
+	args := append(append([]any{}, certArgs...), limit, offset)
+
+	rows, err := api.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -453,17 +582,42 @@ func (api *API) exportCertificates(limit int) ([]gin.H, error) {
 
 	var certs []gin.H
 	for rows.Next() {
-		var fingerprint string
-		var subjectCN, issuerCN sql.NullString
-		var notAfter sql.NullInt64
+		var (
+			fingerprint                       string
+			subjectCN, subjectOrg             sql.NullString
+			issuerCN, issuerOrg, names        sql.NullString
+			serialNumber, pubKeyAlgo, sigAlgo sql.NullString
+			notBefore, notAfter, pubKeyBits   sql.NullInt64
+			isSelfSigned, isCA, hostCount     int
+		)
 
-		if err := rows.Scan(&fingerprint, &subjectCN, &issuerCN, &notAfter); err != nil {
+		if err := rows.Scan(
+			&fingerprint, &subjectCN, &subjectOrg,
+			&issuerCN, &issuerOrg, &names,
+			&notBefore, &notAfter, &serialNumber,
+			&isSelfSigned, &isCA,
+			&pubKeyBits, &pubKeyAlgo, &sigAlgo,
+			&hostCount,
+		); err != nil {
 			continue
 		}
 
-		cert := gin.H{"fingerprint": fingerprint}
+		cert := gin.H{
+			"fingerprint_sha256": fingerprint,
+			"is_self_signed":     isSelfSigned == 1,
+			"is_ca":              isCA == 1,
+			"host_count":         hostCount,
+		}
 		setIfValid(cert, "subject_cn", subjectCN)
+		setIfValid(cert, "subject_org", subjectOrg)
 		setIfValid(cert, "issuer_cn", issuerCN)
+		setIfValid(cert, "issuer_org", issuerOrg)
+		setIfValid(cert, "names", names)
+		setIfValid(cert, "serial_number", serialNumber)
+		setIfValid(cert, "public_key_algorithm", pubKeyAlgo)
+		setIfValid(cert, "signature_algorithm", sigAlgo)
+		setIfValidInt(cert, "public_key_bits", pubKeyBits)
+		setIfValidInt(cert, "not_before", notBefore)
 		setIfValidInt(cert, "not_after", notAfter)
 
 		certs = append(certs, cert)
@@ -473,6 +627,57 @@ func (api *API) exportCertificates(limit int) ([]gin.H, error) {
 	}
 
 	return certs, nil
+}
+
+// exportDomains exports domains discovered per host (host_domains table), scoped
+// by the export filters at the host level. Each row aggregates the distinct IPs
+// and discovery sources for a domain.
+func (api *API) exportDomains(c *gin.Context, limit, offset int) ([]gin.H, error) {
+	hostWhere, hostArgs, _, _ := api.buildExportFilters(c)
+
+	query := fmt.Sprintf(`
+		SELECT hd.domain,
+		       GROUP_CONCAT(DISTINCT hd.ip) AS ips,
+		       GROUP_CONCAT(DISTINCT hd.source) AS sources,
+		       COUNT(DISTINCT hd.ip) AS ip_count
+		FROM host_domains hd
+		INNER JOIN hosts h ON h.ip = hd.ip
+		WHERE %s
+		GROUP BY hd.domain
+		ORDER BY ip_count DESC, hd.domain ASC
+		LIMIT ? OFFSET ?`, hostWhere)
+
+	args := append(append([]any{}, hostArgs...), limit, offset)
+
+	rows, err := api.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var domains []gin.H
+	for rows.Next() {
+		var domain string
+		var ips, sources sql.NullString
+		var ipCount int
+
+		if err := rows.Scan(&domain, &ips, &sources, &ipCount); err != nil {
+			continue
+		}
+
+		d := gin.H{"domain": domain, "ip_count": ipCount}
+		if ips.Valid && ips.String != "" {
+			d["ips"] = strings.Split(ips.String, ",")
+		}
+		setIfValid(d, "source", sources)
+
+		domains = append(domains, d)
+	}
+	if err := rows.Err(); err != nil {
+		return domains, err
+	}
+
+	return domains, nil
 }
 
 // getDebugStats returns debug statistics including NATS and database info

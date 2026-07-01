@@ -129,7 +129,7 @@ func (h *mcpHandler) registerTools(s *server.MCPServer) {
 		mcp.WithString("query", mcp.Description("MeowQL filter (optional, exports all if empty)")),
 		mcp.WithString("type",
 			mcp.Description("Output format"),
-			mcp.Enum("ip_list", "services", "hosts")),
+			mcp.Enum("ip_list", "services", "hosts", "domains")),
 		mcp.WithNumber("limit", mcp.Description("Max entries (default 1000, max 10000)")),
 	), h.handleExport)
 
