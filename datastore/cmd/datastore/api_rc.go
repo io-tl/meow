@@ -69,6 +69,21 @@ _mw_hdr() { [[ -t 1 ]] && printf "${_mw_b}${_mw_c}%s${_mw_0}\n" "$1" || printf "
 _mw_dim() { [[ -t 1 ]] && printf "${_mw_d}%s${_mw_0}\n" "$1" || printf "%s\n" "$1"; }
 _mw_err() { printf "${_mw_r}error:${_mw_0} %s\n" "$1" >&2; }
 
+# _mw_more_notice <shown> <limit> <page> [total]
+# Hints (on stderr, so piped stdout stays clean) that more results exist than
+# were displayed. With a known total it reports how many remain; without one it
+# infers truncation from a full page (shown == limit).
+_mw_more_notice() {
+    local shown="$1" limit="$2" page="${3:-1}" total="${4:-}"
+    (( limit <= 0 )) && return 0
+    if [[ -n "$total" ]]; then
+        local seen=$(( (page - 1) * limit + shown ))
+        (( total > seen )) && _mw_dim "  +$((total - seen)) more ($total total) — use -n <N> or -p <page>" >&2
+    elif (( shown >= limit )); then
+        _mw_dim "  more results available — raise the limit with -n <N>" >&2
+    fi
+}
+
 # ── main dispatcher ──────────────────────────────────────────────────────────
 
 mw() {
@@ -76,7 +91,7 @@ mw() {
     local _mw_global_limit="" _mw_global_json=0
     while [[ "${1:-}" == -* ]]; do
         case "$1" in
-            -n|--limit) _mw_global_limit="$2"; shift 2 ;;
+            -n|--limit) _mw_global_limit="$2"; shift 2 2>/dev/null || shift ;;
             --json)     _mw_global_json=1; shift ;;
             -h|--help)  _mw_help; return ;;
             *)          break ;;
@@ -124,13 +139,13 @@ mw() {
 # ── search ───────────────────────────────────────────────────────────────────
 
 _mw_search() {
-    local mode="" count=0 limit=50 page=1 raw=0
+    local mode="" count=0 limit=100 page=1 raw=0
     while [[ "${1:-}" == -* ]]; do
         case "$1" in
             -s|--services) mode="services"; shift ;;
             -c|--count)    count=1; shift ;;
-            -n|--limit)    limit="$2"; shift 2 ;;
-            -p|--page)     page="$2"; shift 2 ;;
+            -n|--limit)    limit="$2"; shift 2 2>/dev/null || shift ;;
+            -p|--page)     page="$2"; shift 2 2>/dev/null || shift ;;
             --json)        raw=1; shift ;;
             -h|--help)
                 cat <<'EOF'
@@ -139,7 +154,7 @@ Usage: mw search [-s] [-c] [-n limit] [-p page] <MeowQL query>
 Options:
   -s, --services   service-centric results (shows ports, banners, products)
   -c, --count      print only the result count
-  -n, --limit N    max results (default: 50)
+  -n, --limit N    max results (default: 100)
   -p, --page  N    page number
   --json           raw JSON output
 
@@ -149,7 +164,7 @@ Examples:
   mw search -c 'port:22'
 EOF
                 return ;;
-            *) shift ;;
+            *) break ;;
         esac
     done
 
@@ -177,18 +192,22 @@ EOF
 
     if [[ "$mode" == "services" ]]; then
         local total=$(echo "$result" | _mw_raw '.total // 0')
+        local shown=$(echo "$result" | _mw_raw '.services // [] | length')
         _mw_hdr "Services: $total results (page $page)"
         echo "$result" | _mw_raw '
             .services // [] | .[] |
             "\(.ip):\(.port)\t\(.service // "-")\t\(.product // "")\(.version // "" | if . != "" then " "+. else "" end)\t\(.country_code // "")\t\(.http_title // .banner // "" | .[0:60])"
         ' | column -t -s $'\t'
+        _mw_more_notice "$shown" "$limit" "$page" "$total"
     else
         local total=$(echo "$result" | _mw_raw '.total // 0')
+        local shown=$(echo "$result" | _mw_raw '.hosts // [] | length')
         _mw_hdr "Hosts: $total results (page $page)"
         echo "$result" | _mw_raw '
             .hosts // [] | .[] |
             "\(.ip)\t\(.country_code // "")\t\(.as_org // "" | .[0:30])\t\(.cloud_provider // "")\tports:\(.open_ports_count // 0)"
         ' | column -t -s $'\t'
+        _mw_more_notice "$shown" "$limit" "$page" "$total"
     fi
 }
 
@@ -199,7 +218,7 @@ _mw_host() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --json)        raw=1; shift ;;
-            -n|--limit)    shift 2 ;; # ignored for host
+            -n|--limit)    shift 2 2>/dev/null || shift ;; # ignored for host
             -h|--help)
                 cat <<'EOF'
 Usage: mw host <ip>
@@ -274,13 +293,13 @@ EOF
 # ── services ─────────────────────────────────────────────────────────────────
 
 _mw_services() {
-    local query="" service="" product="" limit=50 page=1 raw=0
+    local query="" service="" product="" limit=100 page=1 raw=0
     while [[ "${1:-}" == -* ]]; do
         case "$1" in
-            -s|--service) service="$2"; shift 2 ;;
-            -P|--product) product="$2"; shift 2 ;;
-            -n|--limit)   limit="$2"; shift 2 ;;
-            -p|--page)    page="$2"; shift 2 ;;
+            -s|--service) service="$2"; shift 2 2>/dev/null || shift ;;
+            -P|--product) product="$2"; shift 2 2>/dev/null || shift ;;
+            -n|--limit)   limit="$2"; shift 2 2>/dev/null || shift ;;
+            -p|--page)    page="$2"; shift 2 2>/dev/null || shift ;;
             --json)       raw=1; shift ;;
             -h|--help)
                 cat <<'EOF'
@@ -291,7 +310,7 @@ Search services across all hosts.
 Options:
   -s, --service NAME   filter by service name (ssh, http, etc.)
   -P, --product NAME   filter by product name
-  -n, --limit N        max results (default: 50)
+  -n, --limit N        max results (default: 100)
   -p, --page N         page number
   --json               raw JSON output
 
@@ -301,7 +320,7 @@ Examples:
   mw services -s http -P Apache
 EOF
                 return ;;
-            *) shift ;;
+            *) break ;;
         esac
     done
     query="$*"
@@ -317,32 +336,36 @@ EOF
     if [[ $raw -eq 1 ]]; then echo "$result" | _mw_json '.'; return; fi
 
     _mw_hdr "Services"
+    local shown=$(echo "$result" | _mw_raw '.services // [] | length')
     echo "$result" | _mw_raw '
         .services // [] | .[] |
         "\(.ip):\(.port)\t\(.service // "-")\t\(.product // "")\(.version // "" | if . != "" then " "+. else "" end)\t\(.country_code // "")\t\(.banner // "" | .[0:50] | gsub("[\n\r\t]+"; " "))"
     ' | column -t -s $'\t'
+    _mw_more_notice "$shown" "$limit" "$page"
 }
 
 # ── certs ────────────────────────────────────────────────────────────────────
 
 _mw_certs() {
-    local query="" subject="" issuer="" limit=50 raw=0
+    local query="" subject="" issuer="" limit=100 page=1 raw=0
     while [[ "${1:-}" == -* ]]; do
         case "$1" in
-            -s|--subject) subject="$2"; shift 2 ;;
-            -i|--issuer)  issuer="$2"; shift 2 ;;
-            -n|--limit)   limit="$2"; shift 2 ;;
+            -s|--subject) subject="$2"; shift 2 2>/dev/null || shift ;;
+            -i|--issuer)  issuer="$2"; shift 2 2>/dev/null || shift ;;
+            -n|--limit)   limit="$2"; shift 2 2>/dev/null || shift ;;
+            -p|--page)    page="$2"; shift 2 2>/dev/null || shift ;;
             --json)       raw=1; shift ;;
             -h|--help)
                 cat <<'EOF'
-Usage: mw certs [-s subject] [-i issuer] [-n limit] [query]
+Usage: mw certs [-s subject] [-i issuer] [-n limit] [-p page] [query]
 
 Search TLS certificates.
 
 Options:
   -s, --subject CN   filter by subject CN (supports wildcards)
   -i, --issuer NAME  filter by issuer
-  -n, --limit N      max results (default: 50)
+  -n, --limit N      max results (default: 100)
+  -p, --page N       page number
   --json             raw JSON output
 
 Examples:
@@ -351,12 +374,12 @@ Examples:
   mw certs example
 EOF
                 return ;;
-            *) shift ;;
+            *) break ;;
         esac
     done
     query="$*"
 
-    local -a params=(-d "limit=$limit")
+    local -a params=(-d "limit=$limit" -d "page=$page")
     [[ -n "$query" ]]   && params+=(--data-urlencode "q=$query")
     [[ -n "$subject" ]] && params+=(--data-urlencode "subject=$subject")
     [[ -n "$issuer" ]]  && params+=(--data-urlencode "issuer=$issuer")
@@ -367,22 +390,25 @@ EOF
     if [[ $raw -eq 1 ]]; then echo "$result" | _mw_json '.'; return; fi
 
     _mw_hdr "Certificates"
+    local total=$(echo "$result" | _mw_raw '.total // 0')
+    local shown=$(echo "$result" | _mw_raw '.certificates // [] | length')
     printf "  ${_mw_d}%-40s %-30s %-5s %s${_mw_0}\n" "SUBJECT" "ISSUER" "HOSTS" "SELF"
     echo "$result" | _mw_raw '
         .certificates // [] | .[] |
         "  \(.subject_cn // "?" | .[0:38])\t\(.issuer_cn // "?" | .[0:28])\t\(.host_count // 0)\t\(if .is_self_signed then "yes" else "" end)"
     ' | column -t -s $'\t'
+    _mw_more_notice "$shown" "$limit" "$page" "$total"
 }
 
 # ── domains ──────────────────────────────────────────────────────────────────
 
 _mw_domains() {
-    local query="" protocol="" limit=50 page=1 raw=0
+    local query="" protocol="" limit=100 page=1 raw=0
     while [[ "${1:-}" == -* ]]; do
         case "$1" in
-            -P|--protocol) protocol="$2"; shift 2 ;;
-            -n|--limit)    limit="$2"; shift 2 ;;
-            -p|--page)     page="$2"; shift 2 ;;
+            -P|--protocol) protocol="$2"; shift 2 2>/dev/null || shift ;;
+            -n|--limit)    limit="$2"; shift 2 2>/dev/null || shift ;;
+            -p|--page)     page="$2"; shift 2 2>/dev/null || shift ;;
             --json)        raw=1; shift ;;
             -h|--help)
                 cat <<'EOF'
@@ -393,7 +419,7 @@ shows services for that specific domain.
 
 Options:
   -P, --protocol PROTO   filter by protocol (http, https, etc.)
-  -n, --limit N          max results (default: 50)
+  -n, --limit N          max results (default: 100)
   -p, --page N           page number
   --json                 raw JSON output
 
@@ -403,7 +429,7 @@ Examples:
   mw domains corp                  # search "corp" in domains
 EOF
                 return ;;
-            *) shift ;;
+            *) break ;;
         esac
     done
     query="$*"
@@ -416,11 +442,14 @@ EOF
         }
         if [[ $raw -eq 1 ]]; then echo "$result" | _mw_json '.'; return; fi
         _mw_hdr "Services for $query"
+        local total=$(echo "$result" | _mw_raw '.total // 0')
+        local shown=$(echo "$result" | _mw_raw '.services // [] | length')
         printf "  ${_mw_d}%-22s %-8s %-14s %-5s %s${_mw_0}\n" "ENDPOINT" "PROTO" "SERVER" "CODE" "TITLE"
         echo "$result" | _mw_raw '
             .services // [] | .[] |
             "  \(.ip):\(.port)\t\(.protocol // "-")\t\(.server // "")\t\(.status_code // "")\t\(.title // "" | .[0:40] | gsub("[\n\r\t]+"; " "))"
         ' | column -t -s $'\t'
+        _mw_more_notice "$shown" "$limit" "$page" "$total"
         return
     fi
 
@@ -434,6 +463,8 @@ EOF
     if [[ $raw -eq 1 ]]; then echo "$result" | _mw_json '.'; return; fi
 
     _mw_hdr "Domains"
+    local total=$(echo "$result" | _mw_raw '.total // 0')
+    local shown=$(echo "$result" | _mw_raw '.domains // [] | length')
     printf "  ${_mw_d}%-35s %-40s %-12s %s${_mw_0}\n" "DOMAIN" "IPS" "PROTO" "SVCS"
     echo "$result" | _mw_raw '
         .domains // [] | .[] |
@@ -441,33 +472,36 @@ EOF
         (if (.ip_count // 0) > 3 then $iplist + " (+\(.ip_count - 3))" else $iplist end) as $ips |
         "  \(.domain)\t\($ips)\t\(.protocols // "")\t\(.services_count)"
     ' | column -t -s $'\t'
+    _mw_more_notice "$shown" "$limit" "$page" "$total"
 }
 
 # ── export ───────────────────────────────────────────────────────────────────
 
 _mw_export() {
-    local format="json" dtype="hosts" limit=1000
+    local format="json" dtype="hosts" limit=1000 page=1
     local country="" port="" service="" asn="" cloud="" tech=""
     while [[ "${1:-}" == -* ]]; do
         case "$1" in
-            -f|--format)  format="$2"; shift 2 ;;
-            -t|--type)    dtype="$2"; shift 2 ;;
-            -n|--limit)   limit="$2"; shift 2 ;;
-            --country)    country="$2"; shift 2 ;;
-            --port)       port="$2"; shift 2 ;;
-            --service)    service="$2"; shift 2 ;;
-            --asn)        asn="$2"; shift 2 ;;
-            --cloud)      cloud="$2"; shift 2 ;;
-            --tech)       tech="$2"; shift 2 ;;
+            -f|--format)  format="$2"; shift 2 2>/dev/null || shift ;;
+            -t|--type)    dtype="$2"; shift 2 2>/dev/null || shift ;;
+            -n|--limit)   limit="$2"; shift 2 2>/dev/null || shift ;;
+            -p|--page)    page="$2"; shift 2 2>/dev/null || shift ;;
+            --country)    country="$2"; shift 2 2>/dev/null || shift ;;
+            --port)       port="$2"; shift 2 2>/dev/null || shift ;;
+            --service)    service="$2"; shift 2 2>/dev/null || shift ;;
+            --asn)        asn="$2"; shift 2 2>/dev/null || shift ;;
+            --cloud)      cloud="$2"; shift 2 2>/dev/null || shift ;;
+            --tech)       tech="$2"; shift 2 2>/dev/null || shift ;;
             -h|--help)
                 cat <<'EOF'
-Usage: mw export [-f json|csv|txt] [-t hosts|services|certificates] [-n limit]
+Usage: mw export [-f json|csv|txt] [-t hosts|services|certificates|domains] [-n limit]
        [--country XX] [--port N] [--service ssh] [--asn N] [--cloud aws] [query]
 
 Options:
   -f, --format FMT   output format: json (default), csv, txt
-  -t, --type TYPE    data type: hosts (default), services, certificates
+  -t, --type TYPE    data type: hosts (default), services, certificates, domains
   -n, --limit N      max results (default: 1000)
+  -p, --page N       page number
   --country CODE     filter by country
   --port N           filter by port
   --service NAME     filter by service
@@ -475,18 +509,22 @@ Options:
   --cloud NAME       filter by cloud provider
   --tech NAME        filter by technology
 
+  txt format is type-aware: hosts->ip, services->ip:port,
+  certificates->fingerprint, domains->domain.
+
 Examples:
   mw export -f csv -t services 'port:443'
+  mw export -f csv -t domains --country FR
   mw export --country FR --service ssh
-  mw export -f txt 'port:22'       # same as mw ips
+  mw export -f txt -t services 'port:22'   # ip:port list (same as mw ips)
 EOF
                 return ;;
-            *) shift ;;
+            *) break ;;
         esac
     done
     local query="$*"
 
-    local -a params=(-d "format=$format" -d "type=$dtype" -d "limit=$limit")
+    local -a params=(-d "format=$format" -d "type=$dtype" -d "limit=$limit" -d "page=$page")
     [[ -n "$query" ]]   && params+=(--data-urlencode "q=$query")
     [[ -n "$country" ]] && params+=(--data-urlencode "country=$country")
     [[ -n "$port" ]]    && params+=(-d "port=$port")
@@ -512,12 +550,12 @@ _mw_ips() {
     local country="" port="" service="" asn="" cloud=""
     while [[ "${1:-}" == -* ]]; do
         case "$1" in
-            -n|--limit)  limit="$2"; shift 2 ;;
-            --country)   country="$2"; shift 2 ;;
-            --port)      port="$2"; shift 2 ;;
-            --service)   service="$2"; shift 2 ;;
-            --asn)       asn="$2"; shift 2 ;;
-            --cloud)     cloud="$2"; shift 2 ;;
+            -n|--limit)  limit="$2"; shift 2 2>/dev/null || shift ;;
+            --country)   country="$2"; shift 2 2>/dev/null || shift ;;
+            --port)      port="$2"; shift 2 2>/dev/null || shift ;;
+            --service)   service="$2"; shift 2 2>/dev/null || shift ;;
+            --asn)       asn="$2"; shift 2 2>/dev/null || shift ;;
+            --cloud)     cloud="$2"; shift 2 2>/dev/null || shift ;;
             -h|--help)
                 cat <<'EOF'
 Usage: mw ips [-n limit] [--country XX] [--port N] [--service ssh] [query]
@@ -538,12 +576,12 @@ Examples:
   mw ips 'port:22' | wc -l
 EOF
                 return ;;
-            *) shift ;;
+            *) break ;;
         esac
     done
     local query="$*"
 
-    local -a params=(-d "format=txt" -d "limit=$limit")
+    local -a params=(-d "format=txt" -d "type=services" -d "limit=$limit")
     [[ -n "$query" ]]   && params+=(--data-urlencode "q=$query")
     [[ -n "$country" ]] && params+=(--data-urlencode "country=$country")
     [[ -n "$port" ]]    && params+=(-d "port=$port")
@@ -561,9 +599,9 @@ _mw_stats() {
     while [[ "${1:-}" == -* ]]; do
         case "$1" in
             --json)     raw=1; shift ;;
-            -n|--limit) shift 2 ;; # ignored for stats
+            -n|--limit) shift 2 2>/dev/null || shift ;; # ignored for stats
             -h|--help)  echo "Usage: mw stats [--json]"; return ;;
-            *)          shift ;;
+            *)          break ;;
         esac
     done
 
@@ -604,9 +642,9 @@ _mw_status() {
     while [[ "${1:-}" == -* ]]; do
         case "$1" in
             --json)     raw=1; shift ;;
-            -n|--limit) shift 2 ;; # ignored for status
+            -n|--limit) shift 2 2>/dev/null || shift ;; # ignored for status
             -h|--help)  echo "Usage: mw status [--json]"; return ;;
-            *)          shift ;;
+            *)          break ;;
         esac
     done
 
@@ -668,7 +706,7 @@ _mw_dns() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --json)     raw=1; shift ;;
-            -n|--limit) shift 2 ;; # ignored for dns
+            -n|--limit) shift 2 2>/dev/null || shift ;; # ignored for dns
             -h|--help)
                 cat <<'EOF'
 Usage: mw dns [--json] <domain|ip>
@@ -704,9 +742,9 @@ _mw_facets() {
     while [[ "${1:-}" == -* ]]; do
         case "$1" in
             --json)     raw=1; shift ;;
-            -n|--limit) shift 2 ;; # ignored for facets
+            -n|--limit) shift 2 2>/dev/null || shift ;; # ignored for facets
             -h|--help)  echo "Usage: mw facets [--json]"; return ;;
-            *)          shift ;;
+            *)          break ;;
         esac
     done
 
@@ -739,11 +777,11 @@ _mw_geomap() {
     local country="" query="" port="" service="" asn="" cloud="" raw=0
     while [[ "${1:-}" == -* ]]; do
         case "$1" in
-            -c|--country) country="$2"; shift 2 ;;
-            --port)       port="$2"; shift 2 ;;
-            --service)    service="$2"; shift 2 ;;
-            --asn)        asn="$2"; shift 2 ;;
-            --cloud)      cloud="$2"; shift 2 ;;
+            -c|--country) country="$2"; shift 2 2>/dev/null || shift ;;
+            --port)       port="$2"; shift 2 2>/dev/null || shift ;;
+            --service)    service="$2"; shift 2 2>/dev/null || shift ;;
+            --asn)        asn="$2"; shift 2 2>/dev/null || shift ;;
+            --cloud)      cloud="$2"; shift 2 2>/dev/null || shift ;;
             --json)       raw=1; shift ;;
             -h|--help)
                 cat <<'EOF'
@@ -765,7 +803,7 @@ Examples:
   mw geomap --service ssh          # SSH worldwide
 EOF
                 return ;;
-            *) shift ;;
+            *) break ;;
         esac
     done
     query="$*"
@@ -822,11 +860,12 @@ EOF
 
 _mw_scan() {
     local target="" ports="1-1000" rate=1000
-    while [[ "${1:-}" == -* ]]; do
+    # Single pass over all args so flags work before AND after the target.
+    while [[ $# -gt 0 ]]; do
         case "$1" in
-            -p|--ports) ports="$2"; shift 2 ;;
-            -r|--rate)  rate="$2"; shift 2 ;;
-            -n|--limit) shift 2 ;; # ignored for scan
+            -p|--ports) ports="$2"; shift 2 2>/dev/null || shift ;;
+            -r|--rate)  rate="$2"; shift 2 2>/dev/null || shift ;;
+            -n|--limit) shift 2 2>/dev/null || shift ;; # ignored for scan
             --json)     shift ;;   # scan always outputs json
             -h|--help)
                 cat <<'EOF'
@@ -843,17 +882,27 @@ Examples:
   mw scan -p 1-65535 -r 5000 192.168.1.0/24
 EOF
                 return ;;
-            *) shift ;;
+            -*) _mw_err "unknown option: $1"; return 1 ;;
+            *)  target="$1"; shift ;;
         esac
     done
-    target="$1"
 
     if [[ -z "$target" ]]; then
         _mw_err "target required"; echo "  mw scan <target>" >&2; return 1
     fi
+    if ! [[ "$rate" =~ ^[0-9]+$ ]]; then
+        _mw_err "rate must be a positive integer"; return 1
+    fi
+
+    # Build the JSON body with jq so target/ports can't break out of the string.
+    local body
+    body=$(jq -n --arg target "$target" --arg ports "$ports" --argjson rate "$rate" \
+        '{target: $target, ports: $ports, rate_limit: $rate}') || {
+        _mw_err "failed to build request body"; return 1
+    }
 
     local result
-    result=$(_mw_post "/scan" -d "{\"target\":\"$target\",\"ports\":\"$ports\",\"rate_limit\":$rate}") || {
+    result=$(_mw_post "/scan" -d "$body") || {
         _mw_err "scan submission failed"; return 1
     }
     echo "$result" | _mw_json '.'
@@ -864,7 +913,7 @@ EOF
 _mw_count() {
     while [[ "${1:-}" == -* ]]; do
         case "$1" in
-            -n|--limit) shift 2 ;; # ignored for count
+            -n|--limit) shift 2 2>/dev/null || shift ;; # ignored for count
             --json)     shift ;;   # count always outputs a number
             -h|--help)
                 cat <<'EOF'
@@ -877,7 +926,7 @@ Examples:
   mw count 'country:FR and service:http'
 EOF
                 return ;;
-            *) shift ;;
+            *) break ;;
         esac
     done
     if [[ -z "$1" ]]; then
@@ -973,16 +1022,16 @@ _mw_complete() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
 
     if [[ $COMP_CWORD -eq 1 ]]; then
-        COMPREPLY=($(compgen -W "search host services certs domains export ips stats status dns facets geomap scan count help s h svc c d x ip geo --json" -- "$cur"))
+        COMPREPLY=($(compgen -W "search host services certs domains export ips stats status dns facets geomap scan count help s h svc c d x ip geo -n --limit --json -h --help" -- "$cur"))
         return
     fi
 
     case "${COMP_WORDS[1]}" in
         search|s)     COMPREPLY=($(compgen -W "-s -c -n -p --services --count --limit --page --json" -- "$cur")) ;;
         services|svc) COMPREPLY=($(compgen -W "-s -P -n -p --service --product --limit --page --json" -- "$cur")) ;;
-        certs|c)      COMPREPLY=($(compgen -W "-s -i -n --subject --issuer --limit --json" -- "$cur")) ;;
+        certs|c)      COMPREPLY=($(compgen -W "-s -i -n -p --subject --issuer --limit --page --json" -- "$cur")) ;;
         domains|d)    COMPREPLY=($(compgen -W "-P -n -p --protocol --limit --page --json" -- "$cur")) ;;
-        export|x)     COMPREPLY=($(compgen -W "-f -t -n --format --type --limit --country --port --service --asn --cloud --tech" -- "$cur")) ;;
+        export|x)     COMPREPLY=($(compgen -W "-f -t -n -p --format --type --limit --page --country --port --service --asn --cloud --tech" -- "$cur")) ;;
         ips|ip)       COMPREPLY=($(compgen -W "-n --limit --country --port --service --asn --cloud" -- "$cur")) ;;
         geomap|geo)   COMPREPLY=($(compgen -W "-c --country --port --service --asn --cloud --json" -- "$cur")) ;;
         scan)         COMPREPLY=($(compgen -W "-p -r --ports --rate" -- "$cur")) ;;

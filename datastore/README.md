@@ -1,4 +1,4 @@
-# 🐱 Meow Datastore
+# 🐈‍⬛ Datastore 
 
 **Central hub of the Meow network scanner** — Embedded NATS server, SQLite storage, REST API and Web UI.
 
