@@ -1,0 +1,76 @@
+name: release
+
+# Cross-compile the three binaries with `make dist` (Docker/BuildKit) and
+# publish them as assets on a GitHub Release.
+#
+# Triggers:
+#   - pushing a version tag:  git tag v0.1.0 && git push origin v0.1.0
+#   - manual run from the Actions tab (workflow_dispatch), supplying the tag
+#
+# `make dist` produces ./dist/<os-arch>/<binaries> for:
+#   linux-amd64, linux-arm64, darwin-amd64, darwin-arm64, windows-amd64
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create (e.g. v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve release tag
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ github.event.inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Build all platforms (make dist)
+        run: make dist
+
+      - name: Package archives
+        run: |
+          set -euo pipefail
+          tag="${{ steps.meta.outputs.tag }}"
+          mkdir -p release
+          for dir in dist/*/; do
+            platform="$(basename "$dir")"
+            case "$platform" in
+              windows-*)
+                (cd "$dir" && zip -r -X "$GITHUB_WORKSPACE/release/meow-${tag}-${platform}.zip" .)
+                ;;
+              *)
+                tar -czf "release/meow-${tag}-${platform}.tar.gz" -C "$dir" .
+                ;;
+            esac
+          done
+          (cd release && sha256sum * > SHA256SUMS.txt)
+          ls -la release
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.meta.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --title "${{ steps.meta.outputs.tag }}" \
+            --generate-notes \
+            release/*
