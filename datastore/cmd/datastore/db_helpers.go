@@ -69,7 +69,8 @@ func (db *DB) getTableCounts() (hosts, services, certs int64, err error) {
 }
 
 // getEnrichmentStatusCounts returns enrichment status counts from the services table.
-// Uses SUM(CASE) to return all counts in a single row instead of GROUP BY.
+// Uses scalar COUNT subqueries so the result always has one row, even when
+// services is empty.
 func (db *DB) getEnrichmentStatusCounts() (enriched, pending, failed, skipped int, err error) {
 	err = db.QueryRowLogged(`
 		SELECT
@@ -77,8 +78,6 @@ func (db *DB) getEnrichmentStatusCounts() (enriched, pending, failed, skipped in
 			(SELECT COUNT(*) FROM services WHERE enrichment_status = 'pending'),
 			(SELECT COUNT(*) FROM services WHERE enrichment_status = 'failed'),
 			(SELECT COUNT(*) FROM services WHERE enrichment_status = 'skipped')
-		FROM services
-		LIMIT 1
 	`).Scan(&enriched, &pending, &failed, &skipped)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to get enrichment status counts")

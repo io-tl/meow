@@ -41,10 +41,13 @@ type NetBIOSNSModule struct {
 }
 
 func init() {
+	// nbtstat name-table module (UDP 137 + TCP 139 session probe).
+	// It intentionally does NOT claim "netbios-ssn": that service name is
+	// emitted for SMB on 139/445 and is handled by the SMB module (smb.go).
 	Register(&NetBIOSModule{
 		BaseModule: NewBaseModule(
-			"netbios-ssn",
-			[]string{"netbios"},
+			"netbios",
+			[]string{},
 			true, // Should enrich
 			10*time.Second,
 		),

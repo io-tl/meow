@@ -119,7 +119,10 @@ func init() {
 	Register(&SMBModule{
 		BaseModule: NewBaseModule(
 			"smb",
-			[]string{"microsoft-ds"},
+			// netbios-ssn is the service name nmap-service-probes assigns to
+			// SMB on 139/445; it must route to this module, not to the nbtstat
+			// name-service module (see netbios.go).
+			[]string{"microsoft-ds", "netbios-ssn"},
 			true, // Should enrich
 			15*time.Second,
 		),

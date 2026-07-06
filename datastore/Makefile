@@ -42,10 +42,10 @@ fmt:
 	go fmt ./...
 
 run:
-	go run $(CMD) -verbose
+	go run $(CMD) --debug
 
 run-dev:
-	go run $(CMD) -verbose -nats-mode=embedded -nats-auth-mode=none -api-port=8090
+	go run $(CMD) --debug --api-port=8090
 
 help:
 	@echo "Targets:"
