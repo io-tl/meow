@@ -758,6 +758,16 @@ code { font-family: var(--mono); }
 .d-svc-info { font-size: 11px; color: var(--text-muted); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .d-svc-body { padding: 10px 12px; font-size: 12px; }
 .d-svc-body .d-grid { font-size: 12px; grid-template-columns: 110px 1fr; }
+.d-screenshot {
+  display: block;
+  margin-top: 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  line-height: 0;
+}
+.d-screenshot img { display: block; width: 100%; height: auto; max-height: 260px; object-fit: contain; }
 .kv-json {
   margin-top: 8px;
   font-family: var(--mono);

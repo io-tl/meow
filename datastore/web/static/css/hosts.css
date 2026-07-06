@@ -868,6 +868,31 @@
     overflow-y: auto;
 }
 
+/* Captured screenshots (vnc / rdp / x11) */
+.enrichment-screenshot {
+    display: inline-block;
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--bg-tertiary);
+    line-height: 0;
+    max-width: 100%;
+    transition: border-color 0.15s ease;
+}
+
+.enrichment-screenshot:hover {
+    border-color: var(--accent-primary);
+}
+
+.enrichment-screenshot img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    max-height: 320px;
+    object-fit: contain;
+    image-rendering: auto;
+}
+
 .enrichment-value.status-2xx {
     color: var(--success);
 }

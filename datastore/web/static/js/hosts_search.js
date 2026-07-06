@@ -872,6 +872,21 @@ class MeowHostSearch {
         `;
     }
 
+    // Render a screenshot captured during enrichment (vnc/rdp/x11)
+    makeScreenshot(label, value) {
+        // Accept either a full data URL or a raw base64 PNG payload
+        if (!value || typeof value !== 'string') return '';
+        const src = value.startsWith('data:') ? value : `data:image/png;base64,${value}`;
+        return `
+            <div class="enrichment-row">
+                <span class="enrichment-label">${this.escapeHtml(label)}</span>
+                <a class="enrichment-screenshot" href="${this.escapeHtml(src)}" target="_blank" rel="noopener noreferrer">
+                    <img src="${this.escapeHtml(src)}" alt="${this.escapeHtml(label)}" loading="lazy">
+                </a>
+            </div>
+        `;
+    }
+
     // Render a complete section
     makeSection(title, rows) {
         if (!rows || rows.length === 0) return '';
@@ -948,6 +963,9 @@ class MeowHostSearch {
                     if (field.renderer && this[field.renderer]) {
                         rendered = this[field.renderer](field, value, data);
                     }
+                    break;
+                case 'screenshot':
+                    rendered = this.makeScreenshot(field.label, value);
                     break;
             }
 

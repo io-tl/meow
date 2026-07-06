@@ -214,8 +214,14 @@
     // enrichment scalar summary
     const ed = parseJSON(s.enrichment_data);
     if (ed && typeof ed === 'object') {
-      const entries = Object.entries(ed).filter(([, v]) => v !== null && v !== '' && typeof v !== 'object').slice(0, 8);
+      const SKIP_KEYS = new Set(['screenshot', 'screenshot_format']);
+      const entries = Object.entries(ed).filter(([k, v]) => !SKIP_KEYS.has(k) && v !== null && v !== '' && typeof v !== 'object').slice(0, 8);
       if (entries.length) body += `<div class="d-grid" style="margin-top:8px">${entries.map(([k, v]) => kvRow(k, String(v))).join('')}</div>`;
+      // captured screenshot (vnc / rdp / x11)
+      if (typeof ed.screenshot === 'string' && ed.screenshot) {
+        const src = ed.screenshot.startsWith('data:') ? ed.screenshot : `data:image/png;base64,${ed.screenshot}`;
+        body += `<a class="d-screenshot" href="${esc(src)}" target="_blank" rel="noopener noreferrer"><img src="${esc(src)}" alt="Screenshot" loading="lazy"></a>`;
+      }
     }
     // SNI enrichments (per-domain)
     (s.enrichments || []).forEach((en) => {

@@ -1130,6 +1130,12 @@ class MeowQueryPage {
         return `<div class="enrichment-row"><span class="enrichment-label">${this.escapeHtml(label)}</span><div class="enrichment-tags">${items.map(item => `<span class="enrichment-tag ${tagClass}">${this.escapeHtml(String(item))}</span>`).join('')}</div></div>`;
     }
 
+    makeScreenshot(label, value) {
+        if (!value || typeof value !== 'string') return '';
+        const src = value.startsWith('data:') ? value : `data:image/png;base64,${value}`;
+        return `<div class="enrichment-row"><span class="enrichment-label">${this.escapeHtml(label)}</span><a class="enrichment-screenshot" href="${this.escapeHtml(src)}" target="_blank" rel="noopener noreferrer"><img src="${this.escapeHtml(src)}" alt="${this.escapeHtml(label)}" loading="lazy"></a></div>`;
+    }
+
     makeSection(title, rows) {
         if (!rows || rows.length === 0) return '';
         return `<div class="enrichment-section"><div class="enrichment-title">${title}</div><div class="enrichment-grid">${rows.join('')}</div></div>`;
@@ -1170,6 +1176,9 @@ class MeowQueryPage {
                     break;
                 case 'custom':
                     if (field.renderer && this[field.renderer]) rendered = this[field.renderer](field, value, data);
+                    break;
+                case 'screenshot':
+                    rendered = this.makeScreenshot(field.label, value);
                     break;
             }
             if (rendered) rows.push(rendered);

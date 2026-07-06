@@ -99,7 +99,27 @@ const SERVICE_RENDERERS = {
                 getter: (data) => data?.width && data?.height ? `${data.width}x${data.height}` : null
             },
             { key: 'authentication_required', type: 'bool', label: 'Auth Required' },
-            { key: 'security_types', type: 'tags', label: 'Security Types' }
+            { key: 'security_types', type: 'tags', label: 'Security Types' },
+            { key: 'screenshot', type: 'screenshot', label: 'Screenshot' }
+        ]
+    },
+
+    x11: {
+        title: 'X11',
+        match: (name, data) => name === 'x11' || data?.protocol === 'x11',
+        fields: [
+            { key: 'version', type: 'inline', label: 'Version' },
+            { key: 'vendor', type: 'inline', label: 'Vendor' },
+            {
+                key: 'resolution',
+                type: 'inline',
+                label: 'Resolution',
+                getter: (data) => data?.width && data?.height ? `${data.width}x${data.height}` : null
+            },
+            { key: 'screens', type: 'inline', label: 'Screens' },
+            { key: 'auth_required', type: 'bool', label: 'Auth Required' },
+            { key: 'auth_methods', type: 'tags', label: 'Auth Methods', tagClass: 'info' },
+            { key: 'screenshot', type: 'screenshot', label: 'Screenshot' }
         ]
     },
 
@@ -165,7 +185,8 @@ const SERVICE_RENDERERS = {
             { key: 'dns_computer_name', type: 'inline', label: 'DNS Computer Name' },
             { key: 'security_protocol', type: 'inline', label: 'Security' },
             { key: 'tls_version', type: 'inline', label: 'TLS Version', getter: (data) => data?.tls?.version },
-            { key: 'tls_cipher', type: 'inline', label: 'Cipher Suite', getter: (data) => data?.tls?.cipher_suite }
+            { key: 'tls_cipher', type: 'inline', label: 'Cipher Suite', getter: (data) => data?.tls?.cipher_suite },
+            { key: 'screenshot', type: 'screenshot', label: 'Screenshot' }
         ]
     },
 
